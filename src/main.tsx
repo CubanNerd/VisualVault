@@ -2244,6 +2244,12 @@ class VaultApp extends HTMLElement {
                     </svg>
                     <span>Rename</span>
                   </button>
+                  <button id="btn-delete-active-board" class="p-1 px-1.5 text-slate-500 hover:text-rose-400 rounded hover:bg-white/5 transition inline-flex items-center gap-1 cursor-pointer font-mono text-[9px] font-bold uppercase tracking-wider select-none shrink-0" title="Delete this Folder/Board">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                    <span>Delete</span>
+                  </button>
                 </div>
                 <p id="board-desc" class="text-xs text-slate-500 font-mono">Local subdirectory scan synced inside catalog.db cache</p>
               </div>
@@ -2926,8 +2932,12 @@ class VaultApp extends HTMLElement {
     }
 
     const btnRename = this.querySelector('#btn-rename-board') as HTMLElement | null;
+    const btnDeleteActive = this.querySelector('#btn-delete-active-board') as HTMLElement | null;
     if (btnRename) {
       btnRename.style.display = this.selectedBoard === 'ALL' ? 'none' : 'inline-flex';
+    }
+    if (btnDeleteActive) {
+      btnDeleteActive.style.display = this.selectedBoard === 'ALL' ? 'none' : 'inline-flex';
     }
 
     this.renderBoardNavigation();
@@ -2967,7 +2977,14 @@ class VaultApp extends HTMLElement {
             ${isActive ? activeFolderIcon : idleFolderIcon}
             <span class="truncate">${displayLabel}</span>
           </div>
-          <span class="text-[9px] font-mono opacity-50 bg-black/40 px-1.5 py-0.5 rounded-full border border-white/5">${this.assets.filter(a => a.board === board).length}</span>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button data-delete-board="${board}" class="delete-board-btn text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 p-0.5 rounded opacity-0 group-hover:opacity-100 transition duration-150 cursor-pointer" title="Delete Board Folder">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </button>
+            <span class="text-[9px] font-mono opacity-50 bg-black/40 px-1.5 py-0.5 rounded-full border border-white/5">${this.assets.filter(a => a.board === board).length}</span>
+          </div>
         </div>
       `;
     }).join('');
@@ -3080,15 +3097,22 @@ class VaultApp extends HTMLElement {
           <!-- Board description -->
           <div class="flex flex-col text-left">
             <!-- Title and counts -->
-            <div class="flex items-center justify-between">
-              <span class="font-semibold text-sm text-slate-100 group-hover:text-emerald-400 transition truncate pr-2" title="${displayLabel}">
+            <div class="flex items-center justify-between gap-1.5">
+              <span class="font-semibold text-sm text-slate-100 group-hover:text-emerald-400 transition truncate flex-grow mr-1" title="${displayLabel}">
                 ${displayLabel}
               </span>
-              <span class="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5 tracking-tight shrink-0 font-semibold shadow-inner font-mono">
-                ${query && matchingAssets.length !== boardAssets.length 
-                  ? `${matchingAssets.length}/${boardAssets.length} pins` 
-                  : `${boardAssets.length} files`}
-              </span>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button data-delete-board="${board}" class="main-delete-board-btn text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer" title="Delete Board Folder">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                </button>
+                <span class="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5 tracking-tight shrink-0 font-semibold shadow-inner font-mono">
+                  ${query && matchingAssets.length !== boardAssets.length 
+                    ? `${matchingAssets.length}/${boardAssets.length} pins` 
+                    : `${boardAssets.length} files`}
+                </span>
+              </div>
             </div>
             
             <!-- Full virtual Board Path breadcrumb -->
@@ -3411,6 +3435,15 @@ class VaultApp extends HTMLElement {
       });
     }
 
+    const btnDeleteActive = this.querySelector('#btn-delete-active-board');
+    if (btnDeleteActive) {
+      btnDeleteActive.addEventListener('click', () => {
+        if (this.selectedBoard && this.selectedBoard !== 'ALL') {
+          this.deleteBoard(this.selectedBoard);
+        }
+      });
+    }
+
     // Board creation input trigger
     const addBoardBtn = this.querySelector('#add-board-btn');
     const newBoardIn = this.querySelector('#new-board-name') as HTMLInputElement;
@@ -3480,6 +3513,16 @@ class VaultApp extends HTMLElement {
     if (listsDiv) {
       listsDiv.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
+        
+        // Intercept delete board button clicks
+        const deleteBtn = target.closest('[data-delete-board]');
+        if (deleteBtn) {
+          e.stopPropagation();
+          const boardToDelete = (deleteBtn as HTMLElement).dataset.deleteBoard || '';
+          this.deleteBoard(boardToDelete);
+          return;
+        }
+
         const link = target.closest('.board-link') as HTMLElement;
         if (link) {
           const targetBoard = link.dataset.board || '';
@@ -3544,6 +3587,15 @@ class VaultApp extends HTMLElement {
     if (masonryDiv) {
       masonryDiv.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
+
+        // Intercept board card delete button clicks
+        const deleteBtn = target.closest('[data-delete-board]');
+        if (deleteBtn) {
+          e.stopPropagation();
+          const boardToDelete = (deleteBtn as HTMLElement).dataset.deleteBoard || '';
+          this.deleteBoard(boardToDelete);
+          return;
+        }
 
         // If currently in visual Boards list mode, intercept Board clicks to drill down!
         if (this.selectedBoard === 'ALL') {
@@ -4396,8 +4448,13 @@ class VaultApp extends HTMLElement {
       actionObsidian.addEventListener('click', () => {
         const mdPath = `${this.selectedBoard.replace(/^\//,'')}/${asset.name.replace(/\.[a-z]+$/, '.md')}`;
         const obsidianUri = `obsidian://open?vault=${encodeURIComponent(storage.getVaultPath().split('/').pop() || 'Vault')}&file=${encodeURIComponent(mdPath)}`;
-        this.addLog('info', `Firing Electron desk command: ${obsidianUri}`);
-        this.toast('Obsidian Fired', `Simulated local workspace command trigger executed for ${asset.name.replace(/\.[a-z]+$/,'')}`);
+        this.addLog('info', `Firing Obsidian desk command: ${obsidianUri}`);
+        this.toast('Obsidian Fired', `Launching Obsidian for ${asset.name.replace(/\.[a-z]+$/,'')}...`);
+        try {
+          window.location.href = obsidianUri;
+        } catch (err) {
+          console.error('Failed to trigger Obsidian protocol handler', err);
+        }
       });
     }
   }
@@ -4505,6 +4562,54 @@ class VaultApp extends HTMLElement {
     if (heading) heading.textContent = formattedPath;
 
     this.toast('New Board Created', `Empty sub-board synced mapping to ${formattedPath}`);
+  }
+
+  private deleteBoard(boardName: string) {
+    if (!boardName || boardName === 'ALL') return;
+
+    if (confirm(`Are you sure you want to delete the board "${boardName}"?`)) {
+      const deleteFiles = confirm(
+        `Would you also like to delete all reference files currently inside "${boardName}"?\n\n` +
+        `- Click OK (Yes) to delete both the board and its files.\n` +
+        `- Click Cancel (No) to delete the board but keep the files in the vault folder.`
+      );
+
+      // 1. Update the custom created boards list for the current vault
+      const vaultPath = storage.getVaultPath();
+      const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      const allBoards = this.getUniqueBoards();
+      const updatedBoards = allBoards.filter(b => b !== boardName);
+      localStorage.setItem(customKey, JSON.stringify(updatedBoards));
+
+      // 2. Handle associated files (assets)
+      if (deleteFiles) {
+        // Delete both the board mapping and the physical reference files representing the assets
+        const fileCount = this.assets.filter(a => a.board === boardName).length;
+        this.assets = this.assets.filter(a => a.board !== boardName);
+        storage.saveAllAssets(this.assets);
+        this.addLog('success', `Wiped board "${boardName}" and deleted all ${fileCount} reference files from vault.`);
+        this.toast('Board & Files Deleted', `Deleted board "${boardName}" and ${fileCount} files.`);
+      } else {
+        // Delete board only: files remain in the vault folder at the root level ("/")
+        let movedCount = 0;
+        this.assets.forEach(a => {
+          if (a.board === boardName) {
+            a.board = '/';
+            movedCount++;
+          }
+        });
+        storage.saveAllAssets(this.assets);
+        this.addLog('success', `Wiped board "${boardName}". Kept ${movedCount} reference files at the vault root.`);
+        this.toast('Board Deleted (Files Kept)', `Deleted board "${boardName}". ${movedCount} files kept at root.`);
+      }
+
+      // If the deleted board was the currently active selection, reset to 'ALL'
+      if (this.selectedBoard === boardName) {
+        this.selectedBoard = 'ALL';
+      }
+
+      this.updateLayout();
+    }
   }
 
   /**
@@ -5023,8 +5128,13 @@ class VaultApp extends HTMLElement {
       lbActionObsidian.addEventListener('click', () => {
         const mdPath = `${this.selectedBoard.replace(/^\//,'')}/${asset.name.replace(/\.[a-z]+$/, '.md')}`;
         const obsidianUri = `obsidian://open?vault=${encodeURIComponent(storage.getVaultPath().split('/').pop() || 'Vault')}&file=${encodeURIComponent(mdPath)}`;
-        this.addLog('info', `Firing Electron desk command: ${obsidianUri}`);
-        this.toast('Obsidian Fired', `Simulated local workspace command trigger executed for ${asset.name.replace(/\.[a-z]+$/,'')}`);
+        this.addLog('info', `Firing Obsidian desk command: ${obsidianUri}`);
+        this.toast('Obsidian Fired', `Launching Obsidian for ${asset.name.replace(/\.[a-z]+$/,'')}...`);
+        try {
+          window.location.href = obsidianUri;
+        } catch (err) {
+          console.error('Failed to trigger Obsidian protocol handler', err);
+        }
       });
     }
   }
