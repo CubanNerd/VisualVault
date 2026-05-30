@@ -392,6 +392,10 @@ class StorageService {
     } catch (e) {
       console.error('Failed to parse vaults list', e);
     }
+    // If the vaults were cleaned and empty, return empty list
+    if (localStorage.getItem('visual_vaults_cleaned') === 'true') {
+      return [];
+    }
     // Setup elegant default pre-registered vaults for design-crafting demo workspace
     const defaults = [
       { name: 'Design Reference Library', path: '/Users/design/Desktop/Ref_Library', lastOpened: Date.now() },
@@ -412,6 +416,10 @@ class StorageService {
       const activeKey = this.getVaultKey();
       const data = localStorage.getItem(activeKey);
       if (data) return JSON.parse(data);
+
+      if (localStorage.getItem('visual_vaults_cleaned') === 'true') {
+        return [];
+      }
 
       // Migration check path: if we are at default Ref_Library, migrate from old v2 db key
       if (this.getVaultPath() === '/Users/design/Desktop/Ref_Library') {
@@ -451,6 +459,25 @@ class StorageService {
 
   saveAllAssets(assets: Asset[]) {
     localStorage.setItem(this.getVaultKey(), JSON.stringify(assets));
+  }
+
+  wipeAllVaultCaches() {
+    localStorage.setItem('visual_vaults_cleaned', 'true');
+    this.saveAllAssets([]);
+    localStorage.setItem(this.key, JSON.stringify([]));
+    
+    const mockPaths = [
+      '/Users/design/Desktop/Ref_Library',
+      '/Users/design/Desktop/Neo_Tokyo',
+      '/Users/projects/Cyberpunk_Grid',
+      '/Users/blueprints/Mech_Grid'
+    ];
+    for (const p of mockPaths) {
+      const k = `visual_catalog_db_v3_${p.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      localStorage.setItem(k, JSON.stringify([]));
+    }
+
+    localStorage.setItem('visual_vaults_list_v1', JSON.stringify([]));
   }
 
   updateAsset(id: string, updatedFields: Partial<Asset>) {
@@ -605,6 +632,7 @@ class VaultApp extends HTMLElement {
   private customAccentHex = '';
   private activeFont = 'inter';
   private isSettingsOpen = false;
+  private activeSettingsTab: 'vault' | 'general' = 'vault';
 
   // Modern browser File System Access API (Sandbox Directory Sync) properties
   private isSandboxedDirectory = false;
@@ -1573,7 +1601,7 @@ class VaultApp extends HTMLElement {
   private async handleWebDirectoryPicker() {
     const showPicker = (window as any).showDirectoryPicker;
     if (!showPicker) {
-      alert('The File System Access API is not supported in this browser.\nPlease use a modern Chromium browser (Chrome, Edge, Opera, Vivaldi, Arc) or double check that the preview is not sandbox-restricted. Alternative: use our native desktop Electron compilation!');
+      alert('The File System Access API is not supported or is blocked in this browser.\n\n💡 REASONS & QUICK REMEDIES:\n1. IFRAME SANDBOXING: Browsers forbid folder connections inside an iframe preview! Please click "Open in New Tab" at the top-right of your screen to load the fully secure tab where this API is fully unlocked.\n2. BRAVE SHIELDS: Brave blocks the folder picker by default. Click the Lion icon beside the URL address bar and turn Shields OFF for this tab.\n3. SECURE ORIGINS: Ensure you are accessing via HTTPS (or localhost during dev).');
       return;
     }
 
@@ -1632,7 +1660,9 @@ class VaultApp extends HTMLElement {
       } else {
         console.error(err);
         this.addLog('warn', `Sandbox API: Connection failure - ${err.message}`);
-        alert(`Failed to connect local directory folder:\n${err.message}`);
+        
+        let extraRemedies = `\n\n💡 QUICK SOLVER FOR BRAVE & IFRAMES:\n- Open the app in a NEW TAB using the icon top-right. This completely bypasses the browser's sandbox/iframe permission locks.\n- Brave Browser Users: Click the Red Lion "Shields" button in your browser URL bar and toggle "Shields Down" for this site.`;
+        alert(`Failed to connect local directory folder:\n${err.message}${extraRemedies}`);
       }
     }
   }
@@ -1645,11 +1675,18 @@ class VaultApp extends HTMLElement {
     const boardPath = currentBoard ? `/${currentBoard}` : '/';
     
     for await (const entry of dirHandle.values()) {
+      // Avoid processing hidden folders/files (e.g. .git, .obsidian, .trash, .DS_Store, etc.)
+      if (entry.name && entry.name.startsWith('.')) {
+        continue;
+      }
+
       if (entry.kind === 'file') {
         const file = await entry.getFile();
         const ext = file.name.split('.').pop()?.toLowerCase() || '';
         
-        if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) {
+        // Expanded suite of visual reference image extensions
+        const supportedExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp', 'avif', 'tiff', 'jfif', 'heic', 'heif'];
+        if (supportedExtensions.includes(ext)) {
           const id = `web_ref_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
           const fileNameNoExt = file.name.replace(/\.[a-zA-Z0-9]+$/, '');
           const mdFileName = `${fileNameNoExt}.md`;
@@ -1698,7 +1735,8 @@ class VaultApp extends HTMLElement {
           assetsList.push(asset);
 
           // Asynchronously extract exact resolutions and color grids in background to prevent indexing lag
-          this.asynchronouslyLoadAssetDetails(id, file, imageUrl);
+          // Pass the assetsList context to overcome the race condition where `this.assets` has not been assigned yet.
+          this.asynchronouslyLoadAssetDetails(id, file, imageUrl, assetsList);
         }
       } else if (entry.kind === 'directory') {
         try {
@@ -1715,10 +1753,11 @@ class VaultApp extends HTMLElement {
    * Background parser. Reads actual resolution specs and extracts a gorgeous 5-color
    * visual palette key, instantly updating grid cells on-the-fly.
    */
-  private asynchronouslyLoadAssetDetails(id: string, file: File, imageUrl: string) {
+  private asynchronouslyLoadAssetDetails(id: string, file: File, imageUrl: string, listContext?: Asset[]) {
     const img = new Image();
     img.onload = async () => {
-      const asset = this.assets.find(a => a.id === id);
+      const parentList = listContext || this.assets;
+      const asset = parentList.find(a => a.id === id);
       if (asset) {
         asset.resolution = `${img.naturalWidth}x${img.naturalHeight}`;
         
@@ -1799,6 +1838,7 @@ class VaultApp extends HTMLElement {
       }
 
       this.syncSettingsHighlights();
+      this.switchSettingsTab(this.activeSettingsTab);
       this.addLog('info', 'Opened VisualVault configuration control panel.');
     } else {
       backdrop.classList.add('hidden');
@@ -1869,6 +1909,7 @@ class VaultApp extends HTMLElement {
   }
 
   private loadPresetVault(type: 'neotokyo' | 'cybercity' | 'blueprint' | 'characters' | 'all') {
+    localStorage.removeItem('visual_vaults_cleaned');
     const allMocks = defaultMockAssets();
     let loaded: Asset[] = [];
     let boardToSelect = 'ALL';
@@ -1911,6 +1952,28 @@ class VaultApp extends HTMLElement {
     storage.saveAllAssets(this.assets);
     this.updateLayout();
     this.toggleSettings(false); // Close settings panel
+  }
+
+  private switchSettingsTab(tab: 'vault' | 'general') {
+    this.activeSettingsTab = tab;
+    const tabVault = this.querySelector('#settings-tab-vault');
+    const tabGeneral = this.querySelector('#settings-tab-general');
+    const contentVault = this.querySelector('#settings-content-vault');
+    const contentGeneral = this.querySelector('#settings-content-general');
+
+    if (!tabVault || !tabGeneral || !contentVault || !contentGeneral) return;
+
+    if (tab === 'vault') {
+      tabVault.className = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-emerald-400 border-emerald-500 bg-white/[0.02]";
+      tabGeneral.className = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300";
+      contentVault.classList.remove('hidden');
+      contentGeneral.classList.add('hidden');
+    } else {
+      tabGeneral.className = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-emerald-400 border-emerald-500 bg-white/[0.02]";
+      tabVault.className = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300";
+      contentVault.classList.add('hidden');
+      contentGeneral.classList.remove('hidden');
+    }
   }
 
   private handleGlobalKeys = (e: KeyboardEvent) => {
@@ -2489,13 +2552,36 @@ class VaultApp extends HTMLElement {
                 <p class="text-[11px] text-slate-500 leading-relaxed font-sans">
                   Directly synchronize a local folder utilizing secure browser APIs. Scan visual references and save companion <strong>Obsidian .md Frontmatter</strong> back to your computer in real-time!
                 </p>
-                <div class="pt-1 select-none">
+                <div class="pt-1 select-none space-y-2">
                   <button id="btn-web-directory-picker" class="vault-btn w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold rounded transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shadow-md">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
                     </svg>
                     <span>Connect Local Folder</span>
                   </button>
+
+                  <!-- Brave & Iframe Info Block -->
+                  <div class="bg-amber-500/5 hover:bg-amber-500/[0.08] transition duration-200 border border-amber-500/10 rounded-lg p-2.5 mt-2 space-y-1.5 text-left">
+                    <div class="flex items-center gap-1.5 text-amber-400">
+                      <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                      </svg>
+                      <span class="text-[9.5px] font-bold uppercase tracking-wider font-mono">Brave & Iframe Security Lock</span>
+                    </div>
+                    <p class="text-[10px] text-amber-500/80 leading-relaxed font-sans">
+                      By default, Chromium (including <strong>Brave</strong>) blocks the File System Access API inside sandboxed cross-origin pre-rendering iframes (like this preview panel).
+                    </p>
+                    <div class="text-[9.5px] text-slate-400 space-y-1 pt-1.5 border-t border-white/[0.03] font-sans">
+                      <div class="flex items-start gap-1">
+                        <span class="text-amber-400 font-bold">•</span>
+                        <span><strong>Solution 1 (Recommended):</strong> Click the <strong>"Open in New Tab"</strong> button in the very top-right of your AI Studio/IDE window. In a full, top-level browser window, local folder synchronization works instantly!</span>
+                      </div>
+                      <div class="flex items-start gap-1">
+                        <span class="text-amber-400 font-bold">•</span>
+                        <span><strong>Solution 2 (Brave Shields):</strong> If you are already in a top-level tab and Brave rejects it, click the red <strong>Lion logo (Brave Shields)</strong> in your URL bar and toggle shields <strong>"OFF"</strong> for this site, or allow File System Access in site settings.</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2535,208 +2621,251 @@ class VaultApp extends HTMLElement {
             <p class="text-xs text-slate-500 font-mono mt-0.5">Tauri Core Engine & Database Management Interface</p>
           </div>
 
+          <!-- Settings Tab Switchers -->
+          <div class="flex border-b border-white/[0.04] px-6 select-none bg-black/10 gap-2 shrink-0">
+            <button id="settings-tab-vault" class="py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-emerald-400 border-emerald-500 bg-white/[0.02]">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+              </svg>
+              <span>📁 Local selected vaults</span>
+            </button>
+            <button id="settings-tab-general" class="py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+              </svg>
+              <span>⚙️ General app settings</span>
+            </button>
+          </div>
+
           <!-- Settings Scrollable Body -->
-          <div class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-6 text-left">
+          <div class="flex-grow overflow-y-auto custom-scrollbar p-6 text-left">
             
-            <!-- App Version Section -->
-            <div class="space-y-4 pb-6 border-b border-white/[0.04]">
-              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Engine System Diagnostics</label>
-              <div class="grid grid-cols-2 gap-4">
-                <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
-                  <span class="text-slate-500 text-[10px]">Tauri Client Version</span>
-                  <span class="text-white font-semibold">v2.0.4 - stable</span>
-                </div>
-                <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
-                  <span class="text-slate-500 text-[10px]">SQLite Database Sync</span>
-                  <span class="text-emerald-400 font-semibold vault-accent-text">Active (catalog.db)</span>
-                </div>
-                <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
-                  <span class="text-slate-500 text-[10px]">Obsidian API Companion</span>
-                  <span class="text-white">Enabled (v1.5 companion)</span>
-                </div>
-                <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
-                  <span class="text-slate-500 text-[10px]">Indexed Vault Memory</span>
-                  <span class="text-white" id="settings-files-indexed">0 files indexed</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Predefined Visual vaults load -->
-            <div class="space-y-3 pb-6 border-b border-white/[0.04]">
-              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Load Predefined Image Vaults</label>
-              <p class="text-xs text-slate-500 leading-relaxed font-sans">Load predefined image index databases to test color extraction grids, tagging matrix, and responsive designs.</p>
-              
-              <div class="grid grid-cols-2 gap-2.5 pt-1">
-                <button id="load-vault-neotokyo" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
-                  🗼 Neo-Tokyo Arch
-                </button>
-                <button id="load-vault-cybercity" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
-                  🏙️ Cyberpunk Grid
-                </button>
-                <button id="load-vault-blueprint" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
-                  📐 Mech Blueprints
-                </button>
-                <button id="load-vault-characters" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
-                  🥋 Character Concept
-                </button>
-              </div>
-
-              <div class="flex gap-2 pt-2">
-                <button id="load-vault-all" class="vault-btn w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-black rounded text-xs transition font-semibold active:scale-95 cursor-pointer">
-                  ⚡ Sync All Archives Companion (Simulate Full System Pull)
-                </button>
-              </div>
-            </div>
-
-            <!-- Visual Themes Theme-Switcher -->
-            <div class="space-y-3">
-              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Aesthetic UI Theme Engine</label>
-              <p class="text-xs text-slate-500 leading-relaxed font-sans">Instantly skin the client architecture to match various digital workspace workflows.</p>
-              
-              <div class="grid grid-cols-3 gap-3 pt-1">
-                <!-- Theme Button 1: Default -->
-                <button id="theme-btn-default" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#0A0A0B] border-emerald-500/30 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden">
-                  <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400" id="theme-bullet-default"></div>
-                  <span class="text-xs text-white">Default</span>
-                  <span class="text-[10px] text-slate-500 font-normal font-mono mt-1">Obsidian Dark</span>
-                </button>
-
-                <!-- Theme Button 2: Notion Minimalist -->
-                <button id="theme-btn-minimalist" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#F7F7F5] border-neutral-300 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden">
-                  <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#2383E2] hidden" id="theme-bullet-minimalist"></div>
-                  <span class="text-xs text-[#37352F] font-sans">Minimalist</span>
-                  <span class="text-[10px] text-[#787774] font-normal font-mono mt-1">Notion Off-White</span>
-                </button>
-
-                <!-- Theme Button 3: Matrix CRT -->
-                <button id="theme-btn-matrix" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#000000] border-[#00FF41]/45 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden font-mono">
-                  <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#00FF41] hidden" id="theme-bullet-matrix"></div>
-                  <span class="text-xs text-[#00FF41] font-bold">Matrix</span>
-                  <span class="text-[10px] text-[#00FF41]/60 font-normal mt-1">Y2K CRT Console</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Dynamic Accent Color customizer -->
-            <div class="space-y-3 pt-6 border-t border-white/[0.04]">
-              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Aesthetic Accent Color</label>
-              <p class="text-xs text-slate-500 leading-relaxed font-sans">Pick an interface accent color for folders, active buttons, ratings, and highlights.</p>
-              
-              <div class="flex flex-wrap gap-2 pt-1" id="accent-colors-container">
-                <!-- Color pill 1: Emerald -->
-                <button data-accent="emerald" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
-                  <span class="w-3.5 h-3.5 rounded-full bg-[#10B981] flex shrink-0"></span>
-                  <span>Emerald</span>
-                </button>
-                
-                <!-- Color pill 2: Purple -->
-                <button data-accent="purple" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
-                  <span class="w-3.5 h-3.5 rounded-full bg-[#7F6DF2] flex shrink-0"></span>
-                  <span>Obsidian Purple</span>
-                </button>
-
-                <!-- Color pill 3: Blue -->
-                <button data-accent="blue" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
-                  <span class="w-3.5 h-3.5 rounded-full bg-[#2383E2] flex shrink-0"></span>
-                  <span>Blue</span>
-                </button>
-
-                <!-- Color pill 4: Orange -->
-                <button data-accent="orange" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
-                  <span class="w-3.5 h-3.5 rounded-full bg-[#F97316] flex shrink-0"></span>
-                  <span>Orange</span>
-                </button>
-
-                <!-- Color pill 5: Amber -->
-                <button data-accent="amber" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
-                  <span class="w-3.5 h-3.5 rounded-full bg-[#F59E0B] flex shrink-0"></span>
-                  <span>Amber</span>
-                </button>
-
-                <!-- Color pill 6: Indigo -->
-                <button data-accent="indigo" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
-                  <span class="w-3.5 h-3.5 rounded-full bg-[#6366F1] flex shrink-0"></span>
-                  <span>Indigo</span>
-                </button>
-
-                <!-- Color pill 7: Red -->
-                <button data-accent="red" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
-                  <span class="w-3.5 h-3.5 rounded-full bg-[#EF4444] flex shrink-0"></span>
-                  <span>Ruby</span>
-                </button>
-
-                <!-- Color pill 8: Pink -->
-                <button data-accent="pink" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
-                  <span class="w-3.5 h-3.5 rounded-full bg-[#EC4899] flex shrink-0"></span>
-                  <span>Pink</span>
-                </button>
-
-                <!-- Color pill 9: Custom Customizer Color Wheel Picker -->
-                <button data-accent="custom" id="accent-custom-trigger" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
-                  <span class="w-3.5 h-3.5 rounded-full bg-gradient-to-tr from-rose-500 via-amber-400 to-indigo-500 flex shrink-0" id="custom-accent-color-preview"></span>
-                  <span>Custom Hex</span>
-                </button>
-              </div>
-
-              <!-- Custom hex color-input slider row shown conditionally -->
-              <div class="flex items-center gap-3 bg-black/30 p-3 rounded-lg border border-white/5 max-w-md hidden" id="custom-accent-extra-panel">
-                <input type="color" id="custom-accent-color-picker" class="w-8 h-8 rounded border-none bg-transparent cursor-pointer" title="Choose from color spectrum wheel" />
-                <div class="flex-grow">
-                  <label class="text-[10px] text-slate-500 font-semibold block font-mono">Custom Accent Hex Code</label>
-                  <input type="text" id="custom-accent-hex-input" class="bg-transparent border-none text-xs text-white outline-none font-mono focus:text-[#10B981] w-full" placeholder="#FF5500" value="#FF5500" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Dynamic System Font Selection -->
-            <div class="space-y-3 pt-6 border-t border-white/[0.04]">
-              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">System Typeface</label>
-              <p class="text-xs text-slate-500 leading-relaxed font-sans">Synchronize Obsidian-like vault catalog using advanced Google Fonts or system typefaces.</p>
-              
-              <div class="grid grid-cols-2 gap-2.5 pt-1">
-                <!-- Group 1: Google Web Fonts -->
-                <div class="space-y-1.5 col-span-2">
-                  <span class="text-[9px] uppercase tracking-widest text-slate-600 font-bold font-mono">Google Web Fonts</span>
-                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <button data-font="inter" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 font-sans flex flex-col transition" style="font-family: 'Inter', sans-serif">
-                      <span class="font-bold text-white">Inter Sans</span>
-                      <span class="text-[9px] opacity-60">Classic Swiss/UI Sans</span>
-                    </button>
-                    <button data-font="space-grotesk" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Space Grotesk', sans-serif">
-                      <span class="font-bold text-white">Space Grotesk</span>
-                      <span class="text-[9px] opacity-60">Tech/Sci-Fi Display</span>
-                    </button>
-                    <button data-font="outfit" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Outfit', sans-serif">
-                      <span class="font-bold text-white">Outfit</span>
-                      <span class="text-[9px] opacity-60">Geometric / Clean</span>
-                    </button>
-                    <button data-font="playfair" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Playfair Display', serif">
-                      <span class="font-bold text-white">Playfair Display</span>
-                      <span class="text-[9px] opacity-60">Editorial / Serif</span>
-                    </button>
-                    <button data-font="jetbrains" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'JetBrains Mono', monospace">
-                      <span class="font-bold text-white">JetBrains Mono</span>
-                      <span class="text-[9px] opacity-60">Developer / Technical</span>
-                    </button>
+            <!-- TAB 1: LOCAL SELECTED VAULTS SETTINGS -->
+            <div id="settings-content-vault" class="space-y-6">
+              <!-- App Version Section -->
+              <div class="space-y-4">
+                <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Engine System Diagnostics</label>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
+                    <span class="text-slate-500 text-[10px]">Tauri Client Version</span>
+                    <span class="text-white font-semibold">v2.0.4 - stable</span>
+                  </div>
+                  <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
+                    <span class="text-slate-500 text-[10px]">SQLite Database Sync</span>
+                    <span class="text-emerald-400 font-semibold vault-accent-text">Active (catalog.db)</span>
+                  </div>
+                  <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
+                    <span class="text-slate-500 text-[10px]">Obsidian API Companion</span>
+                    <span class="text-white">Enabled (v1.5 companion)</span>
+                  </div>
+                  <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
+                    <span class="text-slate-500 text-[10px]">Indexed Vault Memory</span>
+                    <span class="text-white" id="settings-files-indexed">0 files indexed</span>
                   </div>
                 </div>
+              </div>
 
-                <!-- Group 2: System/Local Typefaces -->
-                <div class="space-y-1.5 col-span-2 pt-1">
-                  <span class="text-[9px] uppercase tracking-widest text-slate-600 font-bold font-mono">System Typefaces</span>
-                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <button data-font="system" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: system-ui">
-                      <span class="font-bold text-white">System UI Sans</span>
-                      <span class="text-[9px] opacity-60">Native OS performance</span>
-                    </button>
-                    <button data-font="georgia" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: Georgia, serif">
-                      <span class="font-bold text-white">Georgia Serif</span>
-                      <span class="text-[9px] opacity-60">High contrast reading</span>
-                    </button>
-                    <button data-font="courier" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Courier New', monospace">
-                      <span class="font-bold text-white">Courier Classic</span>
-                      <span class="text-[9px] opacity-60">Typewriter mechanical</span>
-                    </button>
+              <!-- Predefined Visual vaults load -->
+              <div class="space-y-3 pt-6 border-t border-white/[0.04]">
+                <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Load Predefined Mock Vaults</label>
+                <p class="text-xs text-slate-500 leading-relaxed font-sans">Index predefined workspace caches to preview metadata-tags grids, Obsidian sync templates, and color-swatch palettes.</p>
+                
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                  <button id="load-vault-neotokyo" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
+                    🗼 Neo-Tokyo Arch
+                  </button>
+                  <button id="load-vault-cybercity" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
+                    🏙️ Cyberpunk Grid
+                  </button>
+                  <button id="load-vault-blueprint" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
+                    📐 Mech Blueprints
+                  </button>
+                  <button id="load-vault-characters" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
+                    🥋 Character Concept
+                  </button>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                  <button id="load-vault-all" class="vault-btn w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-black rounded text-xs transition font-semibold active:scale-95 cursor-pointer">
+                    ⚡ Sync All Archives Companion (Simulate Full System Pull)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Clean / Wipe active catalog -->
+              <div class="space-y-3 p-4 rounded-xl border border-rose-500/10 bg-rose-500/5 pt-4">
+                <div class="flex items-center gap-1.5 text-rose-400">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                  <span class="text-[10px] font-bold uppercase tracking-wider font-mono">Wipe Sample Databases &amp; Assets</span>
+                </div>
+                <p class="text-[11px] text-rose-500/80 leading-relaxed font-sans">
+                  Instantly empty the simulated metadata catalog database, deleting all preset samples, boards, and thumbnail mappings. This clears local storage caches and allows your custom connected directory vaults to load cleanly without demo content.
+                </p>
+                <div class="pt-1.5">
+                  <button id="btn-wipe-sample-vaults" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-semibold rounded text-xs transition active:scale-95 cursor-pointer inline-flex items-center gap-1.5 shadow-md">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    <span>Clean Sample Vault Database</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: GENERAL APP SETTINGS -->
+            <div id="settings-content-general" class="space-y-6 hidden">
+              <!-- Visual Themes Theme-Switcher -->
+              <div class="space-y-3">
+                <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Aesthetic UI Theme Engine</label>
+                <p class="text-xs text-slate-500 leading-relaxed font-sans">Instantly skin the client architecture to match various digital workspace workflows.</p>
+                
+                <div class="grid grid-cols-3 gap-3 pt-1">
+                  <!-- Theme Button 1: Default -->
+                  <button id="theme-btn-default" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#0A0A0B] border-emerald-500/30 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden">
+                    <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400" id="theme-bullet-default"></div>
+                    <span class="text-xs text-white">Default</span>
+                    <span class="text-[10px] text-slate-500 font-normal font-mono mt-1">Obsidian Dark</span>
+                  </button>
+
+                  <!-- Theme Button 2: Notion Minimalist -->
+                  <button id="theme-btn-minimalist" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#F7F7F5] border-neutral-300 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden">
+                    <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#2383E2] hidden" id="theme-bullet-minimalist"></div>
+                    <span class="text-xs text-[#37352F] font-sans">Minimalist</span>
+                    <span class="text-[10px] text-[#787774] font-normal font-mono mt-1">Notion Off-White</span>
+                  </button>
+
+                  <!-- Theme Button 3: Matrix CRT -->
+                  <button id="theme-btn-matrix" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#000000] border-[#00FF41]/45 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden font-mono">
+                    <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#00FF41] hidden" id="theme-bullet-matrix"></div>
+                    <span class="text-xs text-[#00FF41] font-bold">Matrix</span>
+                    <span class="text-[10px] text-[#00FF41]/60 font-normal mt-1">Y2K CRT Console</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Dynamic Accent Color customizer -->
+              <div class="space-y-3 pt-6 border-t border-white/[0.04]">
+                <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Aesthetic Accent Color</label>
+                <p class="text-xs text-slate-500 leading-relaxed font-sans">Pick an interface accent color for folders, active buttons, ratings, and highlights.</p>
+                
+                <div class="flex flex-wrap gap-2 pt-1" id="accent-colors-container">
+                  <!-- Color pill 1: Emerald -->
+                  <button data-accent="emerald" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#10B981] flex shrink-0"></span>
+                    <span>Emerald</span>
+                  </button>
+                  
+                  <!-- Color pill 2: Purple -->
+                  <button data-accent="purple" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#7F6DF2] flex shrink-0"></span>
+                    <span>Obsidian Purple</span>
+                  </button>
+
+                  <!-- Color pill 3: Blue -->
+                  <button data-accent="blue" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#2383E2] flex shrink-0"></span>
+                    <span>Blue</span>
+                  </button>
+
+                  <!-- Color pill 4: Orange -->
+                  <button data-accent="orange" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#F97316] flex shrink-0"></span>
+                    <span>Orange</span>
+                  </button>
+
+                  <!-- Color pill 5: Amber -->
+                  <button data-accent="amber" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#F59E0B] flex shrink-0"></span>
+                    <span>Amber</span>
+                  </button>
+
+                  <!-- Color pill 6: Indigo -->
+                  <button data-accent="indigo" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#6366F1] flex shrink-0"></span>
+                    <span>Indigo</span>
+                  </button>
+
+                  <!-- Color pill 7: Red -->
+                  <button data-accent="red" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#EF4444] flex shrink-0"></span>
+                    <span>Ruby</span>
+                  </button>
+
+                  <!-- Color pill 8: Pink -->
+                  <button data-accent="pink" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#EC4899] flex shrink-0"></span>
+                    <span>Pink</span>
+                  </button>
+
+                  <!-- Color pill 9: Custom Customizer Color Wheel Picker -->
+                  <button data-accent="custom" id="accent-custom-trigger" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-gradient-to-tr from-rose-500 via-amber-400 to-indigo-500 flex shrink-0" id="custom-accent-color-preview"></span>
+                    <span>Custom Hex</span>
+                  </button>
+                </div>
+
+                <!-- Custom hex color-input slider row shown conditionally -->
+                <div class="flex items-center gap-3 bg-black/30 p-3 rounded-lg border border-white/5 max-w-md hidden" id="custom-accent-extra-panel">
+                  <input type="color" id="custom-accent-color-picker" class="w-8 h-8 rounded border-none bg-transparent cursor-pointer" title="Choose from color spectrum wheel" />
+                  <div class="flex-grow">
+                    <label class="text-[10px] text-slate-500 font-semibold block font-mono">Custom Accent Hex Code</label>
+                    <input type="text" id="custom-accent-hex-input" class="bg-transparent border-none text-xs text-white outline-none font-mono focus:text-[#10B981] w-full" placeholder="#FF5500" value="#FF5500" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Dynamic System Font Selection -->
+              <div class="space-y-3 pt-6 border-t border-white/[0.04]">
+                <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">System Typeface</label>
+                <p class="text-xs text-slate-500 leading-relaxed font-sans">Synchronize Obsidian-like vault catalog using advanced Google Fonts or system typefaces.</p>
+                
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                  <!-- Group 1: Google Web Fonts -->
+                  <div class="space-y-1.5 col-span-2">
+                    <span class="text-[9px] uppercase tracking-widest text-slate-600 font-bold font-mono">Google Web Fonts</span>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <button data-font="inter" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 font-sans flex flex-col transition" style="font-family: 'Inter', sans-serif">
+                        <span class="font-bold text-white">Inter Sans</span>
+                        <span class="text-[9px] opacity-60">Classic Swiss/UI Sans</span>
+                      </button>
+                      <button data-font="space-grotesk" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Space Grotesk', sans-serif">
+                        <span class="font-bold text-white">Space Grotesk</span>
+                        <span class="text-[9px] opacity-60">Tech/Sci-Fi Display</span>
+                      </button>
+                      <button data-font="outfit" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Outfit', sans-serif">
+                        <span class="font-bold text-white">Outfit</span>
+                        <span class="text-[9px] opacity-60">Geometric / Clean</span>
+                      </button>
+                      <button data-font="playfair" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Playfair Display', serif">
+                        <span class="font-bold text-white">Playfair Display</span>
+                        <span class="text-[9px] opacity-60">Editorial / Serif</span>
+                      </button>
+                      <button data-font="jetbrains" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'JetBrains Mono', monospace">
+                        <span class="font-bold text-white">JetBrains Mono</span>
+                        <span class="text-[9px] opacity-60">Developer / Technical</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Group 2: System/Local Typefaces -->
+                  <div class="space-y-1.5 col-span-2 pt-1">
+                    <span class="text-[9px] uppercase tracking-widest text-slate-600 font-bold font-mono">System Typefaces</span>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <button data-font="system" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: system-ui">
+                        <span class="font-bold text-white">System UI Sans</span>
+                        <span class="text-[9px] opacity-60">Native OS performance</span>
+                      </button>
+                      <button data-font="georgia" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: Georgia, serif">
+                        <span class="font-bold text-white">Georgia Serif</span>
+                        <span class="text-[9px] opacity-60">High contrast reading</span>
+                      </button>
+                      <button data-font="courier" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Courier New', monospace">
+                        <span class="font-bold text-white">Courier Classic</span>
+                        <span class="text-[9px] opacity-60">Typewriter mechanical</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2747,7 +2876,7 @@ class VaultApp extends HTMLElement {
           <!-- Settings Footer -->
           <div class="p-4 bg-[#0A0A0B]/60 border-t border-white/5 flex justify-end shrink-0 select-none">
             <button id="settings-close-action" class="vault-btn px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs font-semibold uppercase transition tracking-wider cursor-pointer">
-              Apply & Close
+              Apply &amp; Close
             </button>
           </div>
 
@@ -3726,6 +3855,38 @@ class VaultApp extends HTMLElement {
       settingsBackdrop.addEventListener('click', (e) => {
         if (e.target === settingsBackdrop) {
           this.toggleSettings(false);
+        }
+      });
+    }
+
+    // Settings Tab Switchers
+    const tabVault = this.querySelector('#settings-tab-vault');
+    if (tabVault) {
+      tabVault.addEventListener('click', () => {
+        this.switchSettingsTab('vault');
+      });
+    }
+
+    const tabGeneral = this.querySelector('#settings-tab-general');
+    if (tabGeneral) {
+      tabGeneral.addEventListener('click', () => {
+        this.switchSettingsTab('general');
+      });
+    }
+
+    // Wipe / Clean Sample Vaults Database Action
+    const btnWipeSampleVaults = this.querySelector('#btn-wipe-sample-vaults');
+    if (btnWipeSampleVaults) {
+      btnWipeSampleVaults.addEventListener('click', () => {
+        if (confirm('Wipe and clean all sample assets/vaults? This will empty the active asset inventory and clear local storage caches.')) {
+          storage.wipeAllVaultCaches();
+          this.assets = [];
+          this.selectedAssetId = '';
+          this.selectedBoard = 'ALL';
+          this.addLog('success', 'Wiped catalog database cache. Visual vault is now empty and ready for synchronization!');
+          this.updateLayout();
+          this.toggleSettings(false); // Close settings panel
+          this.toast('Vault Cleared', 'All sample references removed!');
         }
       });
     }
