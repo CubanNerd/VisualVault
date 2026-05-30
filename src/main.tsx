@@ -355,6 +355,7 @@ const defaultMockAssets = (): Asset[] => [
 class StorageService {
   private key = 'visual_catalog_db_v2';
   private vaultPathKey = 'visual_catalog_vault_path_v2';
+  public onAssetUpdated?: (asset: Asset) => void;
 
   constructor() {
     this.init();
@@ -458,6 +459,9 @@ class StorageService {
     if (idx !== -1) {
       assets[idx] = { ...assets[idx], ...updatedFields };
       this.saveAllAssets(assets);
+      if (this.onAssetUpdated) {
+        this.onAssetUpdated(assets[idx]);
+      }
       return assets[idx];
     }
     return null;
@@ -602,9 +606,33 @@ class VaultApp extends HTMLElement {
   private activeFont = 'inter';
   private isSettingsOpen = false;
 
+  // Modern browser File System Access API (Sandbox Directory Sync) properties
+  private isSandboxedDirectory = false;
+  private directoryHandle: FileSystemDirectoryHandle | null = null;
+  private fileHandles: Map<string, FileSystemHandle> = new Map();
+  private mdFileHandles: Map<string, FileSystemHandle> = new Map();
+
   constructor() {
     super();
+    
+    // Seed initial boards if they do not exist to support editing and custom renaming of default folders
+    if (!localStorage.getItem('visual_vault_created_boards_list')) {
+      const defaultBoards = [
+        '/ Environment_Ref/Neo_Tokyo',
+         '/ Cyberpunk_City',
+         '/ Mech_Technical',
+         '/ Character_Design'
+      ];
+      localStorage.setItem('visual_vault_created_boards_list', JSON.stringify(defaultBoards));
+    }
+
     this.assets = storage.getAllAssets();
+    
+    // Wire up storage updates tracking observer interface to sync metadata files to disk
+    storage.onAssetUpdated = (asset: Asset) => {
+      this.saveCompanionMDFile(asset);
+    };
+
     this.activeTheme = (localStorage.getItem('visual_vault_active_theme') as 'default' | 'minimalist' | 'matrix') || 'default';
     this.activeAccent = localStorage.getItem('visual_vault_accent_color') || 'emerald';
     this.customAccentHex = localStorage.getItem('visual_vault_custom_accent_hex') || '';
@@ -1348,6 +1376,14 @@ class VaultApp extends HTMLElement {
   private switchVault(newPath: string, name?: string) {
     if (!newPath) return;
 
+    // Direct path routing check for browser-sandboxed local directory vaults
+    if (newPath.startsWith('[web-dir]')) {
+      this.handleWebDirectoryPicker();
+      return;
+    }
+
+    this.isSandboxedDirectory = false;
+
     // 1. Fetch current vaults index history
     let vaults = storage.getVaults();
     
@@ -1389,6 +1425,336 @@ class VaultApp extends HTMLElement {
 
     // 9. Gracefully trigger modal dismiss animation frames
     this.toggleVaultManagerModal(false);
+  }
+
+  /**
+   * Triggers inline input or dynamic folder rename operation.
+   * Updates all associated asset directory locations and saves to LocalStorage.
+   */
+  private triggerRenameBoard() {
+    if (this.selectedBoard === 'ALL') return;
+    
+    const heading = this.querySelector('#board-title-heading') as HTMLElement | null;
+    const renameBtn = this.querySelector('#btn-rename-board') as HTMLElement | null;
+    if (!heading || !renameBtn) return;
+
+    const oldName = this.selectedBoard;
+    
+    // Switch heading to an interactive input field
+    heading.innerHTML = `
+      <input id="board-rename-inline-input" class="bg-black/80 text-white font-semibold text-xl border border-emerald-500/30 rounded px-2.5 py-0.5 outline-none focus:border-emerald-500/60 font-sans tracking-wide max-w-[280px]" value="${oldName}" spellcheck="false" />
+    `;
+    renameBtn.style.display = 'none';
+
+    const input = this.querySelector('#board-rename-inline-input') as HTMLInputElement | null;
+    if (input) {
+      input.focus();
+      input.select();
+
+      let finished = false;
+
+      const finishRename = (cancel: boolean) => {
+        if (finished) return;
+        finished = true;
+
+        let newName = (input.value || '').trim();
+        
+        if (cancel || !newName || newName === oldName) {
+          heading.textContent = oldName;
+          if (this.selectedBoard !== 'ALL') {
+            renameBtn.style.display = 'inline-flex';
+          }
+          return;
+        }
+
+        // Standardize folder/board slashes if desired
+        if (!newName.startsWith('/')) {
+          newName = '/' + newName;
+        }
+
+        // Rename logic
+        this.renameBoardInCatalog(oldName, newName);
+      };
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          finishRename(false);
+        } else if (e.key === 'Escape') {
+          finishRename(true);
+        }
+      });
+
+      input.addEventListener('blur', () => {
+        // Run slightly delayed to avoid intercepting keydowns
+        setTimeout(() => {
+          finishRename(false);
+        }, 150);
+      });
+    }
+  }
+
+  private renameBoardInCatalog(oldName: string, newName: string) {
+    let changeCount = 0;
+
+    // 1. Rename inside standard assets lists and save to catalog caches
+    this.assets.forEach(asset => {
+      if (asset.board === oldName) {
+        asset.board = newName;
+        changeCount++;
+        // Save the update down to LocalStorage vault caches
+        storage.updateAsset(asset.id, { board: newName });
+        
+        // If sandboxed local folder, also sync companion markdown files to match!
+        this.saveCompanionMDFile(asset);
+      }
+    });
+
+    // 2. Rename inside custom created empty boards record list
+    try {
+      const customRaw = localStorage.getItem('visual_vault_created_boards_list');
+      if (customRaw) {
+        let parsed = JSON.parse(customRaw) as string[];
+        const idx = parsed.indexOf(oldName);
+        if (idx !== -1) {
+          parsed[idx] = newName;
+        } else {
+          parsed.push(newName);
+        }
+        localStorage.setItem('visual_vault_created_boards_list', JSON.stringify(parsed));
+      }
+    } catch (e) {
+      console.error('Failed to update serialized custom boards history', e);
+    }
+
+    // 3. Switch selected board state
+    this.selectedBoard = newName;
+
+    this.addLog('success', `Vault Schema: Renamed folder board '${oldName}' to '${newName}'. Successfully updated ${changeCount} references.`);
+    this.toast('Folder Renamed', `Renamed board folder to '${newName}'!`);
+
+    this.updateLayout();
+  }
+
+  /**
+   * Browser-sandboxed local-first file writer. Serializes asset metadata (rating, notes, artist, status, tags)
+   * into a standard Obsidian-compatible frontmatter companion block, and writes it directly to disk
+   * inside the user's real local vault directory.
+   */
+  private async saveCompanionMDFile(asset: Asset) {
+    if (!this.isSandboxedDirectory) return;
+    const fileNameNoExt = asset.name.replace(/\.[a-zA-Z0-9]+$/, '');
+    const mdFileName = `${fileNameNoExt}.md`;
+    
+    try {
+      let mdHandle = this.mdFileHandles.get(asset.id) as any;
+      if (!mdHandle && this.directoryHandle) {
+        mdHandle = await this.directoryHandle.getFileHandle(mdFileName, { create: true });
+        this.mdFileHandles.set(asset.id, mdHandle);
+      }
+      
+      if (mdHandle) {
+        const writable = await mdHandle.createWritable();
+        const yamlContent = stringifyYAMLFrontmatter(asset.metadata);
+        await writable.write(yamlContent);
+        await writable.close();
+        this.addLog('success', `Sandbox API: Wrote real YAML metadata file locally: ${mdFileName}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to write companion .md file', err);
+      this.addLog('warn', `Sandbox API: Failed to write ${mdFileName}. Details: ${err.message}`);
+    }
+  }
+
+  /**
+   * Prompts the user to authorize and connect a local computer directory using the File System Access API.
+   * Scans contents recursively, discovers subfolders as design boards, binds markdown YAML observers,
+   * and loads native previews completely on the client-side.
+   */
+  private async handleWebDirectoryPicker() {
+    const showPicker = (window as any).showDirectoryPicker;
+    if (!showPicker) {
+      alert('The File System Access API is not supported in this browser.\nPlease use a modern Chromium browser (Chrome, Edge, Opera, Vivaldi, Arc) or double check that the preview is not sandbox-restricted. Alternative: use our native desktop Electron compilation!');
+      return;
+    }
+
+    try {
+      const handle = await showPicker({ mode: 'readwrite' });
+      
+      this.addLog('info', `Sandbox API: Connected folder connection link to "${handle.name}".`);
+      this.toast('Syncing Folder', `Reading entries inside "${handle.name}"...`);
+
+      this.isSandboxedDirectory = true;
+      this.directoryHandle = handle;
+      this.fileHandles.clear();
+      this.mdFileHandles.clear();
+
+      const assetsList: Asset[] = [];
+      await this.traverseDirectoryHandle(handle, '', assetsList);
+
+      if (assetsList.length === 0) {
+        this.toast('Empty Directory', 'No image assets (.png, .jpg, .webp, .svg) discovered.');
+      } else {
+        this.toast('Vault Synced', `Successfully indexed ${assetsList.length} local images!`);
+        this.addLog('success', `Sandbox API: Indexed ${assetsList.length} files. Obsidian YAML dual-sync active.`);
+      }
+
+      this.assets = assetsList;
+      this.selectedBoard = 'ALL';
+      this.selectedAssetId = assetsList.length > 0 ? assetsList[0].id : '';
+
+      // Update Path Text input indicator
+      const pathInput = this.querySelector('#vault-path-input') as HTMLInputElement | null;
+      if (pathInput) pathInput.value = `[Connected Local Directory] /${handle.name}`;
+
+      // Persist path reference inside vaults registry list
+      const mockPath = `[web-dir]/${handle.name}`;
+      let vaults = storage.getVaults();
+      let vault = vaults.find(v => v.path === mockPath);
+      if (!vault) {
+        vaults.push({
+          name: `📁 ${handle.name} (Direct Sync)`,
+          path: mockPath,
+          lastOpened: Date.now()
+        });
+      } else {
+        vault.lastOpened = Date.now();
+      }
+      storage.saveVaults(vaults);
+      storage.setVaultPath(mockPath);
+
+      this.updateLayout();
+      this.populateVaultManager();
+      this.toggleVaultManagerModal(false);
+
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        this.addLog('info', 'Sandbox API: Connection cancelled.');
+      } else {
+        console.error(err);
+        this.addLog('warn', `Sandbox API: Connection failure - ${err.message}`);
+        alert(`Failed to connect local directory folder:\n${err.message}`);
+      }
+    }
+  }
+
+  /**
+   * Recursive directory iterator. Maps files to catalog Asset entries,
+   * maps subdirectories to separate Boards categories, and binds associated metadata .md configurations.
+   */
+  private async traverseDirectoryHandle(dirHandle: any, currentBoard: string, assetsList: Asset[]) {
+    const boardPath = currentBoard ? `/${currentBoard}` : '/';
+    
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === 'file') {
+        const file = await entry.getFile();
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        
+        if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) {
+          const id = `web_ref_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+          const fileNameNoExt = file.name.replace(/\.[a-zA-Z0-9]+$/, '');
+          const mdFileName = `${fileNameNoExt}.md`;
+          
+          let metadata: AssetMetadata = {
+            tags: ['Local-Sync', 'Imported'],
+            artist: 'Local Computer',
+            rating: '5',
+            status: 'completed',
+            title: fileNameNoExt.replace(/[-_]/g, ' '),
+            notes: `Natively connected local directory database sync.`
+          };
+
+          // Try and locate associated .md text file inside the active subfolder
+          try {
+            const mdEntry = await dirHandle.getFileHandle(mdFileName);
+            const mdFile = await mdEntry.getFile();
+            const mdText = await mdFile.text();
+            metadata = parseYAMLFrontmatter(mdText, metadata);
+            this.mdFileHandles.set(id, mdEntry);
+          } catch (e) {
+            // Keep fallback defaults if md doesn't exist yet
+          }
+
+          const imageUrl = URL.createObjectURL(file);
+          const size = file.size > 1024 * 1024 
+            ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+            : `${(file.size / 1024).toFixed(0)} KB`;
+
+          const colors = ['#0F0F11', '#1A2B3C', '#10B981', '#1E293B', '#111827'];
+
+          const asset: Asset = {
+            id,
+            name: file.name,
+            board: boardPath,
+            resolution: 'Loading...',
+            size,
+            colors,
+            tags: metadata.tags || [],
+            metadata,
+            imageUrl,
+            lastModified: new Date(file.lastModified).toLocaleString()
+          };
+
+          this.fileHandles.set(id, entry);
+          assetsList.push(asset);
+
+          // Asynchronously extract exact resolutions and color grids in background to prevent indexing lag
+          this.asynchronouslyLoadAssetDetails(id, file, imageUrl);
+        }
+      } else if (entry.kind === 'directory') {
+        try {
+          const subBoardName = currentBoard ? `${currentBoard}/${entry.name}` : entry.name;
+          await this.traverseDirectoryHandle(entry, subBoardName, assetsList);
+        } catch (e) {
+          console.warn('Subdirectory traverse error omitted', e);
+        }
+      }
+    }
+  }
+
+  /**
+   * Background parser. Reads actual resolution specs and extracts a gorgeous 5-color
+   * visual palette key, instantly updating grid cells on-the-fly.
+   */
+  private asynchronouslyLoadAssetDetails(id: string, file: File, imageUrl: string) {
+    const img = new Image();
+    img.onload = async () => {
+      const asset = this.assets.find(a => a.id === id);
+      if (asset) {
+        asset.resolution = `${img.naturalWidth}x${img.naturalHeight}`;
+        
+        try {
+          const palette = await extractColorsFromImage(imageUrl);
+          if (palette && palette.length > 0) {
+            asset.colors = palette;
+          }
+        } catch (e) {
+          console.warn('Asynchronous color extraction failed', e);
+        }
+
+        // Apply instant visual resolution updates to DOM
+        const gridCardRes = this.querySelector(`#res-badge-${id}`);
+        if (gridCardRes) gridCardRes.textContent = asset.resolution;
+
+        // Apply instant visual color swatch updates to DOM
+        const gridCardPalette = this.querySelector(`#palette-${id}`);
+        if (gridCardPalette) {
+          gridCardPalette.innerHTML = asset.colors.map(c => `
+            <div class="h-1 flex-grow animate-pulse" style="background-color: ${c};" title="${c}"></div>
+          `).join('');
+          
+          // Micro-timeout to clear pulsing animation
+          setTimeout(() => {
+            gridCardPalette.querySelectorAll('.animate-pulse').forEach(el => el.classList.remove('animate-pulse'));
+          }, 350);
+        }
+
+        // If this is the currently selected active inspector asset, mirror color palette immediately
+        if (this.selectedAssetId === id) {
+          this.renderInspector();
+        }
+      }
+    };
+    img.src = imageUrl;
   }
 
   private toggleSettings(forceOpen?: boolean) {
@@ -1584,20 +1950,8 @@ class VaultApp extends HTMLElement {
 
   private getUniqueBoards(): string[] {
     const list = new Set<string>();
-    
-    // Add default core reference directories
-    list.add('/ Environment_Ref/Neo_Tokyo');
-    list.add('/ Cyberpunk_City');
-    list.add('/ Mech_Technical');
-    list.add('/ Character_Design');
 
-    this.assets.forEach(a => {
-      if (a.board && a.board !== 'ALL') {
-        list.add(a.board);
-      }
-    });
-
-    // Load custom registered empty board names from localStorage
+    // Load registered board names from localStorage
     try {
       const customRaw = localStorage.getItem('visual_vault_created_boards_list');
       if (customRaw) {
@@ -1607,10 +1961,24 @@ class VaultApp extends HTMLElement {
             list.add(b);
           }
         });
+      } else {
+        const seeds = [
+          '/ Environment_Ref/Neo_Tokyo',
+          '/ Cyberpunk_City',
+          '/ Mech_Technical',
+          '/ Character_Design'
+        ];
+        seeds.forEach(s => list.add(s));
       }
     } catch (e) {
       console.error(e);
     }
+
+    this.assets.forEach(a => {
+      if (a.board && a.board !== 'ALL') {
+        list.add(a.board);
+      }
+    });
 
     return Array.from(list).sort();
   }
@@ -1799,7 +2167,15 @@ class VaultApp extends HTMLElement {
             
             <div class="flex items-center justify-between mb-6 shrink-0 border-b border-white/[0.04] pb-4">
               <div class="space-y-1 text-left">
-                <h2 id="board-title-heading" class="text-xl font-semibold text-white tracking-tight">/ Environment_Ref/Neo_Tokyo</h2>
+                <div class="flex items-center gap-2">
+                  <h2 id="board-title-heading" class="text-xl font-semibold text-white tracking-tight">/ Environment_Ref/Neo_Tokyo</h2>
+                  <button id="btn-rename-board" class="p-1 px-1.5 text-slate-500 hover:text-emerald-400 rounded hover:bg-white/5 transition inline-flex items-center gap-1 cursor-pointer font-mono text-[9px] font-bold uppercase tracking-wider select-none shrink-0" title="Rename this Folder/Board">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                    </svg>
+                    <span>Rename</span>
+                  </button>
+                </div>
                 <p id="board-desc" class="text-xs text-slate-500 font-mono">Local subdirectory scan synced inside catalog.db cache</p>
               </div>
 
@@ -2098,6 +2474,30 @@ class VaultApp extends HTMLElement {
                   </button>
                 </div>
               </div>
+
+              <!-- Divider -->
+              <div class="border-t border-white/[0.04]"></div>
+
+              <!-- Operation 3: Modern Web Sandbox Connect -->
+              <div class="space-y-3">
+                <div class="flex items-center gap-1.5 text-emerald-400">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                  </svg>
+                  <span class="text-[10px] font-bold uppercase tracking-wider font-mono">🌐 Web-Safe Directory Link</span>
+                </div>
+                <p class="text-[11px] text-slate-500 leading-relaxed font-sans">
+                  Directly synchronize a local folder utilizing secure browser APIs. Scan visual references and save companion <strong>Obsidian .md Frontmatter</strong> back to your computer in real-time!
+                </p>
+                <div class="pt-1 select-none">
+                  <button id="btn-web-directory-picker" class="vault-btn w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold rounded transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shadow-md">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                    </svg>
+                    <span>Connect Local Folder</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2388,6 +2788,11 @@ class VaultApp extends HTMLElement {
         heading.textContent = this.selectedBoard;
         if (desc) desc.textContent = 'Local subdirectory scan synced inside catalog.db cache';
       }
+    }
+
+    const btnRename = this.querySelector('#btn-rename-board') as HTMLElement | null;
+    if (btnRename) {
+      btnRename.style.display = this.selectedBoard === 'ALL' ? 'none' : 'inline-flex';
     }
 
     this.renderBoardNavigation();
@@ -2863,6 +3268,14 @@ class VaultApp extends HTMLElement {
   // Interactions & Events Binding
   // ----------------------------------------------------
   private attachEventListeners() {
+    // Global board folder rename trigger listener
+    const btnRename = this.querySelector('#btn-rename-board');
+    if (btnRename) {
+      btnRename.addEventListener('click', () => {
+        this.triggerRenameBoard();
+      });
+    }
+
     // Board creation input trigger
     const addBoardBtn = this.querySelector('#add-board-btn');
     const newBoardIn = this.querySelector('#new-board-name') as HTMLInputElement;
@@ -3275,6 +3688,14 @@ class VaultApp extends HTMLElement {
           nameInput.value = '';
           pathInput.value = '';
         }
+      });
+    }
+
+    // 7.5 Modern Web-Safe Directory Picker Button Click Handler
+    const btnWebDirectoryPicker = this.querySelector('#btn-web-directory-picker');
+    if (btnWebDirectoryPicker) {
+      btnWebDirectoryPicker.addEventListener('click', () => {
+        this.handleWebDirectoryPicker();
       });
     }
 
@@ -3966,6 +4387,31 @@ class VaultApp extends HTMLElement {
           imageUrl: fileUrl,
           lastModified: 'Just now'
         };
+
+        // If connected to a real folder, serialize the visual files and companion metadata back to disk in real-time
+        if (this.isSandboxedDirectory && this.directoryHandle) {
+          try {
+            const fileHandle = await this.directoryHandle.getFileHandle(file.name, { create: true });
+            const imgWritable = await fileHandle.createWritable();
+            await imgWritable.write(file);
+            await imgWritable.close();
+            this.fileHandles.set(importedAsset.id, fileHandle);
+            this.addLog('success', `Sandbox API: Wrote real image binary: ${file.name}`);
+
+            const fileNameNoExt = file.name.replace(/\.[a-zA-Z0-9]+$/, '');
+            const mdFileName = `${fileNameNoExt}.md`;
+            const mdHandle = await this.directoryHandle.getFileHandle(mdFileName, { create: true });
+            const mdWritable = await mdHandle.createWritable();
+            const yamlContent = stringifyYAMLFrontmatter(importedAsset.metadata);
+            await mdWritable.write(yamlContent);
+            await mdWritable.close();
+            this.mdFileHandles.set(importedAsset.id, mdHandle);
+            this.addLog('success', `Sandbox API: Wrote real YAML companion file: ${mdFileName}`);
+          } catch (err: any) {
+            console.error('Failed writing file inside native sandbox context', err);
+            this.addLog('warn', `Sandbox API: Failed to commit imported files: ${err.message}`);
+          }
+        }
 
         this.assets = storage.addAsset(importedAsset);
         this.selectedAssetId = importedAsset.id;
