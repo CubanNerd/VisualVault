@@ -1539,17 +1539,14 @@ class VaultApp extends HTMLElement {
 
     // 2. Rename inside custom created empty boards record list
     try {
-      const customRaw = localStorage.getItem('visual_vault_created_boards_list');
-      if (customRaw) {
-        let parsed = JSON.parse(customRaw) as string[];
-        const idx = parsed.indexOf(oldName);
-        if (idx !== -1) {
-          parsed[idx] = newName;
-        } else {
-          parsed.push(newName);
-        }
-        localStorage.setItem('visual_vault_created_boards_list', JSON.stringify(parsed));
+      const vaultPath = storage.getVaultPath();
+      const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      const allBoards = this.getUniqueBoards();
+      const updated = allBoards.map(b => b === oldName ? newName : b);
+      if (!updated.includes(newName)) {
+        updated.push(newName);
       }
+      localStorage.setItem(customKey, JSON.stringify(updated));
     } catch (e) {
       console.error('Failed to update serialized custom boards history', e);
     }
@@ -2013,10 +2010,12 @@ class VaultApp extends HTMLElement {
 
   private getUniqueBoards(): string[] {
     const list = new Set<string>();
+    const vaultPath = storage.getVaultPath();
 
-    // Load registered board names from localStorage
+    // Load registered board names from localStorage, scoped specifically to the active vault
     try {
-      const customRaw = localStorage.getItem('visual_vault_created_boards_list');
+      const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      const customRaw = localStorage.getItem(customKey);
       if (customRaw) {
         const parsed = JSON.parse(customRaw) as string[];
         parsed.forEach(b => {
@@ -2025,13 +2024,20 @@ class VaultApp extends HTMLElement {
           }
         });
       } else {
+        // Fallback: seed boards only if they contain assets in this vault, or if the vault is the main Reference Library
         const seeds = [
           '/ Environment_Ref/Neo_Tokyo',
           '/ Cyberpunk_City',
           '/ Mech_Technical',
           '/ Character_Design'
         ];
-        seeds.forEach(s => list.add(s));
+        const isRefLibrary = vaultPath === '/Users/design/Desktop/Ref_Library';
+        seeds.forEach(s => {
+          const hasAsset = this.assets.some(a => a.board === s);
+          if (isRefLibrary || hasAsset) {
+            list.add(s);
+          }
+        });
       }
     } catch (e) {
       console.error(e);
@@ -4473,13 +4479,15 @@ class VaultApp extends HTMLElement {
       return;
     }
 
-    // Persist path reference in custom created boards list inside localStorage
+    // Persist path reference in custom created boards list inside localStorage, scoped specifically to the active vault
     try {
-      const customRaw = localStorage.getItem('visual_vault_created_boards_list');
+      const vaultPath = storage.getVaultPath();
+      const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      const customRaw = localStorage.getItem(customKey);
       const list = customRaw ? JSON.parse(customRaw) as string[] : [];
       if (!list.includes(formattedPath)) {
         list.push(formattedPath);
-        localStorage.setItem('visual_vault_created_boards_list', JSON.stringify(list));
+        localStorage.setItem(customKey, JSON.stringify(list));
       }
     } catch (e) {
       console.error(e);
