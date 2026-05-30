@@ -1,0 +1,4498 @@
+import './index.css';
+
+// ----------------------------------------------------
+// Type Definitions
+// ----------------------------------------------------
+interface AssetMetadata {
+  tags: string[];
+  artist: string;
+  rating: string; // "1" to "5"
+  status: string; // e.g. "completed", "in-progress", "review", etc.
+  title?: string;
+  notes?: string;
+}
+
+interface Asset {
+  id: string;
+  name: string;
+  board: string; // folder path, e.g. "/ Environment_Ref/Neo_Tokyo"
+  resolution: string;
+  size: string;
+  colors: string[]; // 5 Hex color strings
+  tags: string[]; // system categories
+  metadata: AssetMetadata;
+  imageUrl: string; // Data URL or object URL
+  lastModified: string; // string timestamp
+}
+
+// ----------------------------------------------------
+// Default Visual Assets Mock DB
+// ----------------------------------------------------
+const defaultColors = {
+  neoTokyo: ['#0D1117', '#1A2B3C', '#FF5500', '#E1E4E8', '#0969DA'],
+  cyberSkyline: ['#0A0915', '#1E1B4B', '#312E81', '#A21CAF', '#F0ABFC'],
+  cyberProps: ['#1C1917', '#44403C', '#78716C', '#D6D3D1', '#F5F5F4'],
+  foggyAlley: ['#0F172A', '#1E293B', '#334155', '#E2E8F0', '#F1F5F9'],
+  interiorConcept: ['#0C0A09', '#292524', '#57534E', '#F59E0B', '#78350F'],
+  lightingStudy: ['#020617', '#0F172A', '#EF4444', '#F59E0B', '#10B981'],
+  cyberspace: ['#030712', '#111827', '#06B6D4', '#0891B2', '#0E7490'],
+  neonRain: ['#090514', '#1D0B38', '#9D174D', '#DB2777', '#F472B6'],
+  mechSkel: ['#111827', '#374151', '#F59E0B', '#EF4444', '#9CA3AF'],
+  thruster: ['#0E1726', '#F97316', '#FACC15', '#1E293B', '#64748B'],
+  samurai: ['#0F172A', '#DC2626', '#F1F5F9', '#1E293B', '#7F1D1D'],
+  exosuit: ['#1E1F22', '#2B2D31', '#808080', '#4ADE80', '#14532D']
+};
+
+/**
+ * Creates dynamic SVG vector elements with aesthetic grids, glows, wireframes 
+ * conforming to active color palettes to represent world building visuals.
+ */
+function generateProceduralSVG(filename: string, colors: string[]): string {
+  const c1 = colors[0] || '#0A0A0B';
+  const c2 = colors[1] || '#1E1B4B';
+  const c3 = colors[2] || '#312E81';
+  const c4 = colors[3] || '#A21CAF';
+  const c5 = colors[4] || '#F0ABFC';
+  
+  let pattern = '';
+  if (filename.includes('temple') || filename.includes('alley')) {
+    pattern = `
+      <rect width="100%" height="100%" fill="url(#bg-grad)"/>
+      <g opacity="0.15">
+        <line x1="0" y1="20" x2="400" y2="20" stroke="white" stroke-width="0.5"/>
+        <line x1="0" y1="50" x2="400" y2="50" stroke="white" stroke-width="0.5"/>
+        <line x1="0" y1="100" x2="400" y2="100" stroke="white" stroke-width="0.5"/>
+        <line x1="0" y1="200" x2="400" y2="200" stroke="white" stroke-width="0.5"/>
+        <line x1="40" y1="0" x2="40" y2="300" stroke="white" stroke-width="0.5"/>
+        <line x1="100" y1="0" x2="100" y2="300" stroke="white" stroke-width="0.5"/>
+        <line x1="200" y1="0" x2="200" y2="300" stroke="white" stroke-width="0.5"/>
+        <line x1="300" y1="0" x2="300" y2="300" stroke="white" stroke-width="0.5"/>
+      </g>
+      <circle cx="200" cy="110" r="45" fill="none" stroke="${c4}" stroke-width="2" filter="blur(1px)"/>
+      <circle cx="200" cy="110" r="35" fill="none" stroke="${c5}" stroke-width="1.5"/>
+      <path d="M 50,300 L 150,180 L 170,180 L 200,120 L 230,120 L 250,180 L 350,300 Z" fill="${c1}" stroke="${c3}" stroke-width="1.5" opacity="0.95" />
+      <path d="M 0,300 L 120,220 L 130,220 L 160,180 L 190,180 L 280,300 Z" fill="${c2}" stroke="${c4}" stroke-width="1" opacity="0.6"/>
+      <circle cx="200" cy="110" r="3" fill="${c5}"/>
+    `;
+  } else if (filename.includes('character') || filename.includes('exo') || filename.includes('samurai')) {
+    pattern = `
+      <rect width="100%" height="100%" fill="url(#bg-grad)"/>
+      <g opacity="0.1">
+        <circle cx="200" cy="150" r="140" fill="none" stroke="white" stroke-width="0.5"/>
+        <circle cx="200" cy="150" r="100" fill="none" stroke="white" stroke-width="0.5"/>
+        <line x1="0" y1="150" x2="400" y2="150" stroke="white" stroke-width="0.5"/>
+        <line x1="200" y1="0" x2="200" y2="300" stroke="white" stroke-width="0.5"/>
+      </g>
+      <path d="M 200,60 L 250,105 L 235,185 L 200,230 L 165,185 L 150,105 Z" fill="${c1}" stroke="${c3}" stroke-width="2"/>
+      <path d="M 200,85 L 240,115 L 230,175 L 200,210 L 170,175 L 160,115 Z" fill="${c2}" stroke="${c4}" stroke-width="1"/>
+      <path d="M 175,120 L 225,120 L 220,132 L 180,132 Z" fill="${c5}" />
+      <circle cx="200" cy="165" r="8" fill="none" stroke="${c4}" stroke-width="1.5"/>
+      <circle cx="200" cy="165" r="4" fill="${c5}"/>
+      <path d="M 150,105 L 120,90 M 250,105 L 280,90 M 200,230 L 200,270" stroke="${c4}" stroke-width="1.5" stroke-dasharray="2,2"/>
+    `;
+  } else if (filename.includes('mech') || filename.includes('diagram') || filename.includes('thruster')) {
+    pattern = `
+      <rect width="100%" height="100%" fill="url(#bg-grad)"/>
+      <g stroke="${c3}" stroke-width="0.5" opacity="0.25">
+        <pattern id="grid_ptn" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none"/>
+        </pattern>
+        <rect width="100%" height="100%" fill="url(#grid_ptn)" />
+      </g>
+      <circle cx="200" cy="150" r="90" fill="none" stroke="${c3}" stroke-dasharray="5,5" stroke-width="1"/>
+      <circle cx="200" cy="150" r="10" fill="none" stroke="${c4}"/>
+      <line x1="50" y1="150" x2="350" y2="150" stroke="${c4}" stroke-width="0.75" stroke-dasharray="10,5"/>
+      <line x1="200" y1="30" x2="200" y2="270" stroke="${c4}" stroke-width="0.75" stroke-dasharray="10,5"/>
+      <path d="M 120,100 L 150,100 L 190,140 L 280,140" fill="none" stroke="${c5}" stroke-width="2"/>
+      <path d="M 130,200 L 160,200 L 210,150 L 270,150" fill="none" stroke="${c4}" stroke-width="1"/>
+      <rect x="230" y="80" width="55" height="32" fill="none" stroke="${c4}" stroke-width="1" />
+      <text x="235" y="93" fill="${c5}" font-family="monospace" font-size="6">SYS_ON</text>
+      <text x="235" y="104" fill="${c3}" font-family="monospace" font-size="5">REV v2.04</text>
+    `;
+  } else {
+    pattern = `
+      <rect width="100%" height="100%" fill="url(#bg-grad)"/>
+      <path d="M 0,150 Q 100,100 200,180 T 400,150 L 400,300 L 0,300 Z" fill="${c2}" stroke="${c3}" stroke-width="1.5" opacity="0.4"/>
+      <path d="M 0,200 Q 120,250 250,180 T 400,240 L 400,300 L 0,300 Z" fill="${c1}" stroke="${c4}" stroke-width="1.5" opacity="0.8"/>
+      <g transform="translate(200, 100) rotate(45)">
+        <rect x="-15" y="-15" width="25" height="25" fill="${c1}" stroke="${c5}" stroke-width="1.5"/>
+        <line x1="-15" y1="-15" x2="10" y2="10" stroke="${c4}" stroke-width="0.5"/>
+      </g>
+      <circle cx="80" cy="65" r="1.5" fill="${c5}"/>
+      <circle cx="150" cy="45" r="1" fill="${c4}"/>
+      <circle cx="280" cy="75" r="2" fill="${c5}"/>
+    </g>
+    `;
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="100%" height="100%">
+    <defs>
+      <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="${c2}"/>
+        <stop offset="100%" stop-color="${c1}"/>
+      </linearGradient>
+    </defs>
+    ${pattern}
+  </svg>`;
+  
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+// Prepare initial seeds
+const defaultMockAssets = (): Asset[] => [
+  {
+    id: 'as_1',
+    name: 'hero_temple_view.png',
+    board: '/ Environment_Ref/Neo_Tokyo',
+    resolution: '4096x2160',
+    size: '2.4 MB',
+    colors: defaultColors.neoTokyo,
+    tags: ['Architecture', 'Cyberpunk', 'Night', 'Cinematic'],
+    metadata: {
+      tags: ['exterior', 'neon', 'z-axis'],
+      artist: 'Chen-X',
+      rating: '5',
+      status: 'completed'
+    },
+    imageUrl: '',
+    lastModified: '14 mins ago'
+  },
+  {
+    id: 'as_2',
+    name: 'city_skyline_01.png',
+    board: '/ Environment_Ref/Neo_Tokyo',
+    resolution: '3840x2160',
+    size: '1.9 MB',
+    colors: defaultColors.cyberSkyline,
+    tags: ['Cityscape', 'Future', 'Atmospheric'],
+    metadata: {
+      tags: ['skyline', 'hologram', 'dense'],
+      artist: 'Studio-K',
+      rating: '4',
+      status: 'in-progress'
+    },
+    imageUrl: '',
+    lastModified: '2 hours ago'
+  },
+  {
+    id: 'as_3',
+    name: 'street_props_kit.png',
+    board: '/ Environment_Ref/Neo_Tokyo',
+    resolution: '2048x2048',
+    size: '4.1 MB',
+    colors: defaultColors.cyberProps,
+    tags: ['Props', 'Industrial', 'Reference'],
+    metadata: {
+      tags: ['hardsurface', 'assets', 'unwrapped'],
+      artist: 'Assets-Team',
+      rating: '3',
+      status: 'review'
+    },
+    imageUrl: '',
+    lastModified: 'Yesterday'
+  },
+  {
+    id: 'as_4',
+    name: 'foggy_alley_ref.jpg',
+    board: '/ Environment_Ref/Neo_Tokyo',
+    resolution: '1920x1080',
+    size: '850 KB',
+    colors: defaultColors.foggyAlley,
+    tags: ['Atmosphere', 'Lighting', 'Reference'],
+    metadata: {
+      tags: ['fog', 'alleyway', 'moody'],
+      artist: 'Walker-01',
+      rating: '5',
+      status: 'completed'
+    },
+    imageUrl: '',
+    lastModified: '3 days ago'
+  },
+  {
+    id: 'as_5',
+    name: 'interior_concept_B.png',
+    board: '/ Environment_Ref/Neo_Tokyo',
+    resolution: '3000x1800',
+    size: '3.2 MB',
+    colors: defaultColors.interiorConcept,
+    tags: ['Interior', 'Cozy', 'Concept'],
+    metadata: {
+      tags: ['room', 'prop-heavy', 'warm'],
+      artist: 'Chen-X',
+      rating: '4',
+      status: 'completed'
+    },
+    imageUrl: '',
+    lastModified: '4 days ago'
+  },
+  {
+    id: 'as_6',
+    name: 'lighting_study.png',
+    board: '/ Environment_Ref/Neo_Tokyo',
+    resolution: '2560x1440',
+    size: '1.4 MB',
+    colors: defaultColors.lightingStudy,
+    tags: ['Lighting', 'Study', 'Color-Script'],
+    metadata: {
+      tags: ['neon-glow', 'rain-wet', 'value-sketch'],
+      artist: 'Studio-K',
+      rating: '2',
+      status: 'draft'
+    },
+    imageUrl: '',
+    lastModified: '1 week ago'
+  },
+  {
+    id: 'as_7',
+    name: 'cyberspace_node.png',
+    board: '/ Cyberpunk_City',
+    resolution: '4096x2160',
+    size: '1.2 MB',
+    colors: defaultColors.cyberspace,
+    tags: ['Cyber', 'UI', 'Abstract'],
+    metadata: {
+      tags: ['system', 'netrunner', 'grid'],
+      artist: 'Matrix-Core',
+      rating: '5',
+      status: 'completed'
+    },
+    imageUrl: '',
+    lastModified: '2 mins ago'
+  },
+  {
+    id: 'as_8',
+    name: 'neon_rain.jpg',
+    board: '/ Cyberpunk_City',
+    resolution: '1920x1200',
+    size: '980 KB',
+    colors: defaultColors.neonRain,
+    tags: ['Atmosphere', 'Rain', 'Cinematic'],
+    metadata: {
+      tags: ['weather', 'reflections', 'streets'],
+      artist: 'Walker-01',
+      rating: '4',
+      status: 'completed'
+    },
+    imageUrl: '',
+    lastModified: '5 hours ago'
+  },
+  {
+    id: 'as_9',
+    name: 'mech_concept_v4.png',
+    board: '/ Mech_Technical',
+    resolution: '3500x2000',
+    size: '5.2 MB',
+    colors: defaultColors.mechSkel,
+    tags: ['Mech', 'Hard-Surface', 'Industrial'],
+    metadata: {
+      tags: ['exoskeleton', 'military', 'gantry'],
+      artist: 'Iron-Work',
+      rating: '5',
+      status: 'completed'
+    },
+    imageUrl: '',
+    lastModified: 'Just now'
+  },
+  {
+    id: 'as_10',
+    name: 'thruster_diagram.png',
+    board: '/ Mech_Technical',
+    resolution: '2800x1600',
+    size: '2.9 MB',
+    colors: defaultColors.thruster,
+    tags: ['Blueprint', 'Technical', 'Props'],
+    metadata: {
+      tags: ['propulsion', 'vector-wires', 'functional'],
+      artist: 'Jet-Set',
+      rating: '3',
+      status: 'in-progress'
+    },
+    imageUrl: '',
+    lastModified: '4 hours ago'
+  },
+  {
+    id: 'as_11',
+    name: 'cyber_samurai.jpg',
+    board: '/ Character_Design',
+    resolution: '2000x2500',
+    size: '1.8 MB',
+    colors: defaultColors.samurai,
+    tags: ['Character', 'Cyberpunk', 'Armor'],
+    metadata: {
+      tags: ['helmet', 'cloth-tech', 'katana'],
+      artist: 'Shinobi-Art',
+      rating: '5',
+      status: 'completed'
+    },
+    imageUrl: '',
+    lastModified: '1 day ago'
+  },
+  {
+    id: 'as_12',
+    name: 'exo_suit_draft.png',
+    board: '/ Character_Design',
+    resolution: '2400x3200',
+    size: '2.5 MB',
+    colors: defaultColors.exosuit,
+    tags: ['Character', 'Exosuit', 'Organic'],
+    metadata: {
+      tags: ['anatomy', 'bio-mechanical', 'underlay'],
+      artist: 'Bio-Form',
+      rating: '4',
+      status: 'WIP'
+    },
+    imageUrl: '',
+    lastModified: 'A week ago'
+  }
+].map(item => {
+  item.imageUrl = generateProceduralSVG(item.name, item.colors);
+  return item;
+});
+
+// ----------------------------------------------------
+// Storage & Synchronization Manager (StorageService)
+// ----------------------------------------------------
+class StorageService {
+  private key = 'visual_catalog_db_v2';
+  private vaultPathKey = 'visual_catalog_vault_path_v2';
+
+  constructor() {
+    this.init();
+  }
+
+  private init() {
+    if (!localStorage.getItem(this.vaultPathKey)) {
+      localStorage.setItem(this.vaultPathKey, '/Users/design/Desktop/Ref_Library');
+    }
+    if (!localStorage.getItem(this.key)) {
+      localStorage.setItem(this.key, JSON.stringify(defaultMockAssets()));
+    }
+    // Initialize the default vaults history if empty
+    this.getVaults();
+  }
+
+  getVaultPath(): string {
+    return localStorage.getItem(this.vaultPathKey) || '/Users/design/Desktop/Ref_Library';
+  }
+
+  setVaultPath(path: string) {
+    localStorage.setItem(this.vaultPathKey, path);
+  }
+
+  getVaultKey(): string {
+    const path = this.getVaultPath();
+    return `visual_catalog_db_v3_${path.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+  }
+
+  getVaults(): { name: string; path: string; lastOpened: number }[] {
+    try {
+      const raw = localStorage.getItem('visual_vaults_list_v1');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {
+      console.error('Failed to parse vaults list', e);
+    }
+    // Setup elegant default pre-registered vaults for design-crafting demo workspace
+    const defaults = [
+      { name: 'Design Reference Library', path: '/Users/design/Desktop/Ref_Library', lastOpened: Date.now() },
+      { name: 'Neo-Tokyo Concept Art', path: '/Users/design/Desktop/Neo_Tokyo', lastOpened: Date.now() - 1000 },
+      { name: 'Cyberpunk Grid Archive', path: '/Users/projects/Cyberpunk_Grid', lastOpened: Date.now() - 2000 },
+      { name: 'Mechanic Parts & Blueprint', path: '/Users/blueprints/Mech_Grid', lastOpened: Date.now() - 3000 }
+    ];
+    localStorage.setItem('visual_vaults_list_v1', JSON.stringify(defaults));
+    return defaults;
+  }
+
+  saveVaults(vaults: { name: string; path: string; lastOpened: number }[]) {
+    localStorage.setItem('visual_vaults_list_v1', JSON.stringify(vaults));
+  }
+
+  getAllAssets(): Asset[] {
+    try {
+      const activeKey = this.getVaultKey();
+      const data = localStorage.getItem(activeKey);
+      if (data) return JSON.parse(data);
+
+      // Migration check path: if we are at default Ref_Library, migrate from old v2 db key
+      if (this.getVaultPath() === '/Users/design/Desktop/Ref_Library') {
+        const oldData = localStorage.getItem(this.key);
+        if (oldData) {
+          localStorage.setItem(activeKey, oldData);
+          return JSON.parse(oldData);
+        }
+      }
+
+      // Populate companion archives automatically for high-fidelity demos
+      const pathL = this.getVaultPath().toLowerCase();
+      if (pathL.includes('neo_tokyo')) {
+        const mock = defaultMockAssets().filter(a => a.board === '/ Environment_Ref/Neo_Tokyo');
+        const assets = mock.length ? mock : defaultMockAssets();
+        localStorage.setItem(activeKey, JSON.stringify(assets));
+        return assets;
+      } else if (pathL.includes('cyberpunk') || pathL.includes('cybercity') || pathL.includes('cyber_grid')) {
+        const mock = defaultMockAssets().filter(a => a.board === '/ UI_Elements/Cyberpunk_2077');
+        const assets = mock.length ? mock : defaultMockAssets();
+        localStorage.setItem(activeKey, JSON.stringify(assets));
+        return assets;
+      } else if (pathL.includes('blueprint') || pathL.includes('mech_grid') || pathL.includes('mech')) {
+        const mock = defaultMockAssets().filter(a => a.board.includes('Mech') || a.board.includes('Weapon'));
+        const assets = mock.length ? mock : defaultMockAssets();
+        localStorage.setItem(activeKey, JSON.stringify(assets));
+        return assets;
+      }
+
+      // Otherwise returning empty list for a newly initialized empty vault, exactly like Obsidian behavior
+      return [];
+    } catch (e) {
+      console.error('Failed to parse assets from storage', e);
+    }
+    return [];
+  }
+
+  saveAllAssets(assets: Asset[]) {
+    localStorage.setItem(this.getVaultKey(), JSON.stringify(assets));
+  }
+
+  updateAsset(id: string, updatedFields: Partial<Asset>) {
+    const assets = this.getAllAssets();
+    const idx = assets.findIndex(a => a.id === id);
+    if (idx !== -1) {
+      assets[idx] = { ...assets[idx], ...updatedFields };
+      this.saveAllAssets(assets);
+      return assets[idx];
+    }
+    return null;
+  }
+
+  addAsset(asset: Asset) {
+    const assets = this.getAllAssets();
+    assets.unshift(asset);
+    this.saveAllAssets(assets);
+    return assets;
+  }
+
+  deleteAsset(id: string) {
+    const assets = this.getAllAssets();
+    const filtered = assets.filter(a => a.id !== id);
+    this.saveAllAssets(filtered);
+    return filtered;
+  }
+}
+
+const storage = new StorageService();
+
+// ----------------------------------------------------
+// Markdown Formatter Utility (.md Obsidian)
+// ----------------------------------------------------
+function stringifyYAMLFrontmatter(metadata: AssetMetadata): string {
+  const lines = [
+    '---',
+    `title: ${metadata.title || ''}`,
+    `tags: [${metadata.tags.join(', ')}]`,
+    `artist: ${metadata.artist || 'Unknown'}`,
+    `rating: ${metadata.rating || '5'}`,
+    `status: ${metadata.status || 'review'}`,
+    `notes: ${metadata.notes || ''}`,
+    '---'
+  ];
+  return lines.join('\n');
+}
+
+function parseYAMLFrontmatter(yaml: string, originalMeta: AssetMetadata): AssetMetadata {
+  const meta: AssetMetadata = { ...originalMeta };
+  try {
+    const cleanYaml = yaml.replace(/^---/, '').replace(/---$/, '').trim();
+    const rows = cleanYaml.split('\n');
+    for (const row of rows) {
+      const colIdx = row.indexOf(':');
+      if (colIdx === -1) continue;
+      const key = row.substring(0, colIdx).trim().toLowerCase();
+      const val = row.substring(colIdx + 1).trim();
+
+      if (key === 'tags') {
+        const bracketMatch = val.match(/\[(.*)\]/);
+        if (bracketMatch) {
+          meta.tags = bracketMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+        } else {
+          meta.tags = val.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      } else if (key === 'artist') {
+        meta.artist = val;
+      } else if (key === 'rating') {
+        meta.rating = val;
+      } else if (key === 'status') {
+         meta.status = val;
+      } else if (key === 'title') {
+         meta.title = val;
+      } else if (key === 'notes') {
+         meta.notes = val;
+      }
+    }
+  } catch (err) {
+    console.error('YAML frontmatter parsing failed. Using original', err);
+  }
+  return meta;
+}
+
+// ----------------------------------------------------
+// Fast Canvas Color Palette Extractor
+// ----------------------------------------------------
+function extractColorsFromImage(imgUrl: string): Promise<string[]> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(['#0F172A', '#334155', '#475569', '#64748B', '#94A3B8']);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, 16, 16);
+        const data = ctx.getImageData(0, 0, 16, 16).data;
+        
+        // Sampling locations across the grid to extract distinct primary shades
+        const pixelIndices = [10, 45, 120, 180, 240];
+        const colors: string[] = [];
+        
+        for (const idx of pixelIndices) {
+          const offset = idx * 4;
+          const r = data[offset];
+          const g = data[offset + 1];
+          const b = data[offset + 2];
+          
+          const hex = '#' + [r, g, b].map(v => {
+            const h = v.toString(16);
+            return h.length === 1 ? '0' + h : h;
+          }).join('');
+          
+          colors.push(hex.toUpperCase());
+        }
+        resolve(colors);
+      } catch (e) {
+        console.error('Color extraction failed, using defaults.', e);
+        resolve(['#10B981', '#3B82F6', '#EF4444', '#F59E0B', '#8B5CF6']);
+      }
+    };
+    img.onerror = () => {
+      resolve(['#1E293B', '#334155', '#475569', '#64748B', '#B45309']);
+    };
+    img.src = imgUrl;
+  });
+}
+
+// ----------------------------------------------------
+// VisualVault Web Component Definition
+// ----------------------------------------------------
+class VaultApp extends HTMLElement {
+  // Global React-like states managed transparently for high 100vh app integrity
+  private assets: Asset[] = [];
+  private selectedBoard = 'ALL';
+  private selectedAssetId = 'as_1';
+  private searchQuery = '';
+  private gridSize: 'sm' | 'md' | 'lg' = 'md';
+  private activeLogs: { time: string; type: string; msg: string }[] = [];
+  private cpuUsage = 1.2;
+  private isLightboxOpen = false;
+  private activeTheme: 'default' | 'minimalist' | 'matrix' = 'default';
+  private activeAccent = 'emerald';
+  private customAccentHex = '';
+  private activeFont = 'inter';
+  private isSettingsOpen = false;
+
+  constructor() {
+    super();
+    this.assets = storage.getAllAssets();
+    this.activeTheme = (localStorage.getItem('visual_vault_active_theme') as 'default' | 'minimalist' | 'matrix') || 'default';
+    this.activeAccent = localStorage.getItem('visual_vault_accent_color') || 'emerald';
+    this.customAccentHex = localStorage.getItem('visual_vault_custom_accent_hex') || '';
+    this.activeFont = localStorage.getItem('visual_vault_system_font') || 'inter';
+    this.addLog('info', 'Indexed local cache successfully.');
+    this.addLog('info', `Simulating database: sqlite_sync connected.`);
+    this.addLog('info', `UI Theme: ${this.activeTheme.toUpperCase()} style configuration initialized.`);
+    
+    // Performance flutters
+    setInterval(() => {
+      this.cpuUsage = +(Math.random() * 2.1 + 0.6).toFixed(1);
+      const cpuValSpan = this.querySelector('#cpu-val-text');
+      const cpuBarNode = this.querySelector('#cpu-bar-fill') as HTMLElement;
+      if (cpuValSpan) cpuValSpan.textContent = `${this.cpuUsage}%`;
+      if (cpuBarNode) cpuBarNode.style.width = `${Math.min(100, this.cpuUsage * 10)}%`;
+    }, 3000);
+  }
+
+  connectedCallback() {
+    this.injectThemeStyles();
+    this.renderShell();
+    this.attachEventListeners();
+    this.updateLayout();
+    
+    // Setup Spacebar Hotkey Listener
+    window.addEventListener('keydown', this.handleGlobalKeys);
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener('keydown', this.handleGlobalKeys);
+  }
+
+  private injectThemeStyles() {
+    // Manage Matrix CRT Scanline overlay in DOM dynamically
+    let matrixOverlay = this.querySelector('.matrix-overlay');
+    if (this.activeTheme === 'matrix') {
+      if (!matrixOverlay) {
+        matrixOverlay = document.createElement('div');
+        matrixOverlay.className = 'matrix-overlay';
+        this.insertBefore(matrixOverlay, this.firstChild);
+      }
+    } else {
+      if (matrixOverlay) {
+        matrixOverlay.remove();
+      }
+    }
+
+    let styleElement = document.getElementById('dynamic-theme-styles') as HTMLStyleElement | null;
+    if (!styleElement) {
+      styleElement = document.createElement('style');
+      styleElement.id = 'dynamic-theme-styles';
+      document.head.appendChild(styleElement);
+    }
+
+    const parseHexToRgba = (hexStr: string, alpha: number): string => {
+      let c = hexStr.replace('#', '').trim();
+      if (c.length === 3) {
+        c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+      }
+      const r = parseInt(c.substring(0, 2), 16) || 0;
+      const g = parseInt(c.substring(2, 4), 16) || 0;
+      const b = parseInt(c.substring(4, 6), 16) || 0;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    const darkenHexColor = (hexStr: string, percent: number): string => {
+      let c = hexStr.replace('#', '').trim();
+      if (c.length === 3) {
+        c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+      }
+      let r = parseInt(c.substring(0, 2), 16) || 0;
+      let g = parseInt(c.substring(2, 4), 16) || 0;
+      let b = parseInt(c.substring(4, 6), 16) || 0;
+
+      r = Math.max(0, Math.min(255, Math.floor(r * (1 - percent))));
+      g = Math.max(0, Math.min(255, Math.floor(g * (1 - percent))));
+      b = Math.max(0, Math.min(255, Math.floor(b * (1 - percent))));
+
+      const toHex = (n: number) => {
+        const s = n.toString(16);
+        return s.length === 1 ? '0' + s : s;
+      };
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    };
+
+    // Determine active accent colour hex
+    let accentHex = '#10B981'; // Emerald default
+    if (this.activeAccent === 'purple') accentHex = '#7F6DF2';
+    else if (this.activeAccent === 'red') accentHex = '#EF4444';
+    else if (this.activeAccent === 'orange') accentHex = '#F97316';
+    else if (this.activeAccent === 'amber') accentHex = '#F59E0B';
+    else if (this.activeAccent === 'blue') accentHex = '#2383E2';
+    else if (this.activeAccent === 'indigo') accentHex = '#6366F1';
+    else if (this.activeAccent === 'pink') accentHex = '#EC4899';
+    else if (this.activeAccent === 'custom' && this.customAccentHex) {
+      accentHex = this.customAccentHex;
+    }
+
+    const accentHoverHex = darkenHexColor(accentHex, 0.15);
+    const accentBg10 = parseHexToRgba(accentHex, 0.10);
+    const accentBg20 = parseHexToRgba(accentHex, 0.20);
+    const accentBg05 = parseHexToRgba(accentHex, 0.05);
+
+    // Determine active font family
+    let fontFamilyStyle = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    if (this.activeFont === 'space-grotesk') {
+      fontFamilyStyle = '"Space Grotesk", sans-serif';
+    } else if (this.activeFont === 'outfit') {
+      fontFamilyStyle = '"Outfit", sans-serif';
+    } else if (this.activeFont === 'playfair') {
+      fontFamilyStyle = '"Playfair Display", Georgia, serif';
+    } else if (this.activeFont === 'jetbrains') {
+      fontFamilyStyle = '"JetBrains Mono", monospace';
+    } else if (this.activeFont === 'system') {
+      fontFamilyStyle = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+    } else if (this.activeFont === 'georgia') {
+      fontFamilyStyle = 'Georgia, "Times New Roman", serif';
+    } else if (this.activeFont === 'courier') {
+      fontFamilyStyle = '"Courier New", Courier, monospace';
+    }
+
+    const universalVariables = `
+      :root, .vault-app-root {
+        --accent-primary: ${accentHex} !important;
+        --accent-hover: ${accentHoverHex} !important;
+        --accent-bg-10: ${accentBg10} !important;
+        --accent-bg-05: ${accentBg05} !important;
+        --accent-bg-20: ${accentBg20} !important;
+        --app-font-family: ${fontFamilyStyle} !important;
+      }
+
+      body, .vault-app-root, .vault-app-root * {
+        font-family: var(--app-font-family) !important;
+      }
+
+      /* Elements requiring strict monospace look */
+      .mono, .font-mono, #sqlite-activity-logs *, #cpu-val-text, #cpu-bar-fill, .custom-scrollbar, #vault-path-input, .lb-star-rating-item, kbd, code, pre {
+        font-family: "JetBrains Mono", monospace !important;
+      }
+
+      /* Dynamic Emerald Tailwind class mappings to custom Accent Colour selection */
+      .text-emerald-400, .vault-accent-text, #cpu-val-text {
+        color: var(--accent-primary) !important;
+      }
+      .text-emerald-500 {
+        color: var(--accent-primary) !important;
+      }
+      .text-emerald-500\\/80 {
+        color: var(--accent-primary) !important;
+        opacity: 0.8 !important;
+      }
+      .bg-emerald-500, #action-reset, #import-trigger-btn, #empty-state-pick-btn, #modal-board-submit, #load-vault-all {
+        background-color: var(--accent-primary) !important;
+        color: #000000 !important;
+      }
+      .bg-emerald-500:hover, #action-reset:hover, #import-trigger-btn:hover, #empty-state-pick-btn:hover, #modal-board-submit:hover, #load-vault-all:hover {
+        background-color: var(--accent-hover) !important;
+        color: #000000 !important;
+      }
+      .bg-emerald-400 {
+        background-color: var(--accent-primary) !important;
+      }
+      .hover\\:bg-emerald-400:hover {
+        background-color: var(--accent-hover) !important;
+      }
+      .bg-emerald-500\\/10 {
+        background-color: var(--accent-bg-10) !important;
+      }
+      .bg-emerald-500\\/5 {
+        background-color: var(--accent-bg-05) !important;
+      }
+      .border-emerald-500\\/20, .hover\\:border-emerald-500\\/20:hover {
+        border-color: var(--accent-bg-20) !important;
+      }
+      .border-emerald-500 {
+        border-color: var(--accent-primary) !important;
+      }
+      .hover\\:bg-emerald-500\\/10:hover {
+        background-color: var(--accent-bg-10) !important;
+      }
+      .hover\\:bg-emerald-500\\/20:hover {
+        background-color: var(--accent-bg-20) !important;
+      }
+      .ring-emerald-500, .ring-2.ring-emerald-500 {
+        border-color: var(--accent-primary) !important;
+        --tw-ring-color: var(--accent-primary) !important;
+      }
+    `;
+
+    if (this.activeTheme === 'minimalist') {
+      styleElement.innerHTML = `
+        ${universalVariables}
+
+        /* Notion-inspired Off-white Theme */
+        body {
+          background-color: #FFFFFF !important;
+          color: #37352F !important;
+        }
+        .vault-app-root {
+          background-color: #FFFFFF !important;
+          color: #37352F !important;
+        }
+        .vault-header-bg {
+          background-color: #FFFFFF !important;
+          border-bottom: 1px solid #E9E9E6 !important;
+        }
+        .vault-sidebar-bg {
+          background-color: #F7F7F5 !important;
+          border-right: 1px solid #E9E9E6 !important;
+        }
+        #inspector-sidebar {
+          background-color: #F7F7F5 !important;
+          border-left: 1px solid #E9E9E6 !important;
+        }
+        .vault-main-content {
+          background-color: #FFFFFF !important;
+        }
+        .vault-card {
+          background-color: #FFFFFF !important;
+          border: 1px solid #E9E9E6 !important;
+          color: #37352F !important;
+          border-radius: 6px !important;
+          box-shadow: rgba(15, 15, 15, 0.05) 0px 1px 2px, rgba(15, 15, 15, 0.05) 0px 0px 0px 1px !important;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        .vault-card:hover {
+          background-color: #FBFBFB !important;
+          border-color: var(--accent-primary) !important;
+          transform: translateY(-2px) !important;
+          box-shadow: rgba(15, 15, 15, 0.05) 0px 1px 2px, rgba(15, 15, 15, 0.03) 0px 4px 12px, rgba(15, 15, 15, 0.05) 0px 0px 0px 1px !important;
+        }
+        .vault-badge {
+          background-color: var(--accent-bg-10) !important;
+          color: var(--accent-primary) !important;
+          font-family: inherit !important;
+          border-radius: 3px !important;
+          border: 1px solid var(--accent-bg-20) !important;
+          font-size: 11px !important;
+          font-weight: 500 !important;
+        }
+        .vault-accent-text {
+          color: var(--accent-primary) !important;
+        }
+        .vault-accent-bg {
+          background-color: var(--accent-primary) !important;
+          color: #FFFFFF !important;
+          border-radius: 5px !important;
+          border: none !important;
+        }
+        .vault-btn {
+          border-radius: 5px !important;
+          font-family: inherit !important;
+          font-weight: 500 !important;
+          border: 1px solid #D3D2CE !important;
+          background-color: #FFFFFF !important;
+          color: #37352F !important;
+          font-size: 13px !important;
+          box-shadow: rgba(15, 15, 15, 0.04) 0px 1.5px 2px !important;
+          transition: background 0.1s ease, border-color 0.1s ease !important;
+        }
+        .vault-btn:hover {
+          background-color: #F1F1EF !important;
+          border-color: #C1C0BC !important;
+          color: #37352F !important;
+        }
+        .vault-border {
+          border-color: #EDEDEB !important;
+        }
+        .vault-text-muted {
+          color: #787774 !important;
+        }
+        .vault-tag {
+          background-color: rgba(55, 53, 47, 0.05) !important;
+          border: 1px solid rgba(55, 53, 47, 0.09) !important;
+          color: #37352F !important;
+          border-radius: 3px !important;
+          font-weight: 500 !important;
+          font-size: 11px !important;
+        }
+        .vault-input {
+          background-color: #FFFFFF !important;
+          border: 1px solid #E9E9E6 !important;
+          color: #37352F !important;
+          border-radius: 5px !important;
+          box-shadow: rgba(15, 15, 15, 0.02) 0px 1px 2px inset !important;
+          transition: border-color 0.1s ease, box-shadow 0.1s ease !important;
+        }
+        .vault-input:focus {
+          border-color: var(--accent-primary) !important;
+          box-shadow: rgba(35, 131, 226, 0.15) 0px 0px 0px 3px, rgba(15, 15, 15, 0.02) 0px 1px 2px inset !important;
+          outline: none !important;
+        }
+        .vault-footer {
+          background-color: #F7F7F5 !important;
+          border-top: 1px solid #E9E9E6 !important;
+          color: #787774 !important;
+        }
+        .vault-rounded {
+          border-radius: 5px !important;
+        }
+        /* Custom scrollbar override for Notion Off-white design */
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #E1E1DE !important;
+          border-radius: 4px !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #C1C0BC !important;
+        }
+        /* Overrides custom headers/labels to look like Notion */
+        h1, h2, h3, h4, span, div, p, label, button, select, input, textarea {
+          border-radius: 4px !important;
+        }
+        .text-emerald-400 {
+          color: var(--accent-primary) !important;
+        }
+        .text-emerald-500 {
+          color: var(--accent-primary) !important;
+        }
+        .bg-emerald-500\\/10 {
+          background-color: var(--accent-bg-10) !important;
+        }
+        .bg-emerald-500\\/5 {
+          background-color: var(--accent-bg-05) !important;
+        }
+        .border-emerald-500\\/20 {
+          border-color: var(--accent-bg-20) !important;
+        }
+        .border-emerald-500 {
+          border-color: var(--accent-primary) !important;
+        }
+        /* Fix text elements colors */
+        .text-slate-400 {
+          color: #787774 !important;
+        }
+        .text-slate-500 {
+          color: #9A9996 !important;
+        }
+        .text-slate-200, .text-white {
+          color: #37352F !important;
+        }
+        .text-slate-300 {
+          color: #4F4E4A !important;
+        }
+        .text-slate-600 {
+          color: #9A9996 !important;
+        }
+        .bg-slate-900\\/60, .bg-\\[\\#0F0F11\\], .bg-\\[\\#121215\\], .bg-black\\/30, .bg-black\\/40 {
+          background-color: #F7F7F5 !important;
+          border-color: #E9E9E6 !important;
+        }
+        /* Side navigation folder item and active list states */
+        .bg-white\\/5 {
+          background-color: rgba(55, 53, 47, 0.05) !important;
+        }
+        .hover\\:bg-white\\/5:hover {
+          background-color: rgba(55, 53, 47, 0.04) !important;
+        }
+        .hover\\:text-white:hover {
+          color: #1A1A1A !important;
+        }
+        .text-slate-300 {
+          color: #37352F !important;
+        }
+        .text-slate-100 {
+          color: #1A1A1A !important;
+        }
+        /* Search inputs and special elements top row */
+        #vault-path-input {
+          color: #37352F !important;
+          font-family: inherit !important;
+        }
+        #vault-path-input:focus {
+          border-bottom: 2px solid var(--accent-primary) !important;
+          color: var(--accent-primary) !important;
+        }
+        #asset-search {
+          color: #37352F !important;
+        }
+        #asset-search::placeholder {
+          color: #9A9996 !important;
+        }
+        #action-reset {
+          background-color: var(--accent-primary) !important;
+          color: #FFFFFF !important;
+          border-radius: 4px !important;
+        }
+        #action-reset svg {
+          stroke: #FFFFFF !important;
+        }
+        /* Dialog overrides */
+        #settings-backdrop, #lightbox-backdrop, #board-create-backdrop, #vault-manager-backdrop {
+          background-color: rgba(15, 15, 15, 0.3) !important;
+          backdrop-filter: blur(4px) !important;
+        }
+        /* Modal Containers */
+        #settings-backdrop > div, #board-create-backdrop > div, #vault-manager-backdrop > div {
+          background-color: #FFFFFF !important;
+          border: 1px solid #D3D2CE !important;
+          border-radius: 8px !important;
+          box-shadow: rgba(15, 15, 15, 0.1) 0px 8px 24px, rgba(15, 15, 15, 0.05) 0px 0px 0px 1px !important;
+          color: #37352F !important;
+        }
+        /* Buttons and headers in settings/modal */
+        #settings-backdrop label, #board-create-backdrop label, #vault-manager-backdrop label {
+          color: #37352F !important;
+        }
+        #settings-backdrop h2, #board-create-backdrop h2, #vault-manager-backdrop h2 {
+          color: #37352F !important;
+        }
+        #settings-backdrop p, #board-create-backdrop p, #vault-manager-backdrop p {
+          color: #787774 !important;
+        }
+        #settings-close-action, #board-create-close-action, #vault-manager-close-footer {
+          background-color: #FFFFFF !important;
+          border: 1px solid #D3D2CE !important;
+          color: #37352F !important;
+        }
+        #settings-close-action:hover, #board-create-close-action:hover, #vault-manager-close-footer:hover {
+          background-color: #F1F1EF !important;
+        }
+        #lightbox-backdrop {
+          background-color: rgba(15, 15, 15, 0.88) !important;
+          backdrop-filter: blur(8px) !important;
+        }
+        #lightbox-backdrop * {
+          color: #FFFFFF !important;
+        }
+      `;
+    } else if (this.activeTheme === 'matrix') {
+      styleElement.innerHTML = `
+        ${universalVariables}
+
+        /* Matrix Cyberpunk Terminal Overrides */
+        body {
+          background-color: #000000 !important;
+          color: #00FF41 !important;
+        }
+        .vault-app-root {
+          background-color: #000000 !important;
+          color: #00FF41 !important;
+          font-family: "JetBrains Mono", monospace !important;
+        }
+        .vault-header-bg {
+          background-color: #000000 !important;
+          border-bottom: 1px solid #00FF41 !important;
+        }
+        .vault-sidebar-bg {
+          background-color: #000000 !important;
+          border-right: 1px solid #00FF41 !important;
+        }
+        #inspector-sidebar {
+          border-left: 1px solid #00FF41 !important;
+        }
+        .vault-main-content {
+          background-color: #000000 !important;
+        }
+        .vault-card {
+          background-color: #000000 !important;
+          border: 1px solid #00FF41 !important;
+          color: #00FF41 !important;
+          border-radius: 0px !important;
+          box-shadow: 0 0 8px rgba(0, 255, 65, 0.25) !important;
+        }
+        .vault-card:hover {
+          background-color: #051405 !important;
+          border-color: #00FF41 !important;
+          box-shadow: 0 0 15px rgba(0, 255, 65, 0.6) !important;
+        }
+        .vault-badge {
+          background-color: #00FF41 !important;
+          color: #000000 !important;
+          font-weight: bold !important;
+          border-radius: 0px !important;
+        }
+        .vault-accent-text {
+          color: #00FF41 !important;
+          text-shadow: 0 0 5px rgba(0, 255, 65, 0.5) !important;
+        }
+        .vault-accent-bg {
+          background-color: #00FF41 !important;
+          color: #000000 !important;
+          font-weight: bold !important;
+          border-radius: 0px !important;
+        }
+        .vault-btn {
+          border-radius: 0px !important;
+          font-family: inherit !important;
+          border: 1px solid #00FF41 !important;
+          background-color: #000000 !important;
+          color: #00FF41 !important;
+          box-shadow: 0 0 5px rgba(0, 255, 65, 0.2) !important;
+        }
+        .vault-btn:hover {
+          background-color: #00FF41 !important;
+          color: #000000 !important;
+          box-shadow: 0 0 10px rgba(0, 255, 65, 0.5) !important;
+        }
+        .vault-border {
+          border-color: #00FF41 !important;
+        }
+        .vault-text-muted {
+          color: rgba(0, 255, 65, 0.5) !important;
+        }
+        .vault-tag {
+          background-color: #000000 !important;
+          border: 1px solid #00FF41 !important;
+          color: #00FF41 !important;
+          border-radius: 0px !important;
+        }
+        .vault-input {
+          background-color: #000000 !important;
+          border: 1px solid #00FF41 !important;
+          color: #00FF41 !important;
+          border-radius: 0px !important;
+        }
+        .vault-input:focus {
+          border-color: #00FF41 !important;
+          box-shadow: 0 0 5px rgba(0, 255, 65, 0.5) !important;
+        }
+        .vault-footer {
+          background-color: #000000 !important;
+          border-top: 1px solid #00FF41 !important;
+          color: rgba(0, 255, 65, 0.6) !important;
+        }
+        .vault-rounded {
+          border-radius: 0px !important;
+        }
+        /* Custom scrollbar override for Matrix Terminal theme */
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #00FF41 !important;
+          border-radius: 0px !important;
+        }
+        /* Matrix text & visual elements overrides */
+        h1, h2, h3, h4, span, div, p, label, button, select, input, textarea {
+          border-radius: 0px !important;
+          font-family: "JetBrains Mono", monospace !important;
+        }
+        .text-emerald-400 {
+          color: #00FF41 !important;
+          text-shadow: 0 0 5px rgba(0, 255, 65, 0.5) !important;
+        }
+        .text-emerald-500 {
+          color: #00FF41 !important;
+        }
+        .bg-emerald-500\\/10 {
+          background-color: rgba(0, 255, 65, 0.1) !important;
+        }
+        .border-emerald-500\\/20 {
+          border-color: #00FF41 !important;
+        }
+        /* Fix text elements colors */
+        .text-slate-400, .text-slate-500 {
+          color: rgba(0, 255, 65, 0.7) !important;
+        }
+        .text-slate-200, .text-white {
+          color: #00FF41 !important;
+        }
+        .text-slate-600 {
+          color: rgba(0, 255, 65, 0.4) !important;
+        }
+        .bg-slate-900\\/60, .bg-\\[\\#0F0F11\\], .bg-\\[\\#121215\\], .bg-black\\/30, .bg-black\\/40 {
+          background-color: #000000 !important;
+          border-color: #00FF41 !important;
+        }
+        /* Dialog overrides */
+        #settings-backdrop, #lightbox-backdrop, #board-create-backdrop, #vault-manager-backdrop {
+          background-color: rgba(0, 0, 0, 0.92) !important;
+        }
+        /* Matrix screen overlay (scanlines) */
+        .matrix-overlay {
+          pointer-events: none;
+          position: fixed;
+          top: 0; left: 0; width: 100%; height: 100%;
+          background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.05));
+          background-size: 100% 4px, 6px 100%;
+          z-index: 99999;
+          opacity: 0.15;
+        }
+      `;
+    } else {
+      styleElement.innerHTML = `
+        ${universalVariables}
+      `;
+    }
+  }
+
+  private toggleBoardCreateModal(open?: boolean) {
+    const backdrop = this.querySelector('#board-create-backdrop') as HTMLElement | null;
+    if (!backdrop) return;
+
+    const isCurrentlyOpen = !backdrop.classList.contains('hidden');
+    const shouldOpen = open !== undefined ? open : !isCurrentlyOpen;
+
+    if (shouldOpen) {
+      backdrop.classList.remove('hidden');
+      const input = this.querySelector('#modal-board-name') as HTMLInputElement | null;
+      if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 85);
+      }
+      this.addLog('info', 'Opened Board Creation Dialog.');
+    } else {
+      backdrop.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Toggles the visibility of the Obsidian-Style Vault Manager modal window.
+   * If the modal is opened, it triggers re-populating the UI catalog list.
+   * Automatically targets and focuses the name input field to streamline user creation experience.
+   * 
+   * @param open Optional direct toggle override boolean state.
+   */
+  private toggleVaultManagerModal(open?: boolean) {
+    const backdrop = this.querySelector('#vault-manager-backdrop') as HTMLElement | null;
+    if (!backdrop) return;
+
+    const isCurrentlyOpen = !backdrop.classList.contains('hidden');
+    const shouldOpen = open !== undefined ? open : !isCurrentlyOpen;
+
+    if (shouldOpen) {
+      backdrop.classList.remove('hidden');
+      this.populateVaultManager();
+      
+      // Auto-focus the primary text input for seamless keyboard-only navigation
+      const input = this.querySelector('#create-vault-name') as HTMLInputElement | null;
+      if (input) {
+        setTimeout(() => input.focus(), 85);
+      }
+      this.addLog('info', 'Opened Obsidian-Style Vault Manager modal.');
+    } else {
+      backdrop.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Reads, sorts, and renders the list of registered user directory vaults from LocalStorage cache.
+   * Automatically updates workspace count indicators and mounts functional event handlers
+   * to corresponding mount buttons and deletion buttons.
+   */
+  private populateVaultManager() {
+    const listContainer = this.querySelector('#vault-manager-list-container');
+    if (!listContainer) return;
+
+    // Retrieve full catalog index and active path configurations from client-side state
+    const vaults = storage.getVaults();
+    const currentPath = storage.getVaultPath();
+
+    // Sort registered directories descending by lastOpened timestamp to maintain recent-first order
+    vaults.sort((a, b) => (b.lastOpened || 0) - (a.lastOpened || 0));
+
+    // Update vault search count label
+    const countLabel = this.querySelector('#vault-manager-count-label');
+    if (countLabel) {
+      countLabel.textContent = `${vaults.length} register${vaults.length === 1 ? 'y' : 'ies'} found`;
+    }
+
+    if (vaults.length === 0) {
+      listContainer.innerHTML = `
+        <div class="text-center py-8 bg-black/10 rounded-lg border border-white/5 p-4">
+          <p class="text-xs text-slate-500">No registered visual vaults in launcher catalog.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Dynamic HTML injection of vault elements with high-contrast active highlights, indicator dots, and actions
+    listContainer.innerHTML = vaults.map((vault, i) => {
+      const isCurrent = vault.path === currentPath;
+      const accentBorder = isCurrent ? 'border-emerald-500/30 bg-emerald-500/[0.03]' : 'border-white/5 bg-black/20 hover:border-white/10';
+      const indicatorDot = isCurrent ? '<span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shrink-0"></span>' : '';
+      const actionText = isCurrent ? 'Active Vault' : 'Open Vault';
+      const actionClass = isCurrent 
+        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' 
+        : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 cursor-pointer font-medium active:scale-95 hover:text-emerald-400';
+
+      return `
+        <div class="p-3 rounded-lg border ${accentBorder} flex items-center justify-between gap-4 transition group">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-8 h-8 rounded-md bg-black/40 flex items-center justify-center border border-white/5 shrink-0">
+              <svg class="w-4 h-4 ${isCurrent ? 'text-emerald-400' : 'text-slate-400 opacity-60'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5 pb-0.5">
+                <span class="text-xs font-bold text-white truncate">${vault.name}</span>
+                ${indicatorDot}
+              </div>
+              <span class="text-[10px] text-slate-500 font-mono block truncate" title="${vault.path}">${vault.path}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button data-idx="${i}" class="vault-open-btn text-[10px] px-2.5 py-1 rounded transition ${actionClass}">${actionText}</button>
+            <button data-idx="${i}" class="vault-delete-btn text-slate-500 hover:text-red-400 p-1.5 rounded transition hover:bg-red-500/10 cursor-pointer" title="Remove vault index from history">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Wire up element-specific event listeners for mounting/activating vaults
+    listContainer.querySelectorAll('.vault-open-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt((btn as HTMLElement).dataset.idx || '0');
+        const clickedVault = vaults[idx];
+        if (clickedVault) {
+          this.switchVault(clickedVault.path);
+        }
+      });
+    });
+
+    // Wire up removal handles to let directory registrations clear cleanly without deleting background host assets
+    listContainer.querySelectorAll('.vault-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt((btn as HTMLElement).dataset.idx || '0');
+        const clickedVault = vaults[idx];
+        if (clickedVault) {
+          if (confirm(`Remove "${clickedVault.name}" from your registered vaults list?\n(Note: This will NOT delete any directories or image files on disk)`)) {
+            const updated = vaults.filter((_, index) => index !== idx);
+            storage.saveVaults(updated);
+            this.addLog('info', `Removed vault "${clickedVault.name}" registration history.`);
+            this.populateVaultManager();
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Executes the structural transition to bind a new local catalog path reference.
+   * Triggers file metadata caching updates, reloads distinct asset collections,
+   * updates live paths inside global filters, and refreshes workspace component loops.
+   * 
+   * @param newPath The target directory path context parameter.
+   * @param name Optional custom workspace display string name.
+   */
+  private switchVault(newPath: string, name?: string) {
+    if (!newPath) return;
+
+    // 1. Fetch current vaults index history
+    let vaults = storage.getVaults();
+    
+    // 2. Locate or initialize target layout record
+    let vault = vaults.find(v => v.path === newPath);
+    if (!vault) {
+      const actualName = name || newPath.split(/[/\\]/).pop() || 'Untitled Vault';
+      vault = { name: actualName, path: newPath, lastOpened: Date.now() };
+      vaults.push(vault);
+    } else {
+      vault.lastOpened = Date.now();
+      if (name) {
+        vault.name = name;
+      }
+    }
+    storage.saveVaults(vaults);
+
+    // 3. Persist standard directory mapping configurations
+    storage.setVaultPath(newPath);
+
+    // 4. Mount database collections specifically isolated for this vault to prevent data bleeding
+    this.assets = storage.getAllAssets();
+
+    // 5. Instantly clear selected filter options to prevent mismatching indices
+    this.selectedBoard = 'ALL';
+    this.selectedAssetId = this.assets.length > 0 ? this.assets[0].id : '';
+
+    // 6. Broadcast structural telemetry log states and desktop notification hooks
+    this.addLog('success', `Tauri local mount: Switched active workspace vault to "${vault.name}" (${newPath}).`);
+    this.toast('Vault Mounted', `Opened "${vault.name}"! Loaded ${this.assets.length} items.`);
+
+    // 7. Auto-update active top navbar visual controls
+    const pathInput = this.querySelector('#vault-path-input') as HTMLInputElement | null;
+    if (pathInput) pathInput.value = newPath;
+
+    // 8. Push dynamic redraw loops to layout elements and catalog lists
+    this.updateLayout();
+    this.populateVaultManager();
+
+    // 9. Gracefully trigger modal dismiss animation frames
+    this.toggleVaultManagerModal(false);
+  }
+
+  private toggleSettings(forceOpen?: boolean) {
+    const backdrop = this.querySelector('#settings-backdrop') as HTMLElement | null;
+    if (!backdrop) return;
+
+    if (forceOpen !== undefined) {
+      this.isSettingsOpen = forceOpen;
+    } else {
+      this.isSettingsOpen = !this.isSettingsOpen;
+    }
+
+    if (this.isSettingsOpen) {
+      backdrop.classList.remove('hidden');
+      
+      // Update indexed count in real-time
+      const countNode = this.querySelector('#settings-files-indexed');
+      if (countNode) countNode.textContent = `${this.assets.length} file configurations active`;
+
+      // Highlight active theme button bullet indicators
+      this.querySelectorAll('.theme-select-btn div').forEach(bullet => {
+        bullet.classList.add('hidden');
+      });
+      const activeBullet = this.querySelector(`#theme-bullet-${this.activeTheme}`);
+      if (activeBullet) activeBullet.classList.remove('hidden');
+
+      // Add borders/highlights to active theme button card
+      this.querySelectorAll('.theme-select-btn').forEach(card => {
+        card.classList.remove('border-emerald-500/40', 'border-neutral-900', 'border-[#00FF41]');
+        card.classList.add('border-white/5');
+      });
+      const activeCard = this.querySelector(`#theme-btn-${this.activeTheme}`) as HTMLElement;
+      if (activeCard) {
+        activeCard.classList.remove('border-white/5');
+        if (this.activeTheme === 'minimalist') {
+          activeCard.classList.add('border-neutral-900');
+        } else if (this.activeTheme === 'matrix') {
+          activeCard.classList.add('border-[#00FF41]');
+        } else {
+          activeCard.classList.add('border-emerald-500/40');
+        }
+      }
+
+      this.syncSettingsHighlights();
+      this.addLog('info', 'Opened VisualVault configuration control panel.');
+    } else {
+      backdrop.classList.add('hidden');
+    }
+  }
+
+  private syncSettingsHighlights() {
+    // 1. Accent highlights
+    const accentColorsContainer = this.querySelector('#accent-colors-container');
+    if (accentColorsContainer) {
+      accentColorsContainer.querySelectorAll('.accent-select-btn').forEach(btn => {
+        btn.classList.remove('border-emerald-500/40', 'border-neutral-400', 'bg-neutral-100', 'bg-white/5', 'ring-2', 'ring-emerald-500/25', 'ring-neutral-400/20');
+        btn.classList.add('border-white/5', 'bg-black/30');
+
+        const accentName = (btn as HTMLElement).dataset.accent;
+        if (accentName === this.activeAccent) {
+          btn.classList.remove('border-white/5', 'bg-black/30');
+          if (this.activeTheme === 'minimalist') {
+            btn.classList.add('border-neutral-400', 'bg-neutral-100', 'ring-2', 'ring-neutral-400/20');
+          } else {
+            btn.classList.add('border-emerald-500/40', 'bg-white/5', 'ring-1', 'ring-emerald-500/25');
+          }
+        }
+      });
+    }
+
+    // Custom hex panel visibility
+    const customPanel = this.querySelector('#custom-accent-extra-panel') as HTMLElement | null;
+    if (customPanel) {
+      if (this.activeAccent === 'custom') {
+        customPanel.classList.remove('hidden');
+        const picker = this.querySelector('#custom-accent-color-picker') as HTMLInputElement | null;
+        const hexInput = this.querySelector('#custom-accent-hex-input') as HTMLInputElement | null;
+        if (picker && hexInput) {
+          picker.value = this.customAccentHex || '#10B981';
+          hexInput.value = this.customAccentHex || '#10B981';
+        }
+      } else {
+        customPanel.classList.add('hidden');
+      }
+    }
+
+    // Update custom accent preview bubble
+    const previewDot = this.querySelector('#custom-accent-color-preview') as HTMLElement | null;
+    if (previewDot) {
+      if (this.customAccentHex) {
+        previewDot.style.background = this.customAccentHex;
+      } else {
+        previewDot.style.background = 'linear-gradient(to top right, #f43f5e, #fbbf24, #6366f1)';
+      }
+    }
+
+    // 2. Font highlights
+    this.querySelectorAll('.font-select-btn').forEach(btn => {
+      btn.classList.remove('border-emerald-500/50', 'bg-white/5', 'ring-1', 'ring-emerald-500/25', 'border-neutral-400', 'bg-neutral-100', 'ring-2', 'ring-neutral-400/20');
+      btn.classList.add('border-white/5', 'bg-black/30');
+
+      const fontName = (btn as HTMLElement).dataset.font;
+      if (fontName === this.activeFont) {
+        btn.classList.remove('border-white/5', 'bg-black/30');
+        if (this.activeTheme === 'minimalist') {
+          btn.classList.add('border-neutral-400', 'bg-neutral-100', 'ring-2', 'ring-neutral-400/20');
+        } else {
+          btn.classList.add('border-emerald-500/50', 'bg-white/5', 'ring-1', 'ring-emerald-500/25');
+        }
+      }
+    });
+  }
+
+  private loadPresetVault(type: 'neotokyo' | 'cybercity' | 'blueprint' | 'characters' | 'all') {
+    const allMocks = defaultMockAssets();
+    let loaded: Asset[] = [];
+    let boardToSelect = 'ALL';
+
+    if (type === 'neotokyo') {
+      loaded = allMocks.filter(a => a.board === '/ Environment_Ref/Neo_Tokyo');
+      boardToSelect = '/ Environment_Ref/Neo_Tokyo';
+      this.addLog('success', 'Tauri local mount: Loaded Neo-Tokyo Architecture database (6 Assets indexed).');
+      this.toast('Vault Mounted', 'Synced database cache to Neo-Tokyo vault folder.');
+    } else if (type === 'cybercity') {
+      loaded = allMocks.filter(a => a.board === '/ Cyberpunk_City');
+      boardToSelect = '/ Cyberpunk_City';
+      this.addLog('success', 'Tauri local mount: Mounted Cyberpunk Grid folder (2 Assets indexed).');
+      this.toast('Vault Mounted', 'Synced database cache to Cyberpunk City vault folder.');
+    } else if (type === 'blueprint') {
+      loaded = allMocks.filter(a => a.board === '/ Mech_Technical');
+      boardToSelect = '/ Mech_Technical';
+      this.addLog('success', 'Tauri local mount: Mounted Mech Blueprints vault (2 Assets indexed).');
+      this.toast('Vault Mounted', 'Synced database cache to Mech Technical folder.');
+    } else if (type === 'characters') {
+      loaded = allMocks.filter(a => a.board === '/ Character_Design');
+      boardToSelect = '/ Character_Design';
+      this.addLog('success', 'Tauri local mount: Mounted Character Concepts folder (2 Assets indexed).');
+      this.toast('Vault Mounted', 'Synced database cache to Character Design folder.');
+    } else {
+      loaded = allMocks;
+      boardToSelect = 'ALL';
+      this.addLog('success', 'Tauri local mount: Fully synchronised all 4 companion vaults (12 Assets indexed).');
+      this.toast('Database Re-synced', 'Mounted visual vaults successfully.');
+    }
+
+    this.assets = loaded;
+    this.selectedBoard = boardToSelect;
+    if (this.assets.length > 0) {
+      this.selectedAssetId = this.assets[0].id;
+    } else {
+      this.selectedAssetId = '';
+    }
+
+    storage.saveAllAssets(this.assets);
+    this.updateLayout();
+    this.toggleSettings(false); // Close settings panel
+  }
+
+  private handleGlobalKeys = (e: KeyboardEvent) => {
+    // If inside text inputs, don't trigger lightbox
+    if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+      return;
+    }
+
+    if (e.code === 'Space') {
+      e.preventDefault();
+      this.toggleLightbox();
+    } else if (this.isLightboxOpen) {
+      if (e.key === 'Escape') {
+        this.toggleLightbox();
+      } else if (e.key === 'ArrowRight') {
+        this.navigateLightbox(1);
+      } else if (e.key === 'ArrowLeft') {
+        this.navigateLightbox(-1);
+      }
+    }
+  };
+
+  private addLog(type: 'info' | 'success' | 'warn', msg: string) {
+    const now = new Date().toLocaleTimeString();
+    this.activeLogs.unshift({ time: now, type, msg });
+    
+    // Keep logs reasonable size
+    if (this.activeLogs.length > 20) this.activeLogs.pop();
+    this.renderLogs();
+    
+    // Update active sync count in footer
+    const syncCountNode = this.querySelector('#sync-log-indicator');
+    if (syncCountNode) {
+      syncCountNode.textContent = `Queue: ${this.activeLogs.filter(l => l.type === 'warn').length} pending`;
+    }
+  }
+
+  private getUniqueBoards(): string[] {
+    const list = new Set<string>();
+    
+    // Add default core reference directories
+    list.add('/ Environment_Ref/Neo_Tokyo');
+    list.add('/ Cyberpunk_City');
+    list.add('/ Mech_Technical');
+    list.add('/ Character_Design');
+
+    this.assets.forEach(a => {
+      if (a.board && a.board !== 'ALL') {
+        list.add(a.board);
+      }
+    });
+
+    // Load custom registered empty board names from localStorage
+    try {
+      const customRaw = localStorage.getItem('visual_vault_created_boards_list');
+      if (customRaw) {
+        const parsed = JSON.parse(customRaw) as string[];
+        parsed.forEach(b => {
+          if (b && b !== 'ALL') {
+            list.add(b);
+          }
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    return Array.from(list).sort();
+  }
+
+  private getFilteredAssets(): Asset[] {
+    const query = this.searchQuery.toLowerCase().trim();
+    return this.assets.filter(asset => {
+      // Board selection filtering (Support clicking All Assets)
+      if (this.selectedBoard !== 'ALL' && asset.board !== this.selectedBoard) {
+        return false;
+      }
+      
+      // Keywords full-text scanning
+      if (query) {
+        const matchTitle = asset.name.toLowerCase().includes(query);
+        const matchArtist = (asset.metadata.artist || '').toLowerCase().includes(query);
+        const matchSystemTags = asset.tags.some(t => t.toLowerCase().includes(query));
+        const matchMetaTags = asset.metadata.tags.some(t => t.toLowerCase().includes(query));
+        return matchTitle || matchArtist || matchSystemTags || matchMetaTags;
+      }
+      return true;
+    });
+  }
+
+  // ----------------------------------------------------
+  // Dynamic Web Rendering Engine
+  // ----------------------------------------------------
+  private renderShell() {
+    this.innerHTML = `
+      <!-- Toast/Alert custom visual notification container -->
+      <div id="toast-overlay" class="fixed top-4 right-4 z-50 pointer-events-none flex flex-col gap-2"></div>
+
+      ${this.activeTheme === 'matrix' ? '<div class="matrix-overlay"></div>' : ''}
+
+      <!-- App Frame -->
+      <div id="theme-root" class="vault-app-root flex flex-col h-screen w-screen overflow-hidden bg-[#0A0A0B] text-slate-300">
+        
+        <!-- HEADER MODULE -->
+        <header id="vault-header" class="vault-header-bg h-12 border-b border-white/5 bg-[#0F0F11] flex items-center px-4 justify-between shrink-0">
+          <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2">
+              <div class="w-6 h-6 bg-emerald-500 rounded flex items-center justify-center cursor-pointer hover:bg-emerald-400 transition" id="action-reset">
+                <svg class="w-4 h-4 text-black font-semibold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                </svg>
+              </div>
+              <span class="font-semibold text-white tracking-tight cursor-default">VisualVault</span>
+            </div>
+            
+            <div class="flex items-center gap-2 text-[11px] text-slate-400 bg-black/40 px-3 py-1 rounded-full border border-white/5 vault-rounded hover:border-white/10 transition">
+              <span class="opacity-50 font-sans">Vault Path:</span>
+              <input type="text" id="vault-path-input" value="${storage.getVaultPath()}" 
+                class="bg-transparent border-none text-slate-300 outline-none w-44 font-mono focus:text-emerald-400 text-[10px]" title="Click to edit absolute vault reference path" />
+              <button id="open-vaults-manager-btn" class="text-[10px] bg-emerald-500/15 hover:bg-emerald-500/35 text-emerald-400 px-2.5 py-0.5 rounded-full transition font-semibold flex items-center gap-1 cursor-pointer active:scale-95 border border-emerald-500/15">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                </svg>
+                Load Vaults
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick search and Sync Banner -->
+          <div class="flex items-center gap-4 text-xs">
+            <div class="relative flex items-center bg-black/30 border border-white/5 rounded-md px-2.5 py-1.5 w-64 focus-within:border-emerald-500/30 transition vault-rounded">
+              <svg class="w-3.5 h-3.5 opacity-50 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+              <input type="text" id="asset-search" placeholder="Filter references, artists, tags..." 
+                class="bg-transparent w-full text-xs text-white outline-none placeholder-slate-600" />
+              <button id="search-clear-btn" class="hidden text-slate-500 hover:text-white px-1">×</button>
+            </div>
+
+            <div class="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded border border-emerald-500/20 vault-rounded">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span class="font-mono text-[10px]">SQLite Sync: Active</span>
+            </div>
+          </div>
+        </header>
+
+        <!-- CONTAINER BODY -->
+        <main class="flex-grow h-0 flex overflow-hidden">
+          
+          <!-- LEFT SIDEBAR -->
+          <aside class="vault-sidebar-bg w-60 bg-[#0F0F11] border-r border-white/5 flex flex-col shrink-0">
+            <div id="sidebar-lists" class="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-5">
+              
+              <!-- System lists navigation -->
+              <div class="space-y-1">
+                <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 cursor-default">Library</h3>
+                
+                <div id="nav-all-assets" class="flex items-center gap-2.5 p-2 rounded text-sm cursor-pointer transition hover:bg-white/5 text-slate-400">
+                  <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                  </svg>
+                  <span>All Vault References</span>
+                  <span id="all-assets-count" class="ml-auto text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-slate-400">0</span>
+                </div>
+
+                <div id="nav-recent" class="flex items-center gap-2.5 p-2 rounded text-sm cursor-pointer transition hover:bg-white/5 text-slate-400">
+                  <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>Recently Indexed</span>
+                </div>
+                 <div id="nav-settings-btn" class="flex items-center gap-2.5 p-2 rounded text-sm cursor-pointer transition hover:bg-white/5 text-slate-400">
+                  <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  </svg>
+                  <span>Vault Settings</span>
+                </div>
+
+                <div id="nav-load-vaults-btn" class="flex items-center gap-2.5 p-2 rounded text-sm cursor-pointer transition hover:bg-white/5 text-slate-400">
+                  <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                  </svg>
+                  <span>Load Vaults</span>
+                  <span class="ml-auto text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-1.5 py-0.5 rounded font-mono font-bold">MANAGE</span>
+                </div>
+              </div>
+
+              <!-- Boards collection tree navigation -->
+              <div class="space-y-1">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Boards Directory</h3>
+                  <button id="sidebar-add-board-trigger" class="p-1 hover:bg-emerald-500/10 text-emerald-400 hover:text-emerald-300 rounded cursor-pointer transition flex items-center justify-center shrink-0" title="Create New Board">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                  </button>
+                </div>
+                
+                <div id="boards-list-container" class="space-y-1">
+                  <!-- Generated board node links are injected here -->
+                </div>
+
+                <!-- Create new board section -->
+                <div class="pt-3 border-t border-white/5 mt-2">
+                  <div class="flex items-center gap-1.5 p-1 bg-black/20 rounded border border-white/5 vault-rounded">
+                    <input type="text" id="new-board-name" placeholder="/New_Collection" 
+                      class="bg-transparent text-xs text-white placeholder-slate-600 outline-none px-1.5 py-1 w-full font-mono" />
+                    <button id="add-board-btn" class="p-1 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded transition" title="Add empty sub-board">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+              </div>
+
+              <!-- SQLite indexing logs -->
+              <div class="space-y-2 pt-2">
+                <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Asset Activity log</h3>
+                <div id="sqlite-activity-logs" class="bg-black/30 rounded border border-white/5 p-2 font-mono text-[9px] text-slate-400 h-28 overflow-y-auto custom-scrollbar space-y-1.5 vault-rounded">
+                  <!-- Log entries go here -->
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Performance metadata meter matching elegant dark theme styling -->
+            <div class="p-4 border-t border-white/5 shrink-0 bg-[#0A0A0B]/60">
+              <div class="bg-black/40 rounded p-3 text-[10px] mono text-slate-500 space-y-1.5 vault-rounded">
+                <div class="flex justify-between font-mono">
+                  <span>Tauri DB Indexer</span>
+                  <span id="cpu-val-text" class="text-emerald-500">1.2%</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                  <div id="cpu-bar-fill" class="bg-emerald-500 h-full transition-all duration-1000" style="width: 12%"></div>
+                </div>
+                <div class="flex justify-between text-[9px] text-slate-600 pt-1">
+                  <span>SQLite pool: Idle</span>
+                  <span>60 FPS Active</span>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <!-- CENTRAL MASONRY DISPLAY -->
+          <section class="vault-main-content flex-grow bg-[#070708] p-6 overflow-y-auto custom-scrollbar flex flex-col">
+            
+            <div class="flex items-center justify-between mb-6 shrink-0 border-b border-white/[0.04] pb-4">
+              <div class="space-y-1 text-left">
+                <h2 id="board-title-heading" class="text-xl font-semibold text-white tracking-tight">/ Environment_Ref/Neo_Tokyo</h2>
+                <p id="board-desc" class="text-xs text-slate-500 font-mono">Local subdirectory scan synced inside catalog.db cache</p>
+              </div>
+
+              <!-- Core layout size modifiers & import routines -->
+              <div class="flex items-center gap-3">
+                <div class="bg-black/30 p-0.5 rounded border border-white/5 flex gap-1 vault-rounded">
+                  <button id="size-sm" class="p-1 px-1.5 rounded text-[10px] font-mono hover:text-white hover:bg-white/5 transition text-slate-500 cursor-pointer" title="Dense Density">Dense</button>
+                  <button id="size-md" class="p-1 px-1.5 rounded text-[10px] font-mono select-none hover:text-white hover:bg-white/5 transition bg-white/5 text-emerald-400 font-semibold cursor-pointer" title="Medium Density">Standard</button>
+                  <button id="size-lg" class="p-1 px-1.5 rounded text-[10px] font-mono hover:text-white hover:bg-white/5 transition text-slate-500 cursor-pointer" title="Large Preview Density">Detailed</button>
+                </div>
+                
+                <!-- Silent file picker -->
+                <input type="file" id="local-file-picker" accept="image/*" class="hidden" multiple />
+                <button id="import-trigger-btn" class="vault-btn px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold rounded text-xs transition cursor-pointer shadow-md inline-flex items-center gap-1.5 active:scale-95">
+                  <svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                  </svg>
+                  Import Files
+                </button>
+              </div>
+            </div>
+
+            <!-- Drag & Drop container area -->
+            <div id="drop-zone" class="vault-card border border-dashed border-white/5 hover:border-emerald-500/20 bg-black/10 rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-default shrink-0 group transition mb-4">
+              <div class="pointer-events-none text-slate-500 text-xs flex items-center justify-center gap-2 group-hover:text-emerald-400 transition">
+                <svg class="w-4 h-4 stroke-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                <span>Drag and drop raw reference assets here to automatically sync metadata and extract swatches</span>
+              </div>
+            </div>
+
+            <!-- Active Grid/Masonry container with robust animations -->
+            <div class="flex-grow">
+              <div id="catalog-masonry" class="columns-3 gap-3">
+                <!-- Javascript maps asset elements here -->
+              </div>
+              <div id="catalog-empty-state" class="hidden flex-col items-center justify-center text-center p-10 py-14 bg-black/15 rounded-2xl border border-dashed border-white/5 max-w-xl mx-auto my-12 vault-card">
+                <div class="w-14 h-14 rounded-full bg-slate-900/65 border border-white/5 flex items-center justify-center mb-4 mx-auto">
+                  <svg class="w-7 h-7 text-slate-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                </div>
+                <div class="text-slate-200 text-sm font-semibold mb-2" id="empty-state-title">This board folder is empty</div>
+                <p class="text-xs text-slate-400 max-w-md mx-auto mb-6 leading-relaxed">
+                  There are no visual references loaded in <span class="font-mono text-emerald-400 font-semibold" id="empty-state-board-name"></span>. You can load images by copying them in, dragging-and-dropping them, or using clipboard/manual sync:
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full">
+                  <div class="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl text-left space-y-1">
+                    <span class="text-xs text-slate-300 font-semibold block">Option 1: Drag &amp; Drop</span>
+                    <span class="text-[11px] text-slate-500 block leading-normal">Drag any image files straight from your file manager anywhere into this central view.</span>
+                  </div>
+                  <div class="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl text-left space-y-1">
+                    <span class="text-xs text-slate-300 font-semibold block">Option 2: Copy-Paste File</span>
+                    <span class="text-[11px] text-slate-500 block leading-normal">Copy an image (or file) to clipboard and press <kbd class="px-1.5 py-0.5 bg-black rounded border border-white/10 text-[9px] font-mono">Ctrl+V</kbd> to copy it to this board folder.</span>
+                  </div>
+                </div>
+                <div class="mt-7 text-center">
+                  <button id="empty-state-pick-btn" class="vault-btn px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold rounded text-xs transition cursor-pointer shadow-md inline-flex items-center gap-1.5 active:scale-95">
+                    <svg class="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Simulate Folder Copy (Choose Images)
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+          </section>
+
+          <!-- RIGHT DETAIL INSPECTOR SIDEBAR (Hidden in favor of the Pinterest popup detail modal) -->
+          <aside id="inspector-sidebar" class="vault-sidebar-bg hidden w-72 bg-[#0F0F11] border-l border-white/5 flex flex-col shrink-0">
+            <div id="inspector-container" class="p-5 overflow-y-auto custom-scrollbar flex-grow space-y-6">
+              <!-- Inline populated via selected asset states -->
+            </div>
+          </aside>
+
+        </main>
+
+        <!-- FOOTER STATUS STRIP Bar -->
+        <footer class="vault-footer h-7 border-t border-white/5 bg-[#0A0A0B] flex items-center px-4 justify-between shrink-0 text-[10.5px] mono text-slate-600">
+          <div class="flex items-center gap-4 font-mono select-none">
+            <span id="vault-total-count">Vault Index: 0 files</span>
+            <span>•</span>
+            <span id="sync-log-indicator" class="transition-colors">Queue: 0 pending</span>
+          </div>
+          <div class="flex items-center gap-2.5 font-mono">
+            <span>Tauri v2.0.4-stable</span>
+            <span class="text-emerald-500/80 inline-flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              System Ready
+            </span>
+          </div>
+        </footer>
+
+      </div>
+
+      <!-- PINBOARD DETAIL MODAL (PINTEREST WINDOW) -->
+      <div id="lightbox-backdrop" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 md:p-8 hidden select-none transition-all duration-300">
+        
+        <!-- Modal Card Container -->
+        <div class="vault-card bg-[#0F0F11] border border-white/10 rounded-2xl max-w-5xl w-full h-[88vh] flex flex-col md:flex-row overflow-hidden shadow-2xl animate-fade-in relative pointer-events-auto">
+          
+          <!-- Close Button Top Right of card (Pinterest style) -->
+          <button id="lightbox-close" class="absolute top-4 right-4 z-20 text-slate-400 hover:text-white bg-black/40 hover:bg-black/80 w-8 h-8 rounded-full flex items-center justify-center transition border border-white/5 cursor-pointer" title="Close Overlay (ESC)">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+
+          <!-- Left: Big Media Preview Canvas -->
+          <div class="flex-1 bg-[#070708] relative flex flex-col justify-between p-6 border-b md:border-b-0 md:border-r border-white/5 h-[40vh] md:h-full">
+            
+            <!-- Breadcrumbs in imagery header -->
+            <div class="flex items-center gap-2 select-none shrink-0 z-10 text-left">
+              <span id="lightbox-badge-board" class="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-[10px] uppercase font-mono border border-emerald-500/10 tracking-wide">/ Environment_Ref</span>
+              <span id="lightbox-heading-title" class="text-xs text-slate-400 truncate max-w-[200px]">hero_view.png</span>
+            </div>
+
+            <!-- Centralized Asset View Stage -->
+            <div class="flex-grow flex items-center justify-center relative p-2 h-0 w-full group">
+              <!-- Previous navigate arrow -->
+              <button id="lightbox-prev" class="absolute left-2 bg-black/50 hover:bg-emerald-500 hover:text-black hover:border-emerald-500 text-slate-300 p-2 text-xs rounded-full border border-white/10 transition shadow-lg z-10 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path>
+                </svg>
+              </button>
+
+              <img id="lightbox-img" src="" class="max-h-full max-w-full rounded border border-white/10 shadow-lg object-contain transition-transform duration-300 transform scale-100" />
+
+              <!-- Next navigate arrow -->
+              <button id="lightbox-next" class="absolute right-2 bg-black/50 hover:bg-emerald-500 hover:text-black hover:border-emerald-500 text-slate-300 p-2 text-xs rounded-full border border-white/10 transition shadow-lg z-10 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Technical image parameters footer inside modal -->
+            <div class="flex items-center justify-between mt-2 shrink-0 select-none border-t border-white/[0.03] pt-3">
+              <div class="flex items-center gap-2 text-[10.5px] font-mono text-slate-500">
+                <span id="lightbox-meta-resolution">1920x1080</span>
+                <span>•</span>
+                <span id="lightbox-meta-size">142 KB</span>
+              </div>
+              <div id="lightbox-swatches" class="flex gap-1 bg-black/40 border border-white/5 p-1 rounded">
+                <!-- Swatches injected on active item change -->
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right: Interactive Metadata details sheet (The Pinterest Scroll Panel) -->
+          <div class="w-full md:w-[380px] bg-[#0E0E10] flex flex-col h-[48vh] md:h-full overflow-hidden">
+            <div id="lightbox-inspector-scroll" class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-5">
+              <!-- Dynamic inspector inner html will be populated here! -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- BOARD CREATION MODAL OVERLAY -->
+      <div id="board-create-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[55] flex items-center justify-center p-4 hidden select-none transition-all duration-300">
+        <!-- Dialog Card -->
+        <div class="vault-card bg-[#0F0F11] border border-white/10 rounded-2xl max-w-sm w-full p-6 flex flex-col gap-4 shadow-2xl relative pointer-events-auto text-left">
+          <button id="board-create-close" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-black/40 hover:bg-black/80 w-6 h-6 rounded-full flex items-center justify-center transition border border-white/5 cursor-pointer">
+            <svg class="w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+          
+          <div class="space-y-1">
+            <h3 class="text-sm font-semibold text-white tracking-tight flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+              </svg>
+              <span>Create New Board</span>
+            </h3>
+            <p class="text-[10px] text-slate-500 font-mono">Will create an empty workspace catalog board.</p>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Collection Path Name</label>
+            <input type="text" id="modal-board-name" placeholder="/Environment_Ref/SciFi_Outpost" 
+              class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none focus:border-emerald-500/40 transition placeholder-slate-700" />
+          </div>
+
+          <div class="flex gap-2 justify-end pt-2">
+            <button id="modal-board-cancel" class="px-3 py-1.5 hover:bg-white/5 text-slate-400 text-xs rounded transition font-medium cursor-pointer">
+              Cancel
+            </button>
+            <button id="modal-board-submit" class="vault-btn px-4.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold rounded transition active:scale-95 cursor-pointer">
+              Create Board
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- OBSIDIAN VAULT MANAGER OVERLAY -->
+      <div id="vault-manager-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[55] flex items-center justify-center p-4 md:p-8 hidden select-none transition-all duration-300">
+        <!-- Vault Manager Card -->
+        <div class="vault-card bg-[#0F0F11] border border-white/10 rounded-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl relative pointer-events-auto">
+          
+          <!-- Close Button -->
+          <button id="vault-manager-close" class="absolute top-4 right-4 z-20 text-slate-400 hover:text-white bg-black/40 hover:bg-black/80 w-8 h-8 rounded-full flex items-center justify-center transition border border-white/5 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+
+          <!-- Header section -->
+          <div class="p-6 pb-4 border-b border-white/[0.04] shrink-0 text-left select-none">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-emerald-500 rounded flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5 text-black font-bold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-base font-bold text-white tracking-tight leading-none">Obsidian-Style Vault Manager</h2>
+                <p class="text-[10.5px] text-slate-500 mt-1 font-mono">Open, register, or create directories as secure isolated file vaults.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Content: Columns -->
+          <div class="flex-grow flex flex-col md:flex-row overflow-hidden min-h-0 text-left">
+            <!-- Left Column: Vault List -->
+            <div class="w-full md:w-3/5 p-6 border-r border-white/[0.04] flex flex-col overflow-y-auto custom-scrollbar">
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-[10px] uppercase tracking-widest text-[#10B981] font-bold font-mono">My Registered Vaults</span>
+                <span class="text-[10px] text-slate-500 font-mono" id="vault-manager-count-label">4 vaults found</span>
+              </div>
+              
+              <div class="space-y-3" id="vault-manager-list-container">
+                <!-- Dynamically populated list of vaults -->
+              </div>
+            </div>
+
+            <!-- Right Column: Operations -->
+            <div class="w-full md:w-2/5 p-6 bg-black/20 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+              <!-- Operation 1: Create New Vault -->
+              <div class="space-y-3">
+                <div class="flex items-center gap-1.5 text-emerald-400">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                  </svg>
+                  <span class="text-[10px] font-bold uppercase tracking-wider font-mono">Create New Vault</span>
+                </div>
+                <p class="text-[11px] text-slate-500 leading-relaxed font-sans">Initialize a brand new visual vault. Creates a clean, empty directory workspace.</p>
+                
+                <div class="space-y-2 pt-1 font-sans">
+                  <div class="space-y-1">
+                    <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono font-bold">Vault Name</label>
+                    <input type="text" id="create-vault-name" placeholder="E.g., Design Concept Space" class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" />
+                  </div>
+                  
+                  <div class="space-y-1">
+                    <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono font-bold">Absolute Folder Path</label>
+                    <input type="text" id="create-vault-path" placeholder="E.g., /Users/design/Desktop/My_Vault" class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none font-mono" />
+                  </div>
+
+                  <button id="btn-create-vault-submit" class="vault-btn w-full mt-2 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold rounded transition active:scale-95 cursor-pointer">
+                    Create &amp; Mount Vault
+                  </button>
+                </div>
+              </div>
+
+              <!-- Divider -->
+              <div class="border-t border-white/[0.04]"></div>
+
+              <!-- Operation 2: Open Folder as Vault -->
+              <div class="space-y-3">
+                <div class="flex items-center gap-1.5 text-blue-400">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9"></path>
+                  </svg>
+                  <span class="text-[10px] font-bold uppercase tracking-wider font-mono">Open Folder as Vault</span>
+                </div>
+                <p class="text-[11px] text-slate-500 leading-relaxed font-sans">Index an existing visual folder hierarchy on your local system to run reference scans over it.</p>
+                
+                <div class="space-y-2 pt-1 font-sans">
+                  <div class="space-y-1">
+                    <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono font-bold">Vault Name</label>
+                    <input type="text" id="open-vault-name" placeholder="E.g., Cyberpunk Assets" class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" />
+                  </div>
+                  
+                  <div class="space-y-1">
+                    <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono font-bold">Existing Folder Path</label>
+                    <input type="text" id="open-vault-path" placeholder="E.g., /Users/design/Downloads/References" class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none font-mono" />
+                  </div>
+
+                  <button id="btn-open-vault-submit" class="vault-btn w-full mt-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold rounded transition active:scale-95 cursor-pointer">
+                    Register &amp; Mount Vault
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modals footer -->
+          <div class="p-4 bg-black/40 border-t border-white/[0.04] text-right shrink-0">
+            <button id="vault-manager-close-footer" class="vault-btn px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs font-semibold uppercase transition tracking-wider cursor-pointer">
+              Cancel &amp; Close Workspace
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- SETTINGS MODAL OVERLAY -->
+      <div id="settings-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[55] flex items-center justify-center p-4 md:p-8 hidden select-none transition-all duration-300">
+        <!-- Settings Card -->
+        <div class="vault-card bg-[#0F0F11] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl relative pointer-events-auto">
+          
+          <!-- Close Button -->
+          <button id="settings-close" class="absolute top-4 right-4 z-20 text-slate-400 hover:text-white bg-black/40 hover:bg-black/80 w-8 h-8 rounded-full flex items-center justify-center transition border border-white/5 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+
+          <!-- Settings Header -->
+          <div class="p-6 border-b border-white/5 select-none text-left">
+            <h3 class="text-lg font-semibold text-white tracking-tight flex items-center gap-2">
+              <svg class="w-5 h-5 text-emerald-400 vault-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              <span>VisualVault Control Center</span>
+            </h3>
+            <p class="text-xs text-slate-500 font-mono mt-0.5">Tauri Core Engine & Database Management Interface</p>
+          </div>
+
+          <!-- Settings Scrollable Body -->
+          <div class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-6 text-left">
+            
+            <!-- App Version Section -->
+            <div class="space-y-4 pb-6 border-b border-white/[0.04]">
+              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Engine System Diagnostics</label>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
+                  <span class="text-slate-500 text-[10px]">Tauri Client Version</span>
+                  <span class="text-white font-semibold">v2.0.4 - stable</span>
+                </div>
+                <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
+                  <span class="text-slate-500 text-[10px]">SQLite Database Sync</span>
+                  <span class="text-emerald-400 font-semibold vault-accent-text">Active (catalog.db)</span>
+                </div>
+                <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
+                  <span class="text-slate-500 text-[10px]">Obsidian API Companion</span>
+                  <span class="text-white">Enabled (v1.5 companion)</span>
+                </div>
+                <div class="bg-black/30 border border-white/5 p-3 rounded-lg flex flex-col font-mono text-[11px] space-y-1">
+                  <span class="text-slate-500 text-[10px]">Indexed Vault Memory</span>
+                  <span class="text-white" id="settings-files-indexed">0 files indexed</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Predefined Visual vaults load -->
+            <div class="space-y-3 pb-6 border-b border-white/[0.04]">
+              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Load Predefined Image Vaults</label>
+              <p class="text-xs text-slate-500 leading-relaxed font-sans">Load predefined image index databases to test color extraction grids, tagging matrix, and responsive designs.</p>
+              
+              <div class="grid grid-cols-2 gap-2.5 pt-1">
+                <button id="load-vault-neotokyo" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
+                  🗼 Neo-Tokyo Arch
+                </button>
+                <button id="load-vault-cybercity" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
+                  🏙️ Cyberpunk Grid
+                </button>
+                <button id="load-vault-blueprint" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
+                  📐 Mech Blueprints
+                </button>
+                <button id="load-vault-characters" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
+                  🥋 Character Concept
+                </button>
+              </div>
+
+              <div class="flex gap-2 pt-2">
+                <button id="load-vault-all" class="vault-btn w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-black rounded text-xs transition font-semibold active:scale-95 cursor-pointer">
+                  ⚡ Sync All Archives Companion (Simulate Full System Pull)
+                </button>
+              </div>
+            </div>
+
+            <!-- Visual Themes Theme-Switcher -->
+            <div class="space-y-3">
+              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Aesthetic UI Theme Engine</label>
+              <p class="text-xs text-slate-500 leading-relaxed font-sans">Instantly skin the client architecture to match various digital workspace workflows.</p>
+              
+              <div class="grid grid-cols-3 gap-3 pt-1">
+                <!-- Theme Button 1: Default -->
+                <button id="theme-btn-default" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#0A0A0B] border-emerald-500/30 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden">
+                  <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400" id="theme-bullet-default"></div>
+                  <span class="text-xs text-white">Default</span>
+                  <span class="text-[10px] text-slate-500 font-normal font-mono mt-1">Obsidian Dark</span>
+                </button>
+
+                <!-- Theme Button 2: Notion Minimalist -->
+                <button id="theme-btn-minimalist" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#F7F7F5] border-neutral-300 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden">
+                  <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#2383E2] hidden" id="theme-bullet-minimalist"></div>
+                  <span class="text-xs text-[#37352F] font-sans">Minimalist</span>
+                  <span class="text-[10px] text-[#787774] font-normal font-mono mt-1">Notion Off-White</span>
+                </button>
+
+                <!-- Theme Button 3: Matrix CRT -->
+                <button id="theme-btn-matrix" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#000000] border-[#00FF41]/45 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden font-mono">
+                  <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#00FF41] hidden" id="theme-bullet-matrix"></div>
+                  <span class="text-xs text-[#00FF41] font-bold">Matrix</span>
+                  <span class="text-[10px] text-[#00FF41]/60 font-normal mt-1">Y2K CRT Console</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Dynamic Accent Color customizer -->
+            <div class="space-y-3 pt-6 border-t border-white/[0.04]">
+              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Aesthetic Accent Color</label>
+              <p class="text-xs text-slate-500 leading-relaxed font-sans">Pick an interface accent color for folders, active buttons, ratings, and highlights.</p>
+              
+              <div class="flex flex-wrap gap-2 pt-1" id="accent-colors-container">
+                <!-- Color pill 1: Emerald -->
+                <button data-accent="emerald" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                  <span class="w-3.5 h-3.5 rounded-full bg-[#10B981] flex shrink-0"></span>
+                  <span>Emerald</span>
+                </button>
+                
+                <!-- Color pill 2: Purple -->
+                <button data-accent="purple" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                  <span class="w-3.5 h-3.5 rounded-full bg-[#7F6DF2] flex shrink-0"></span>
+                  <span>Obsidian Purple</span>
+                </button>
+
+                <!-- Color pill 3: Blue -->
+                <button data-accent="blue" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                  <span class="w-3.5 h-3.5 rounded-full bg-[#2383E2] flex shrink-0"></span>
+                  <span>Blue</span>
+                </button>
+
+                <!-- Color pill 4: Orange -->
+                <button data-accent="orange" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                  <span class="w-3.5 h-3.5 rounded-full bg-[#F97316] flex shrink-0"></span>
+                  <span>Orange</span>
+                </button>
+
+                <!-- Color pill 5: Amber -->
+                <button data-accent="amber" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                  <span class="w-3.5 h-3.5 rounded-full bg-[#F59E0B] flex shrink-0"></span>
+                  <span>Amber</span>
+                </button>
+
+                <!-- Color pill 6: Indigo -->
+                <button data-accent="indigo" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                  <span class="w-3.5 h-3.5 rounded-full bg-[#6366F1] flex shrink-0"></span>
+                  <span>Indigo</span>
+                </button>
+
+                <!-- Color pill 7: Red -->
+                <button data-accent="red" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                  <span class="w-3.5 h-3.5 rounded-full bg-[#EF4444] flex shrink-0"></span>
+                  <span>Ruby</span>
+                </button>
+
+                <!-- Color pill 8: Pink -->
+                <button data-accent="pink" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                  <span class="w-3.5 h-3.5 rounded-full bg-[#EC4899] flex shrink-0"></span>
+                  <span>Pink</span>
+                </button>
+
+                <!-- Color pill 9: Custom Customizer Color Wheel Picker -->
+                <button data-accent="custom" id="accent-custom-trigger" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                  <span class="w-3.5 h-3.5 rounded-full bg-gradient-to-tr from-rose-500 via-amber-400 to-indigo-500 flex shrink-0" id="custom-accent-color-preview"></span>
+                  <span>Custom Hex</span>
+                </button>
+              </div>
+
+              <!-- Custom hex color-input slider row shown conditionally -->
+              <div class="flex items-center gap-3 bg-black/30 p-3 rounded-lg border border-white/5 max-w-md hidden" id="custom-accent-extra-panel">
+                <input type="color" id="custom-accent-color-picker" class="w-8 h-8 rounded border-none bg-transparent cursor-pointer" title="Choose from color spectrum wheel" />
+                <div class="flex-grow">
+                  <label class="text-[10px] text-slate-500 font-semibold block font-mono">Custom Accent Hex Code</label>
+                  <input type="text" id="custom-accent-hex-input" class="bg-transparent border-none text-xs text-white outline-none font-mono focus:text-[#10B981] w-full" placeholder="#FF5500" value="#FF5500" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Dynamic System Font Selection -->
+            <div class="space-y-3 pt-6 border-t border-white/[0.04]">
+              <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">System Typeface</label>
+              <p class="text-xs text-slate-500 leading-relaxed font-sans">Synchronize Obsidian-like vault catalog using advanced Google Fonts or system typefaces.</p>
+              
+              <div class="grid grid-cols-2 gap-2.5 pt-1">
+                <!-- Group 1: Google Web Fonts -->
+                <div class="space-y-1.5 col-span-2">
+                  <span class="text-[9px] uppercase tracking-widest text-slate-600 font-bold font-mono">Google Web Fonts</span>
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <button data-font="inter" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 font-sans flex flex-col transition" style="font-family: 'Inter', sans-serif">
+                      <span class="font-bold text-white">Inter Sans</span>
+                      <span class="text-[9px] opacity-60">Classic Swiss/UI Sans</span>
+                    </button>
+                    <button data-font="space-grotesk" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Space Grotesk', sans-serif">
+                      <span class="font-bold text-white">Space Grotesk</span>
+                      <span class="text-[9px] opacity-60">Tech/Sci-Fi Display</span>
+                    </button>
+                    <button data-font="outfit" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Outfit', sans-serif">
+                      <span class="font-bold text-white">Outfit</span>
+                      <span class="text-[9px] opacity-60">Geometric / Clean</span>
+                    </button>
+                    <button data-font="playfair" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Playfair Display', serif">
+                      <span class="font-bold text-white">Playfair Display</span>
+                      <span class="text-[9px] opacity-60">Editorial / Serif</span>
+                    </button>
+                    <button data-font="jetbrains" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'JetBrains Mono', monospace">
+                      <span class="font-bold text-white">JetBrains Mono</span>
+                      <span class="text-[9px] opacity-60">Developer / Technical</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Group 2: System/Local Typefaces -->
+                <div class="space-y-1.5 col-span-2 pt-1">
+                  <span class="text-[9px] uppercase tracking-widest text-slate-600 font-bold font-mono">System Typefaces</span>
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <button data-font="system" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: system-ui">
+                      <span class="font-bold text-white">System UI Sans</span>
+                      <span class="text-[9px] opacity-60">Native OS performance</span>
+                    </button>
+                    <button data-font="georgia" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: Georgia, serif">
+                      <span class="font-bold text-white">Georgia Serif</span>
+                      <span class="text-[9px] opacity-60">High contrast reading</span>
+                    </button>
+                    <button data-font="courier" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Courier New', monospace">
+                      <span class="font-bold text-white">Courier Classic</span>
+                      <span class="text-[9px] opacity-60">Typewriter mechanical</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Settings Footer -->
+          <div class="p-4 bg-[#0A0A0B]/60 border-t border-white/5 flex justify-end shrink-0 select-none">
+            <button id="settings-close-action" class="vault-btn px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs font-semibold uppercase transition tracking-wider cursor-pointer">
+              Apply & Close
+            </button>
+          </div>
+
+        </div>
+      </div>
+    `;
+  }
+
+  private renderLogs() {
+    const loggerDiv = this.querySelector('#sqlite-activity-logs');
+    if (!loggerDiv) return;
+    loggerDiv.innerHTML = this.activeLogs.map(log => {
+      let colorClass = 'text-slate-400';
+      if (log.type === 'success') colorClass = 'text-emerald-400';
+      if (log.type === 'warn') colorClass = 'text-amber-500';
+      
+      return `
+        <div class="flex justify-between border-b border-white/[0.02] pb-1 font-mono">
+          <span class="opacity-40 text-[8px]">${log.time}</span>
+          <span class="${colorClass} truncate pl-2 max-w-[170px] text-[8.5px]">${log.msg}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ----------------------------------------------------
+  // Dynamic Views Synchronization
+  // ----------------------------------------------------
+  private updateLayout() {
+    // Sync active heading and description text centrally based on active selectedBoard
+    const heading = this.querySelector('#board-title-heading');
+    const desc = this.querySelector('#board-desc');
+    if (heading) {
+      if (this.selectedBoard === 'ALL') {
+        heading.textContent = 'All Vault Reference Archives';
+        if (desc) desc.textContent = 'Pinterest-style Vault Board Directories • Select any Category Board below to view and edit references';
+      } else {
+        heading.textContent = this.selectedBoard;
+        if (desc) desc.textContent = 'Local subdirectory scan synced inside catalog.db cache';
+      }
+    }
+
+    this.renderBoardNavigation();
+    this.renderCatalog();
+    this.renderInspector();
+    
+    // Update counter
+    const allCount = this.querySelector('#all-assets-count');
+    const footerCount = this.querySelector('#vault-total-count');
+    if (allCount) allCount.textContent = `${this.assets.length}`;
+    if (footerCount) footerCount.textContent = `Vault Index: ${14203 + this.assets.length - 12} files`;
+  }
+
+  private renderBoardNavigation() {
+    const listDiv = this.querySelector('#boards-list-container');
+    if (!listDiv) return;
+
+    const boards = this.getUniqueBoards();
+    
+    listDiv.innerHTML = boards.map(board => {
+      const activeFolderIcon = `<svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
+      const idleFolderIcon = `<svg class="w-3.5 h-3.5 text-slate-500 shrink-0 opacity-40 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
+      
+      const parts = board.replace(/^\/\s*/, '').split('/');
+      const isSub = parts.length > 1;
+      const displayLabel = isSub ? `${parts[parts.length - 1]}` : `${parts[0]}`;
+      const isActive = this.selectedBoard === board;
+      
+      const paddingClass = isSub ? 'pl-6' : 'pl-2';
+      const colorClass = isActive 
+        ? 'text-emerald-400 bg-emerald-500/10 font-bold border-l-2 border-emerald-500 scale-[1.01]' 
+        : 'text-slate-400 hover:text-white hover:bg-white/[0.015] border-l-2 border-transparent';
+
+      return `
+        <div data-board="${board}" class="board-link flex items-center justify-between text-xs py-2 pr-2.5 rounded-r cursor-pointer transition-all duration-200 ${paddingClass} ${colorClass} group">
+          <div class="flex items-center gap-2 truncate">
+            ${isActive ? activeFolderIcon : idleFolderIcon}
+            <span class="truncate">${displayLabel}</span>
+          </div>
+          <span class="text-[9px] font-mono opacity-50 bg-black/40 px-1.5 py-0.5 rounded-full border border-white/5">${this.assets.filter(a => a.board === board).length}</span>
+        </div>
+      `;
+    }).join('');
+
+    // Highlight Library link (All references)
+    const navAll = this.querySelector('#nav-all-assets');
+    
+    if (this.selectedBoard === 'ALL') {
+      navAll?.classList.add('bg-emerald-500/5', 'text-emerald-400', 'border', 'border-emerald-500/10');
+      navAll?.classList.remove('text-slate-400');
+    } else {
+      navAll?.classList.remove('bg-emerald-500/5', 'text-emerald-400', 'border', 'border-emerald-500/10');
+      navAll?.classList.add('text-slate-400');
+    }
+  }
+
+  private renderBoardCategoryCards(gridDiv: HTMLElement, emptyState: HTMLElement) {
+    const boards = this.getUniqueBoards();
+    const query = this.searchQuery.toLowerCase().trim();
+
+    // Filter which boards match the search query or contain matching assets
+    const filteredBoards = boards.filter(board => {
+      if (!query) return true;
+      if (board.toLowerCase().includes(query)) return true;
+      
+      const boardAssets = this.assets.filter(a => a.board === board);
+      return boardAssets.some(asset => {
+        const matchTitle = asset.name.toLowerCase().includes(query);
+        const matchArtist = (asset.metadata.artist || '').toLowerCase().includes(query);
+        const matchSystemTags = asset.tags.some(t => t.toLowerCase().includes(query));
+        const matchMetaTags = asset.metadata.tags.some(t => t.toLowerCase().includes(query));
+        return matchTitle || matchArtist || matchSystemTags || matchMetaTags;
+      });
+    });
+
+    if (filteredBoards.length === 0) {
+      gridDiv.classList.add('hidden');
+      emptyState.classList.remove('hidden');
+      emptyState.classList.add('flex');
+      return;
+    } else {
+      gridDiv.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+      emptyState.classList.remove('flex');
+    }
+
+    // Boards grid style (clean grid is better than masonry for structured square folders!)
+    gridDiv.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full pb-10';
+
+    gridDiv.innerHTML = filteredBoards.map(board => {
+      const boardAssets = this.assets.filter(a => a.board === board);
+      const matchingAssets = boardAssets.filter(asset => {
+        if (!query) return true;
+        const matchTitle = asset.name.toLowerCase().includes(query);
+        const matchArtist = (asset.metadata.artist || '').toLowerCase().includes(query);
+        const matchSystemTags = asset.tags.some(t => t.toLowerCase().includes(query));
+        const matchMetaTags = asset.metadata.tags.some(t => t.toLowerCase().includes(query));
+        return matchTitle || matchArtist || matchSystemTags || matchMetaTags;
+      });
+
+      const displayLabel = board.replace(/^\/\s*/, '').split('/').pop() || board;
+      
+      return `
+        <div data-board="${board}" class="board-card-item cursor-pointer bg-[#0F0F11]/90 border border-white/5 rounded-2xl p-4 flex flex-col space-y-3 hover:border-emerald-500/20 hover:bg-[#121215] transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl group relative">
+          
+          <!-- Collage frame (Pinterest style) -->
+          <div class="relative h-40 w-full rounded-xl overflow-hidden bg-black/40 flex gap-1.5 select-none shrink-0 border border-white/[0.03]">
+            <!-- Left panel: Big Cover image -->
+            <div class="w-[60%] h-full relative overflow-hidden bg-white/[0.01] flex items-center justify-center">
+              ${boardAssets[0] ? `
+                <img src="${boardAssets[0].imageUrl}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+              ` : `
+                <div class="flex flex-col items-center justify-center text-slate-700">
+                  <svg class="w-6 h-6 stroke-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z"></path>
+                  </svg>
+                  <span class="text-[9px] font-mono mt-1">Empty Board</span>
+                </div>
+              `}
+            </div>
+
+            <!-- Right panel: Two stacked small thumbnails -->
+            <div class="w-[40%] flex flex-col gap-1.5 h-full">
+              <!-- Top thumbs -->
+              <div class="flex-1 h-0 overflow-hidden bg-white/[0.01] flex items-center justify-center border-l border-white/5">
+                ${boardAssets[1] ? `
+                  <img src="${boardAssets[1].imageUrl}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                ` : `
+                  <div class="w-full h-full border border-dashed border-white/5 rounded flex items-center justify-center text-[10px] text-slate-800 font-mono">+</div>
+                `}
+              </div>
+              <!-- Bottom thumbs -->
+              <div class="flex-1 h-0 overflow-hidden bg-white/[0.01] flex items-center justify-center border-l border-t border-white/5">
+                ${boardAssets[2] ? `
+                  <img src="${boardAssets[2].imageUrl}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                ` : `
+                  <div class="w-full h-full border border-dashed border-white/5 rounded flex items-center justify-center text-[10px] text-slate-800 font-mono">+</div>
+                `}
+              </div>
+            </div>
+
+            <!-- Visual overlay open board icon button -->
+            <div class="absolute top-2 right-2 bg-black/60 backdrop-blur border border-white/10 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition duration-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Board description -->
+          <div class="flex flex-col text-left">
+            <!-- Title and counts -->
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-sm text-slate-100 group-hover:text-emerald-400 transition truncate pr-2" title="${displayLabel}">
+                ${displayLabel}
+              </span>
+              <span class="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5 tracking-tight shrink-0 font-semibold shadow-inner font-mono">
+                ${query && matchingAssets.length !== boardAssets.length 
+                  ? `${matchingAssets.length}/${boardAssets.length} pins` 
+                  : `${boardAssets.length} files`}
+              </span>
+            </div>
+            
+            <!-- Full virtual Board Path breadcrumb -->
+            <span class="text-[10.5px] text-slate-500 font-mono mt-1 break-all truncate" title="${board}">
+              ${board}
+            </span>
+
+            <!-- Status & Swatches row -->
+            <div class="flex items-center justify-between border-t border-white/[0.03] pt-2.5 mt-2.5 text-[10px] text-slate-600 font-mono">
+              <span class="flex items-center gap-1 text-[9.5px]">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                SQLite Sync
+              </span>
+              <div class="flex -space-x-1.5 overflow-hidden">
+                ${boardAssets.slice(0, 4).map(asset => `
+                  <div class="w-4 h-4 rounded-full border border-slate-900 bg-slate-700 flex-shrink-0 origin-center hover:scale-125 hover:z-10 transition overflow-hidden">
+                    <img src="${asset.imageUrl}" class="w-full h-full object-cover" />
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      `;
+    }).join('');
+  }
+
+  private renderCatalog() {
+    const gridDiv = this.querySelector('#catalog-masonry') as HTMLElement | null;
+    const emptyState = this.querySelector('#catalog-empty-state') as HTMLElement | null;
+    if (!gridDiv || !emptyState) return;
+
+    if (this.selectedBoard === 'ALL') {
+      this.renderBoardCategoryCards(gridDiv, emptyState);
+      return;
+    }
+
+    const filtered = this.getFilteredAssets();
+    
+    if (filtered.length === 0) {
+      gridDiv.classList.add('hidden');
+      emptyState.classList.remove('hidden');
+      emptyState.classList.add('flex');
+      
+      const emptyBoardSpan = this.querySelector('#empty-state-board-name');
+      if (emptyBoardSpan) emptyBoardSpan.textContent = this.selectedBoard;
+      
+      return;
+    } else {
+      gridDiv.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+      emptyState.classList.remove('flex');
+    }
+
+    // Set columns class according to current gridSize state
+    gridDiv.className = ''; // wipe current class
+    if (this.gridSize === 'sm') {
+      gridDiv.className = 'columns-1 sm:columns-2 md:columns-4 lg:columns-5 xl:columns-6 gap-3.5';
+    } else if (this.gridSize === 'md') {
+      gridDiv.className = 'columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-3.5';
+    } else {
+      gridDiv.className = 'columns-1 sm:columns-1 md:columns-2 lg:columns-2 xl:columns-3 gap-5';
+    }
+
+    gridDiv.innerHTML = filtered.map(asset => {
+      const isSelected = asset.id === this.selectedAssetId;
+      const borderClass = isSelected 
+        ? 'ring-2 ring-emerald-500 border-emerald-500 bg-[#121215] shadow-lg shadow-emerald-500/10 scale-[1.01]' 
+        : 'border-white/10 bg-slate-900/60 hover:border-white/20 hover:bg-[#121214]';
+      
+      // Determine appropriate height ratio card
+      let heightClass = 'h-48';
+      if (asset.name.includes('temple') || asset.name.includes('exosuit') || asset.imageUrl.startsWith('blob:')) {
+        heightClass = 'h-64';
+      } else if (asset.name.includes('Study') || asset.name.includes('alley') || asset.name.includes('suit')) {
+        heightClass = 'h-40';
+      } else if (asset.name.includes('mech') || asset.name.includes('node')) {
+        heightClass = 'h-52';
+      }
+
+      const swatches = asset.colors.map(c => `
+        <div class="w-2.5 h-2.5 rounded-full border border-white/10" style="background-color: ${c}" title="${c}"></div>
+      `).join('');
+
+      return `
+        <div data-id="${asset.id}" draggable="true" class="asset-card break-inside-avoid mb-4 border rounded-lg overflow-hidden cursor-pointer group transition-all duration-300 relative ${borderClass}">
+          
+          <!-- Image canvas wrapper -->
+          <div class="${heightClass} relative w-full overflow-hidden bg-black/40 flex items-center justify-center">
+            <img src="${asset.imageUrl}" class="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" loading="lazy" />
+            
+            <!-- Technical Overlay parameters -->
+            <div class="absolute top-2 left-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-[8.5px] mono tracking-tight text-slate-400 opacity-60 group-hover:opacity-100 transition whitespace-nowrap">
+              ${asset.resolution}
+            </div>
+
+            <!-- Sync confirmation beacon -->
+            <div class="absolute top-3 right-3 bg-emerald-500 text-black p-0.5 rounded-full flex items-center justify-center ${isSelected ? 'opacity-100 ring-2 ring-white/15 scale-105' : 'opacity-0 group-hover:opacity-100'} transition self-center">
+              <svg class="w-3.5 h-3.5" stroke="currentColor" fill="currentColor" stroke-width="0.5" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+
+            <!-- Palette quick indicators -->
+            <div class="absolute bottom-2 left-2 flex gap-1 bg-black/50 backdrop-blur border border-white/5 p-1 rounded">
+              ${swatches}
+            </div>
+          </div>
+
+          <!-- Caption footer -->
+          <div id="footer-${asset.id}" class="p-3 text-[11.5px] border-t border-white/[0.04] flex items-center justify-between transition-colors">
+            <span class="truncate font-medium text-slate-200 group-hover:text-emerald-400 transition pr-2">${asset.metadata.title || asset.name}</span>
+            <span class="shrink-0 text-[10px] bg-white/5 opacity-50 px-1 py-0.5 rounded font-mono">${asset.size}</span>
+          </div>
+
+        </div>
+      `;
+    }).join('');
+  }
+
+  private renderInspector() {
+    const ispcDiv = this.querySelector('#inspector-container');
+    if (!ispcDiv) return;
+
+    const asset = this.assets.find(a => a.id === this.selectedAssetId);
+    if (!asset) {
+      ispcDiv.innerHTML = `
+        <div class="flex flex-col items-center justify-center text-center p-10 text-slate-500 h-96">
+          <svg class="w-8 h-8 opacity-20 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
+          </svg>
+          <p class="text-xs">No active selection</p>
+          <p class="text-[10px] text-slate-600 mt-1">Select any reference asset in the grid list to edit metadata coordinates and color parameters.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Markdown file companion block
+    const rawYaml = stringifyYAMLFrontmatter(asset.metadata);
+    const mdName = asset.name.replace(/\.[a-zA-Z0-9]+$/, '.md');
+
+    // Generating stars rating selector markup
+    let starsInHtml = '';
+    for (let i = 1; i <= 5; i++) {
+      const active = i <= parseInt(asset.metadata.rating);
+      starsInHtml += `
+        <span class="star-rating-item text-lg cursor-pointer transition ${active ? 'text-amber-500' : 'text-slate-600 hover:text-amber-400/50'}" data-rate="${i}">★</span>
+      `;
+    }
+
+    // Interactive custom tags
+    const tagsInHtml = asset.metadata.tags.map(tag => `
+      <span class="meta-tag-badge bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded px-2 py-0.5 text-[10.5px] tracking-tight inline-flex items-center gap-1">
+        ${tag}
+        <span class="meta-tag-remove cursor-pointer hover:text-white transition font-bold" data-tag="${tag}">×</span>
+      </span>
+    `).join('');
+
+    // Swatches HEX
+    const paletteInHtml = asset.colors.map(color => `
+      <div class="palette-swatch flex flex-col gap-1 flex-1 cursor-pointer group/sw" data-hex="${color}">
+        <div class="h-8 rounded border border-white/10 transition group-hover/sw:border-emerald-500/30" style="background-color: ${color}"></div>
+        <span class="mono text-[8.5px] text-center text-slate-500 group-hover/sw:text-emerald-400 transition mt-0.5">${color}</span>
+      </div>
+    `).join('');
+
+    const uniqueBoards = this.getUniqueBoards();
+    const boardOptionsHtml = uniqueBoards.filter(b => b !== 'ALL').map(b => `
+      <option value="${b}" ${asset.board === b ? 'selected' : ''}>${b}</option>
+    `).join('');
+
+    ispcDiv.innerHTML = `
+      <div class="space-y-5 animate-fade-in">
+        
+        <!-- Asset ID context header -->
+        <div class="space-y-1 pb-4 border-b border-white/[0.04]">
+          <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Asset Identification</label>
+          <h4 class="text-white font-semibold text-sm truncate flex items-center justify-between" title="${asset.name}">
+            <span>${asset.name}</span>
+            <button id="asset-delete-btn" class="p-1.5 hover:bg-red-500/10 text-red-400 hover:text-red-300 rounded-full transition ml-2 flex items-center justify-center shrink-0 border border-transparent hover:border-red-500/20 shadow-md cursor-pointer" title="Delete index asset companion">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </button>
+          </h4>
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+            <span>Disk updated: ${asset.lastModified}</span>
+            <span class="text-emerald-500">.png Sync ok</span>
+          </div>
+        </div>
+
+        <!-- Markdown frontmatter companion YAML edits -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Companion Obsidian MD</label>
+            <span class="text-[10px] text-emerald-500/60 font-mono flex items-center gap-1">
+              <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+              ${mdName}
+            </span>
+          </div>
+
+          <div class="relative group">
+            <textarea id="markdown-yaml-editor" class="w-full h-34 bg-black font-mono text-[10.5px] leading-relaxed text-slate-400 p-2.5 rounded border border-white/5 focus:border-emerald-500/20 focus:text-slate-300 outline-none resize-none transition-all custom-scrollbar flex" spellcheck="false" title="Directly edit plaintext YAML frontmatter metadata — edits immediately mirror into form variables!">${rawYaml}</textarea>
+            <div class="absolute bottom-1 right-2 text-[8px] mono text-slate-600 group-focus-within:text-emerald-400 pointer-events-none transition-colors">Obsidian Link</div>
+          </div>
+
+          <button id="action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider">
+            Open Companion in Obsidian
+          </button>
+        </div>
+
+        <!-- Board Operations (Rearrange Indexing & Relocation) -->
+        <div class="space-y-3.5 pt-4 border-t border-white/[0.04]">
+          <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Board Settings &amp; Rearranging</label>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <button id="action-move-up" class="py-2 bg-white/5 hover:bg-emerald-500/10 hover:border-emerald-500/20 border border-white/5 active:scale-95 text-slate-300 hover:text-emerald-400 text-[10px] font-bold uppercase rounded transition flex items-center justify-center gap-1.5 cursor-pointer font-mono tracking-wider" title="Move this pin earlier in layout order">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"></path>
+              </svg>
+              <span>Move Up</span>
+            </button>
+            <button id="action-move-down" class="py-2 bg-white/5 hover:bg-emerald-500/10 hover:border-emerald-500/20 border border-white/5 active:scale-95 text-slate-300 hover:text-emerald-400 text-[10px] font-bold uppercase rounded transition flex items-center justify-center gap-1.5 cursor-pointer font-mono tracking-wider" title="Move this pin later in layout order">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
+              </svg>
+              <span>Move Down</span>
+            </button>
+          </div>
+
+          <div class="space-y-1 pt-1.5">
+            <span class="text-[10px] text-slate-400 font-medium">Change Board / Relocate Pin:</span>
+            <select id="action-move-board-select" class="w-full bg-black text-xs px-2 py-2 rounded border border-white/10 focus:border-emerald-500/30 text-slate-200 outline-none cursor-pointer">
+              ${boardOptionsHtml}
+            </select>
+          </div>
+        </div>
+
+        <!-- Forms metadata config parameters -->
+        <div class="space-y-3.5 pt-4 border-t border-white/[0.04]">
+          <label class="text-[10px] uppercase tracking-widest text-[#10B981] font-mono font-bold cursor-default">Database Sync Parameters</label>
+          
+          <div class="space-y-1">
+            <span class="text-[10px] text-slate-500 font-semibold">Pin Name / Title:</span>
+            <input type="text" id="meta-title-input" value="${asset.metadata.title || ''}" 
+              class="w-full bg-black/40 text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" placeholder="E.g., Neo Tokyo Temple Alleyway Sunset..." />
+          </div>
+
+          <div class="space-y-1">
+            <span class="text-[10px] text-slate-500 font-semibold">Pin notes / Description:</span>
+            <textarea id="meta-notes-input" class="w-full h-22 bg-black/40 text-xs px-2.5 py-2 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none resize-none custom-scrollbar" placeholder="Add custom notes, design prompts, research observations, color palette ideas, or notes similar to Pin boards...">${asset.metadata.notes || ''}</textarea>
+          </div>
+
+          <div class="space-y-1">
+            <span class="text-[10px] text-slate-500 font-semibold">Artist / Creator:</span>
+            <input type="text" id="meta-artist-input" value="${asset.metadata.artist || ''}" 
+              class="w-full bg-black/40 text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none w-full" placeholder="Chen-K design team..." />
+          </div>
+
+          <div class="space-y-1">
+            <span class="text-[10px] text-slate-500 font-semibold">Asset Status: </span>
+            <select id="meta-status-select" class="w-full bg-black text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none">
+              <option value="completed" ${asset.metadata.status === 'completed' ? 'selected' : ''}>Completed Reference</option>
+              <option value="in-progress" ${asset.metadata.status === 'in-progress' ? 'selected' : ''}>Work-in-Progress (WIP)</option>
+              <option value="review" ${asset.metadata.status === 'review' ? 'selected' : ''}>Awaiting Design Review</option>
+              <option value="draft" ${asset.metadata.status === 'draft' ? 'selected' : ''}>Draft Sketch studies</option>
+            </select>
+          </div>
+
+          <div class="space-y-1.5">
+            <span class="text-[10px] text-slate-500 font-semibold">Visual Vault Grade:</span>
+            <div class="flex items-center gap-1 bg-black/20 p-1.5 rounded border border-white/5 w-fit">
+              ${starsInHtml}
+            </div>
+          </div>
+        </div>
+
+        <!-- Extract color palette swatches -->
+        <div class="space-y-2 pt-4 border-t border-white/[0.04]">
+          <div class="flex justify-between items-center">
+            <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Color Palette Extract</label>
+            <span class="text-[9px] text-slate-500 font-mono">Click to Copy</span>
+          </div>
+          <div class="flex gap-2">
+            ${paletteInHtml}
+          </div>
+        </div>
+
+        <!-- Custom tags parameters -->
+        <div class="space-y-2 pt-4 border-t border-white/[0.04]">
+          <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Obsidian Companion Tags</label>
+          <div class="flex flex-wrap gap-1.5 leading-relaxed">
+            ${tagsInHtml}
+          </div>
+          <div class="flex items-center gap-1.5 bg-black/40 border border-white/5 rounded pl-2.5 py-1 pr-1 w-full mt-2 focus-within:border-emerald-500/20">
+            <span class="text-[10px] text-slate-600 font-mono font-semibold">#</span>
+            <input type="text" id="add-tag-input" placeholder="add_new_tag..." 
+              class="bg-transparent text-xs text-white placeholder-slate-600 outline-none w-full" />
+            <button id="add-tag-btn" class="p-1 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded font-bold uppercase text-[9px] transition shrink-0 hidden">add</button>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    this.attachInspectorEvents();
+  }
+
+  // ----------------------------------------------------
+  // Interactions & Events Binding
+  // ----------------------------------------------------
+  private attachEventListeners() {
+    // Board creation input trigger
+    const addBoardBtn = this.querySelector('#add-board-btn');
+    const newBoardIn = this.querySelector('#new-board-name') as HTMLInputElement;
+    if (addBoardBtn && newBoardIn) {
+      addBoardBtn.addEventListener('click', () => {
+        const val = newBoardIn.value.trim();
+        if (val) {
+          this.createNewBoard(val);
+          newBoardIn.value = '';
+        }
+      });
+      newBoardIn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const val = newBoardIn.value.trim();
+          if (val) {
+            this.createNewBoard(val);
+            newBoardIn.value = '';
+          }
+        }
+      });
+    }
+
+    // Static click handler for reset/demo reloader
+    const actionReset = this.querySelector('#action-reset');
+    if (actionReset) {
+      actionReset.addEventListener('click', () => {
+        if (confirm('Rebuild database? This will clear active catalog index configurations and reboot local database cache.')) {
+          localStorage.removeItem('visual_catalog_db_v2');
+          this.assets = defaultMockAssets();
+          this.selectedBoard = '/ Environment_Ref/Neo_Tokyo';
+          this.selectedAssetId = 'as_1';
+          storage.saveAllAssets(this.assets);
+          this.addLog('success', 'Local SQL cache cleared. Re-indexing reference database...');
+          this.updateLayout();
+          this.toast('Database Cleared', 'Simulated visual catalog metadata recompiled successfully.');
+        }
+      });
+    }
+
+    // Library category clicks
+    const navAll = this.querySelector('#nav-all-assets');
+    if (navAll) {
+      navAll.addEventListener('click', () => {
+        this.selectedBoard = 'ALL';
+        const heading = this.querySelector('#board-title-heading');
+        if (heading) heading.textContent = 'All Vault Reference Archives';
+        this.updateLayout();
+      });
+    }
+
+    const navRecent = this.querySelector('#nav-recent');
+    if (navRecent) {
+      navRecent.addEventListener('click', () => {
+        // Toggle sort / filter to items modified inside last session
+        this.selectedBoard = 'ALL';
+        // Sort items by ID descending to show simulated latest
+        this.assets.sort((a,b) => b.id.localeCompare(a.id));
+        const heading = this.querySelector('#board-title-heading');
+        if (heading) heading.textContent = 'All Vault References Sorted By Creation Date';
+        this.updateLayout();
+        this.addLog('info', 'Reordered database references by sqlite indexing order.');
+      });
+    }
+
+    // Event Delegation: Select Board list click triggers
+    const listsDiv = this.querySelector('#sidebar-lists');
+    if (listsDiv) {
+      listsDiv.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const link = target.closest('.board-link') as HTMLElement;
+        if (link) {
+          const targetBoard = link.dataset.board || '';
+          this.selectedBoard = targetBoard;
+          
+          // Switch selected asset to first asset contained in this board
+          const currentBoardAssets = this.assets.filter(a => a.board === targetBoard);
+          if (currentBoardAssets.length > 0) {
+            this.selectedAssetId = currentBoardAssets[0].id;
+          }
+
+          // Force text updates heading title
+          const heading = this.querySelector('#board-title-heading');
+          if (heading) heading.textContent = targetBoard;
+
+          this.updateLayout();
+          this.addLog('info', `Read metadata records for board: ${targetBoard}`);
+        }
+      });
+
+      // Supporting dragging reference cards into sidebar category folders (boards)
+      listsDiv.addEventListener('dragover', (e: any) => {
+        const link = e.target.closest('.board-link') as HTMLElement;
+        if (link) {
+          e.preventDefault(); // crucial to enable drop triggers
+          link.classList.add('bg-emerald-500/10', 'text-emerald-400');
+        }
+      });
+
+      listsDiv.addEventListener('dragleave', (e: any) => {
+        const link = e.target.closest('.board-link') as HTMLElement;
+        if (link) {
+          link.classList.remove('bg-emerald-500/10', 'text-emerald-400');
+        }
+      });
+
+      listsDiv.addEventListener('drop', (e: any) => {
+        const link = e.target.closest('.board-link') as HTMLElement;
+        if (link) {
+          e.preventDefault();
+          link.classList.remove('bg-emerald-500/10', 'text-emerald-400');
+          const boardName = link.dataset.board || '';
+          const assetId = e.dataTransfer.getData('text/plain');
+          
+          if (assetId && boardName) {
+            const asset = this.assets.find(a => a.id === assetId);
+            if (asset && asset.board !== boardName) {
+              const oldBoard = asset.board;
+              asset.board = boardName;
+              storage.saveAllAssets(this.assets);
+              this.addLog('success', `Dropped pin: Moved '${asset.name}' from '${oldBoard}' board to '${boardName}'.`);
+              this.updateLayout();
+              this.toast('Asset Relocated', `Moved '${asset.metadata.title || asset.name}' to board '${boardName}'.`);
+            }
+          }
+        }
+      });
+    }
+
+    // Grid selection triggers
+    const masonryDiv = this.querySelector('#catalog-masonry');
+    if (masonryDiv) {
+      masonryDiv.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+
+        // If currently in visual Boards list mode, intercept Board clicks to drill down!
+        if (this.selectedBoard === 'ALL') {
+          const boardCard = target.closest('.board-card-item') as HTMLElement;
+          if (boardCard) {
+            const targetBoard = boardCard.dataset.board || '';
+            this.selectedBoard = targetBoard;
+
+            const currentBoardAssets = this.assets.filter(a => a.board === targetBoard);
+            if (currentBoardAssets.length > 0) {
+              this.selectedAssetId = currentBoardAssets[0].id;
+            }
+
+            this.updateLayout();
+            this.addLog('info', `Navigated into Category Board: ${targetBoard}`);
+            return;
+          }
+        }
+
+        const card = target.closest('.asset-card') as HTMLElement;
+        if (card) {
+          const id = card.dataset.id || '';
+          this.selectedAssetId = id;
+          this.renderInspector();
+          
+          // Re-highlight cards selectively
+          this.querySelectorAll('.asset-card').forEach(n => {
+            const nodeId = (n as HTMLElement).dataset.id;
+            if (nodeId === id) {
+              n.classList.add('ring-2', 'ring-emerald-500', 'border-emerald-500', 'bg-[#121215]');
+              n.classList.remove('border-white/10', 'bg-slate-900/60');
+            } else {
+              n.classList.add('border-white/10', 'bg-slate-900/60');
+              n.classList.remove('ring-2', 'ring-emerald-500', 'border-emerald-500', 'bg-[#121215]');
+            }
+          });
+
+          // Automatically pop up Pinterest-style comprehensive view modal!
+          this.isLightboxOpen = false;
+          this.toggleLightbox();
+        }
+      });
+
+      // HTML5 Drag & Drop start on cards
+      masonryDiv.addEventListener('dragstart', (e: any) => {
+        const card = e.target.closest('.asset-card') as HTMLElement;
+        if (card) {
+          const id = card.dataset.id || '';
+          e.dataTransfer.setData('text/plain', id);
+          e.dataTransfer.effectAllowed = 'move';
+          card.classList.add('opacity-40');
+        }
+      });
+
+      // HTML5 Drag & Drop end on cards
+      masonryDiv.addEventListener('dragend', (e: any) => {
+        const card = e.target.closest('.asset-card') as HTMLElement;
+        if (card) {
+          card.classList.remove('opacity-40');
+        }
+      });
+    }
+
+    // Grid Size triggers
+    const sizeSm = this.querySelector('#size-sm') as HTMLElement;
+    const sizeMd = this.querySelector('#size-md') as HTMLElement;
+    const sizeLg = this.querySelector('#size-lg') as HTMLElement;
+    const sizeButtons = [sizeSm, sizeMd, sizeLg];
+
+    if (sizeSm) {
+      sizeSm.addEventListener('click', () => {
+        this.gridSize = 'sm';
+        this.updateSizeButtonHighlights(sizeSm, sizeButtons);
+        this.renderCatalog();
+      });
+    }
+    if (sizeMd) {
+      sizeMd.addEventListener('click', () => {
+        this.gridSize = 'md';
+        this.updateSizeButtonHighlights(sizeMd, sizeButtons);
+        this.renderCatalog();
+      });
+    }
+    if (sizeLg) {
+      sizeLg.addEventListener('click', () => {
+        this.gridSize = 'lg';
+        this.updateSizeButtonHighlights(sizeLg, sizeButtons);
+        this.renderCatalog();
+      });
+    }
+
+    // Vault Path Input trigger edits
+    const pathInput = this.querySelector('#vault-path-input') as HTMLInputElement;
+    if (pathInput) {
+      pathInput.addEventListener('change', () => {
+        const newPath = pathInput.value.trim();
+        storage.setVaultPath(newPath);
+        this.addLog('success', `Vault directory changed: ${newPath}. Hot reloading notify crates.`);
+        this.toast('Vault Re-assigned', `Watching subdirectory sequence in ${newPath} for active modifications.`);
+      });
+      pathInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          pathInput.blur();
+        }
+      });
+    }
+
+    // Keyword Search Dynamic Filter input triggers
+    const searchInput = this.querySelector('#asset-search') as HTMLInputElement;
+    const clearBtn = this.querySelector('#search-clear-btn');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        this.searchQuery = searchInput.value;
+        if (clearBtn) {
+          if (this.searchQuery) {
+            clearBtn.classList.remove('hidden');
+          } else {
+            clearBtn.classList.add('hidden');
+          }
+        }
+        this.renderCatalog();
+      });
+    }
+
+    if (clearBtn && searchInput) {
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        this.searchQuery = '';
+        clearBtn.classList.add('hidden');
+        this.renderCatalog();
+      });
+    }
+
+    // Simulated / Interactive Dropzones
+    const dropzone = this.querySelector('#drop-zone');
+    if (dropzone) {
+      dropzone.addEventListener('dragover', (e: any) => {
+        e.preventDefault();
+        dropzone.classList.remove('border-white/5', 'bg-black/10');
+        dropzone.classList.add('border-emerald-500/40', 'bg-emerald-500/5');
+      });
+
+      dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('border-emerald-500/40', 'bg-emerald-500/5');
+        dropzone.classList.add('border-white/5', 'bg-black/10');
+      });
+
+      dropzone.addEventListener('drop', (e: any) => {
+        e.preventDefault();
+        dropzone.classList.remove('border-emerald-500/40', 'bg-emerald-500/5');
+        dropzone.classList.add('border-white/5', 'bg-black/10');
+
+        const files = Array.from(e.dataTransfer?.files || []) as File[];
+        if (files.length > 0) {
+          this.handleImportedFiles(files);
+        }
+      });
+    }
+
+    // Trigger File Pickers click
+    const importBtn = this.querySelector('#import-trigger-btn');
+    const filePicker = this.querySelector('#local-file-picker') as HTMLInputElement;
+    if (importBtn && filePicker) {
+      importBtn.addEventListener('click', () => {
+        filePicker.click();
+      });
+      
+      filePicker.addEventListener('change', () => {
+        const files = Array.from(filePicker.files || []) as File[];
+        if (files.length > 0) {
+          this.handleImportedFiles(files);
+        }
+        filePicker.value = ''; // wipe out selection
+      });
+    }
+
+    // Lightbox modal buttons control
+    const lightboxClose = this.querySelector('#lightbox-close');
+    const lightboxBackdrop = this.querySelector('#lightbox-backdrop');
+    const lightboxPrev = this.querySelector('#lightbox-prev');
+    const lightboxNext = this.querySelector('#lightbox-next');
+
+    if (lightboxClose) {
+      lightboxClose.addEventListener('click', () => this.toggleLightbox());
+    }
+    if (lightboxBackdrop) {
+      lightboxBackdrop.addEventListener('click', (e) => {
+        if (e.target === lightboxBackdrop) {
+          this.toggleLightbox();
+        }
+      });
+    }
+    if (lightboxPrev) {
+      lightboxPrev.addEventListener('click', () => this.navigateLightbox(-1));
+    }
+    if (lightboxNext) {
+      lightboxNext.addEventListener('click', () => this.navigateLightbox(1));
+    }
+
+    // Obsidian Vault Manager events
+    // 1. Header / Top Bar button action
+    const openVaultsBtn = this.querySelector('#open-vaults-manager-btn');
+    if (openVaultsBtn) {
+      openVaultsBtn.addEventListener('click', () => {
+        this.toggleVaultManagerModal();
+      });
+    }
+
+    // 2. Sidebar load vaults action button
+    const navLoadVaultsBtn = this.querySelector('#nav-load-vaults-btn');
+    if (navLoadVaultsBtn) {
+      navLoadVaultsBtn.addEventListener('click', () => {
+        this.toggleVaultManagerModal();
+      });
+    }
+
+    // 3. Vault manager close icon button
+    const vaultManagerClose = this.querySelector('#vault-manager-close');
+    if (vaultManagerClose) {
+      vaultManagerClose.addEventListener('click', () => {
+        this.toggleVaultManagerModal(false);
+      });
+    }
+
+    // 4. Vault manager close footer button
+    const vaultManagerCloseFooter = this.querySelector('#vault-manager-close-footer');
+    if (vaultManagerCloseFooter) {
+      vaultManagerCloseFooter.addEventListener('click', () => {
+        this.toggleVaultManagerModal(false);
+      });
+    }
+
+    // 5. Vault manager backdrop click dismisser
+    const vaultManagerBackdrop = this.querySelector('#vault-manager-backdrop');
+    if (vaultManagerBackdrop) {
+      vaultManagerBackdrop.addEventListener('click', (e) => {
+        if (e.target === vaultManagerBackdrop) {
+          this.toggleVaultManagerModal(false);
+        }
+      });
+    }
+
+    // 6. Create New Vault Form Submit Handler
+    const btnCreateVaultSubmit = this.querySelector('#btn-create-vault-submit');
+    if (btnCreateVaultSubmit) {
+      btnCreateVaultSubmit.addEventListener('click', () => {
+        const nameInput = this.querySelector('#create-vault-name') as HTMLInputElement | null;
+        const pathInput = this.querySelector('#create-vault-path') as HTMLInputElement | null;
+        if (nameInput && pathInput) {
+          const nameValue = nameInput.value.trim();
+          const pathValue = pathInput.value.trim();
+          if (!nameValue || !pathValue) {
+            alert('Please specify both a Vault Name and an absolute folder reference path.');
+            return;
+          }
+          this.switchVault(pathValue, nameValue);
+          nameInput.value = '';
+          pathInput.value = '';
+        }
+      });
+    }
+
+    // 7. Open Folder as Vault Form Submit Handler
+    const btnOpenVaultSubmit = this.querySelector('#btn-open-vault-submit');
+    if (btnOpenVaultSubmit) {
+      btnOpenVaultSubmit.addEventListener('click', () => {
+        const nameInput = this.querySelector('#open-vault-name') as HTMLInputElement | null;
+        const pathInput = this.querySelector('#open-vault-path') as HTMLInputElement | null;
+        if (nameInput && pathInput) {
+          const nameValue = nameInput.value.trim();
+          const pathValue = pathInput.value.trim();
+          if (!nameValue || !pathValue) {
+            alert('Please specify both a Vault Name and an existing folder path reference.');
+            return;
+          }
+          this.switchVault(pathValue, nameValue);
+          nameInput.value = '';
+          pathInput.value = '';
+        }
+      });
+    }
+
+    // Interactive Settings Control Center Bindings
+    const settingsBtn = this.querySelector('#nav-settings-btn');
+    if (settingsBtn) {
+      settingsBtn.addEventListener('click', () => {
+        this.toggleSettings();
+      });
+    }
+
+    const settingsClose = this.querySelector('#settings-close');
+    if (settingsClose) {
+      settingsClose.addEventListener('click', () => {
+        this.toggleSettings(false);
+      });
+    }
+
+    const settingsCloseAction = this.querySelector('#settings-close-action');
+    if (settingsCloseAction) {
+      settingsCloseAction.addEventListener('click', () => {
+        this.toggleSettings(false);
+      });
+    }
+
+    const settingsBackdrop = this.querySelector('#settings-backdrop');
+    if (settingsBackdrop) {
+      settingsBackdrop.addEventListener('click', (e) => {
+        if (e.target === settingsBackdrop) {
+          this.toggleSettings(false);
+        }
+      });
+    }
+
+    // Aesthetic Theme Switcher events
+    const themeBtnDefault = this.querySelector('#theme-btn-default');
+    if (themeBtnDefault) {
+      themeBtnDefault.addEventListener('click', () => {
+        this.activeTheme = 'default';
+        this.injectThemeStyles();
+        localStorage.setItem('visual_vault_active_theme', 'default');
+        this.toggleSettings(true); // refresh highlighting
+        this.addLog('success', 'Aesthetic UI: Switched layout skinning to default Obsidian Dark.');
+        this.toast('Theme Switched', 'Default theme applied successfully.');
+      });
+    }
+
+    const themeBtnMinimalist = this.querySelector('#theme-btn-minimalist');
+    if (themeBtnMinimalist) {
+      themeBtnMinimalist.addEventListener('click', () => {
+        this.activeTheme = 'minimalist';
+        this.injectThemeStyles();
+        localStorage.setItem('visual_vault_active_theme', 'minimalist');
+        this.toggleSettings(true); // refresh highlighting
+        this.addLog('success', 'Aesthetic UI: Switched layout skinning to Notion-inspired Off-white (Minimalist).');
+        this.toast('Theme Switched', 'Minimalist (Notion Off-White) theme applied successfully.');
+      });
+    }
+
+    const themeBtnMatrix = this.querySelector('#theme-btn-matrix');
+    if (themeBtnMatrix) {
+      themeBtnMatrix.addEventListener('click', () => {
+        this.activeTheme = 'matrix';
+        this.injectThemeStyles();
+        localStorage.setItem('visual_vault_active_theme', 'matrix');
+        this.toggleSettings(true); // refresh highlighting
+        this.addLog('success', 'Aesthetic UI: Switched layout skinning to Y2K CRT matrix.');
+        this.toast('Theme Switched', 'Matrix CRT terminal theme applied successfully.');
+      });
+    }
+
+    // Dynamic accent color-select attachments
+    this.querySelectorAll('.accent-select-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const accent = (btn as HTMLElement).dataset.accent || 'emerald';
+        this.activeAccent = accent;
+        localStorage.setItem('visual_vault_accent_color', accent);
+        
+        let label = accent;
+        if (accent === 'purple') label = 'Obsidian Purple';
+        else if (accent === 'blue') label = 'Notion Blue';
+        else if (accent === 'red') label = 'Ruby Red';
+        else if (accent === 'orange') label = 'Orange';
+        else if (accent === 'amber') label = 'Amber';
+        else if (accent === 'indigo') label = 'Indigo';
+        else if (accent === 'pink') label = 'Pink';
+        else if (accent === 'emerald') label = 'Emerald';
+        else if (accent === 'custom') label = 'Custom Hex';
+
+        this.injectThemeStyles();
+        this.syncSettingsHighlights();
+        this.addLog('success', `Aesthetic UI: Customised accent color to ${label}.`);
+        this.toast('Accent Modified', `Accent color changed to ${label}!`);
+      });
+    });
+
+    const colorPicker = this.querySelector('#custom-accent-color-picker') as HTMLInputElement | null;
+    const hexInput = this.querySelector('#custom-accent-hex-input') as HTMLInputElement | null;
+
+    if (colorPicker && hexInput) {
+      colorPicker.addEventListener('input', () => {
+        const value = colorPicker.value.toUpperCase();
+        this.customAccentHex = value;
+        localStorage.setItem('visual_vault_custom_accent_hex', value);
+        hexInput.value = value;
+        this.injectThemeStyles();
+        
+        const previewDot = this.querySelector('#custom-accent-color-preview') as HTMLElement | null;
+        if (previewDot) previewDot.style.background = value;
+      });
+
+      colorPicker.addEventListener('change', () => {
+        const value = colorPicker.value.toUpperCase();
+        this.addLog('success', `Aesthetic UI: Customised accent to ${value} (Custom Hex).`);
+      });
+
+      hexInput.addEventListener('change', () => {
+        let val = hexInput.value.trim().toUpperCase();
+        if (!val.startsWith('#')) val = '#' + val;
+        if (/^#[0-9A-F]{6}$/i.test(val)) {
+          this.customAccentHex = val;
+          localStorage.setItem('visual_vault_custom_accent_hex', val);
+          colorPicker.value = val;
+          this.injectThemeStyles();
+          
+          const previewDot = this.querySelector('#custom-accent-color-preview') as HTMLElement | null;
+          if (previewDot) previewDot.style.background = val;
+          this.addLog('success', `Aesthetic UI: Customised accent to ${val} (Custom Hex).`);
+          this.toast('Accent Modified', `Custom hex set to ${val}`);
+        } else {
+          this.toast('Invalid Hex', 'Please enter a valid hex color code (e.g., #FF5500).');
+          hexInput.value = this.customAccentHex || '#10B981';
+        }
+      });
+    }
+
+    // Dynamic system font-select attachments
+    this.querySelectorAll('.font-select-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const font = (btn as HTMLElement).dataset.font || 'inter';
+        this.activeFont = font;
+        localStorage.setItem('visual_vault_system_font', font);
+        
+        let label = font;
+        if (font === 'inter') label = 'Inter Sans';
+        else if (font === 'space-grotesk') label = 'Space Grotesk';
+        else if (font === 'outfit') label = 'Outfit';
+        else if (font === 'playfair') label = 'Playfair Display';
+        else if (font === 'jetbrains') label = 'JetBrains Mono';
+        else if (font === 'system') label = 'System UI';
+        else if (font === 'georgia') label = 'Georgia Serif';
+        else if (font === 'courier') label = 'Courier Classic';
+
+        this.injectThemeStyles();
+        this.syncSettingsHighlights();
+        this.addLog('success', `Aesthetic UI: Switched system typeface to ${label}.`);
+        this.toast('Font Synced', `Typeface changed to ${label}!`);
+      });
+    });
+
+    // Predefined visual image vaults loader actions
+    const btnNeoTokyo = this.querySelector('#load-vault-neotokyo');
+    if (btnNeoTokyo) {
+      btnNeoTokyo.addEventListener('click', () => this.loadPresetVault('neotokyo'));
+    }
+
+    const btnCybercity = this.querySelector('#load-vault-cybercity');
+    if (btnCybercity) {
+      btnCybercity.addEventListener('click', () => this.loadPresetVault('cybercity'));
+    }
+
+    const btnBlueprint = this.querySelector('#load-vault-blueprint');
+    if (btnBlueprint) {
+      btnBlueprint.addEventListener('click', () => this.loadPresetVault('blueprint'));
+    }
+
+    const btnCharacters = this.querySelector('#load-vault-characters');
+    if (btnCharacters) {
+      btnCharacters.addEventListener('click', () => this.loadPresetVault('characters'));
+    }
+
+    const btnAllVaults = this.querySelector('#load-vault-all');
+    if (btnAllVaults) {
+      btnAllVaults.addEventListener('click', () => this.loadPresetVault('all'));
+    }
+
+    // Modal Board Creation Events
+    const sidebarAddTrigger = this.querySelector('#sidebar-add-board-trigger');
+    if (sidebarAddTrigger) {
+      sidebarAddTrigger.addEventListener('click', () => {
+        this.toggleBoardCreateModal(true);
+      });
+    }
+
+    const modalBoardClose = this.querySelector('#board-create-close');
+    if (modalBoardClose) {
+      modalBoardClose.addEventListener('click', () => {
+        this.toggleBoardCreateModal(false);
+      });
+    }
+
+    const modalBoardCancelBtn = this.querySelector('#modal-board-cancel');
+    if (modalBoardCancelBtn) {
+      modalBoardCancelBtn.addEventListener('click', () => {
+        this.toggleBoardCreateModal(false);
+      });
+    }
+
+    const boardCreateBackdrop = this.querySelector('#board-create-backdrop');
+    if (boardCreateBackdrop) {
+      boardCreateBackdrop.addEventListener('click', (e) => {
+        if (e.target === boardCreateBackdrop) {
+          this.toggleBoardCreateModal(false);
+        }
+      });
+    }
+
+    const modalBoardNameIn = this.querySelector('#modal-board-name') as HTMLInputElement | null;
+    const modalBoardSubmitBtn = this.querySelector('#modal-board-submit');
+    if (modalBoardSubmitBtn && modalBoardNameIn) {
+      const submitAction = () => {
+        const val = modalBoardNameIn.value.trim();
+        if (val) {
+          this.createNewBoard(val);
+          this.toggleBoardCreateModal(false);
+        } else {
+          this.toast('Invalid Name', 'Please enter a valid directory sub-folder path.');
+        }
+      };
+
+      modalBoardSubmitBtn.addEventListener('click', submitAction);
+      modalBoardNameIn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          submitAction();
+        } else if (e.key === 'Escape') {
+          this.toggleBoardCreateModal(false);
+        }
+      });
+    }
+
+    // Clipboard Paste Listener for copy/pasting files into the active board
+    window.addEventListener('paste', (e: ClipboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+      
+      const files = Array.from(e.clipboardData?.files || []) as File[];
+      const imageFiles = files.filter(f => f.type.startsWith('image/'));
+      
+      if (imageFiles.length > 0) {
+        if (isInput) e.preventDefault();
+        this.addLog('info', `Local folder hot-sync scan: Paste action received (${imageFiles.length} file streams).`);
+        this.addLog('success', `Simulating physical file placement: Copied to '${this.selectedBoard}' folder directory.`);
+        this.handleImportedFiles(imageFiles);
+      }
+    });
+
+    // Empty state pick file trigger
+    const emptyStatePickBtn = this.querySelector('#empty-state-pick-btn');
+    if (emptyStatePickBtn && filePicker) {
+      emptyStatePickBtn.addEventListener('click', () => {
+        filePicker.click();
+      });
+    }
+  }
+
+  private updateSizeButtonHighlights(activeBtn: HTMLElement, buttons: (HTMLElement | null)[]) {
+    buttons.forEach(btn => {
+      if (btn) {
+        btn.classList.remove('bg-white/5', 'text-emerald-400', 'font-semibold');
+        btn.classList.add('text-slate-500');
+      }
+    });
+    activeBtn.classList.add('bg-white/5', 'text-emerald-400', 'font-semibold');
+    activeBtn.classList.remove('text-slate-500');
+  }
+
+  /**
+   * Action triggers for selecting tags, editing front-matter txt layouts, 
+   * rating indices from the inspectors.
+   */
+  private attachInspectorEvents() {
+    const asset = this.assets.find(a => a.id === this.selectedAssetId);
+    if (!asset) return;
+
+    // Title Input Change handler
+    const titleIn = this.querySelector('#meta-title-input') as HTMLInputElement | null;
+    if (titleIn) {
+      titleIn.addEventListener('change', () => {
+        const val = titleIn.value.trim();
+        asset.metadata.title = val;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        this.addLog('success', `Transactional write [catalog.db]: Pin Display Title updated to "${val}".`);
+        
+        // Also update companion YAML editor view
+        const yamlEditor = this.querySelector('#markdown-yaml-editor') as HTMLTextAreaElement | null;
+        if (yamlEditor) {
+          yamlEditor.value = stringifyYAMLFrontmatter(asset.metadata);
+        }
+        
+        // Update grid visual card footer title instantly without full masonry re-render
+        const gridCardFooterSpan = this.querySelector(`#footer-${asset.id} span`);
+        if (gridCardFooterSpan) {
+          gridCardFooterSpan.textContent = val || asset.name;
+        }
+        this.syncAssetInGridFooter(asset);
+      });
+      titleIn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') titleIn.blur();
+      });
+    }
+
+    // Notes Input Change handler
+    const notesIn = this.querySelector('#meta-notes-input') as HTMLTextAreaElement | null;
+    if (notesIn) {
+      notesIn.addEventListener('change', () => {
+        const val = notesIn.value.trim();
+        asset.metadata.notes = val;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        this.addLog('success', `Transactional write [catalog.db]: Inspiration Notes updated.`);
+        
+        // Also update companion YAML editor view
+        const yamlEditor = this.querySelector('#markdown-yaml-editor') as HTMLTextAreaElement | null;
+        if (yamlEditor) {
+          yamlEditor.value = stringifyYAMLFrontmatter(asset.metadata);
+        }
+      });
+    }
+
+    // Up/Down Arrangement Click handlers
+    const btnMoveUp = this.querySelector('#action-move-up');
+    if (btnMoveUp) {
+      btnMoveUp.addEventListener('click', () => {
+        this.rearrangeAsset('up');
+      });
+    }
+
+    const btnMoveDown = this.querySelector('#action-move-down');
+    if (btnMoveDown) {
+      btnMoveDown.addEventListener('click', () => {
+        this.rearrangeAsset('down');
+      });
+    }
+
+    // Board Relocation Selection handler
+    const moveBoardSelect = this.querySelector('#action-move-board-select') as HTMLSelectElement | null;
+    if (moveBoardSelect) {
+      moveBoardSelect.addEventListener('change', () => {
+        const targetBoardName = moveBoardSelect.value;
+        if (targetBoardName && targetBoardName !== asset.board) {
+          const prevBoard = asset.board;
+          asset.board = targetBoardName;
+          storage.saveAllAssets(this.assets);
+          this.addLog('success', `Relocated pin: '${asset.name}' physically moved ${prevBoard} -> ${targetBoardName}`);
+          
+          this.toast('Asset Relocated', `Successfully moved '${asset.name}' reference to board '${targetBoardName}'.`);
+          this.updateLayout();
+        }
+      });
+    }
+
+    // Delete asset record click
+    const deleteBtn = this.querySelector('#asset-delete-btn');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        if (confirm(`Remove index companion configuration for '${asset.name}'? Companion .md and cache entries will be unlinked.`)) {
+          this.assets = storage.deleteAsset(asset.id);
+          this.addLog('warn', `Unlinked database entry and deleted file metadata block: ${asset.name.replace(/\.[a-z]+$/, '.md')}`);
+          
+          // Switch selections
+          if (this.assets.length > 0) {
+            this.selectedAssetId = this.assets[0].id;
+          } else {
+            this.selectedAssetId = '';
+          }
+          this.updateLayout();
+          this.toast('Companion Unlinked', `Metadata file and catalog caches for ${asset.name} unlinked.`);
+        }
+      });
+    }
+
+    // Star Rating Click triggers
+    const ratingStarts = this.querySelectorAll('.star-rating-item');
+    ratingStarts.forEach(node => {
+      node.addEventListener('click', (e) => {
+        const element = e.currentTarget as HTMLElement;
+        const rate = element.dataset.rate || '5';
+        
+        asset.metadata.rating = rate;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Transactional write successful [catalog.db]: Rating updated (${rate} Stars).`);
+        this.renderInspector();
+        this.syncAssetInGridFooter(asset);
+        this.toast('SQLite Synchronized', `Obsidian meta-rating graded as ${rate} Stars.`);
+      });
+    });
+
+    // Option Status selects
+    const statusSelect = this.querySelector('#meta-status-select') as HTMLSelectElement;
+    if (statusSelect) {
+      statusSelect.addEventListener('change', () => {
+        const val = statusSelect.value;
+        asset.metadata.status = val;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Mirroring .md markdown state to disk for ${asset.name}: companion status='${val}'`);
+        this.renderInspector();
+        this.toast('Markdown Mirror ok', `YAML state mirrored down: status: '${val}'`);
+      });
+    }
+
+    // String input creators Artist
+    const artistInput = this.querySelector('#meta-artist-input') as HTMLInputElement;
+    if (artistInput) {
+      artistInput.addEventListener('change', () => {
+        const val = artistInput.value.trim() || 'Unknown';
+        asset.metadata.artist = val;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Obsidian front-matter write: artist='${val}'`);
+        this.renderInspector();
+      });
+      artistInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') artistInput.blur();
+      });
+    }
+
+    // Color Swatch Clipboard copies
+    const swatches = this.querySelectorAll('.palette-swatch');
+    swatches.forEach(sw => {
+      sw.addEventListener('click', (e) => {
+        const node = e.currentTarget as HTMLElement;
+        const hex = node.dataset.hex || '#000000';
+        
+        navigator.clipboard.writeText(hex).then(() => {
+          this.toast('HEX Copied', `${hex} copied to local clipboard.`);
+          this.addLog('info', `Clipboard transaction read hex swatch: ${hex}`);
+          
+          // Temporary highlight
+          const span = node.querySelector('span');
+          if (span) {
+            const org = span.textContent;
+            span.textContent = 'COPIED!';
+            span.classList.add('text-emerald-400');
+            setTimeout(() => {
+              span.textContent = org;
+              span.classList.remove('text-emerald-400');
+            }, 1000);
+          }
+        }).catch(err => {
+          console.error('Copy failure', err);
+        });
+      });
+    });
+
+    // Companion Tag Removes
+    const tagRemovals = this.querySelectorAll('.meta-tag-remove');
+    tagRemovals.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Avoid selector bubbling
+        const node = e.currentTarget as HTMLElement;
+        const tag = node.dataset.tag || '';
+
+        asset.metadata.tags = asset.metadata.tags.filter(t => t !== tag);
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('warn', `Unlinked Markdown entry descriptor: unlinked tag #${tag}`);
+        this.renderInspector();
+        this.toast('Front-matter modified', `Metadata descriptor tag #${tag} unlinked.`);
+      });
+    });
+
+    // Add Tag triggers
+    const addTagIn = this.querySelector('#add-tag-input') as HTMLInputElement;
+    const addTagBtn = this.querySelector('#add-tag-btn') as HTMLButtonElement;
+    
+    if (addTagIn && addTagBtn) {
+      const handleAddTag = () => {
+        const val = addTagIn.value.trim().toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '');
+        if (val) {
+          if (!asset.metadata.tags.includes(val)) {
+            asset.metadata.tags.push(val);
+            storage.updateAsset(asset.id, { metadata: asset.metadata });
+            
+            this.addLog('success', `Obsidian indexing transaction: Append tag descriptor #${val}`);
+            this.renderInspector();
+            this.toast('Tag Appended', `#${val} appended to Obsidian companion config file.`);
+          } else {
+            this.toast('Duplicate Tag', `#${val} is already bound to this active asset.`);
+          }
+          addTagIn.value = '';
+          addTagBtn.classList.add('hidden');
+        }
+      };
+
+      addTagIn.addEventListener('input', () => {
+        if (addTagIn.value.trim()) {
+          addTagBtn.classList.remove('hidden');
+        } else {
+          addTagBtn.classList.add('hidden');
+        }
+      });
+
+      addTagIn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleAddTag();
+      });
+
+      addTagBtn.addEventListener('click', handleAddTag);
+    }
+
+    // YAML direct Textarea editing (Dual Synchronization layout flow!)
+    const yamlArea = this.querySelector('#markdown-yaml-editor') as HTMLTextAreaElement;
+    if (yamlArea) {
+      yamlArea.addEventListener('change', () => {
+        const rawYamlText = yamlArea.value;
+        const updatedMeta = parseYAMLFrontmatter(rawYamlText, asset.metadata);
+        
+        asset.metadata = updatedMeta;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Obsidian Dual-Sync Mirror: Direct client manual modifications compiled.`);
+        this.renderInspector();
+        this.syncAssetInGridFooter(asset);
+        this.toast('Obsidian Sync Ok', `Markdown frontmatter dual interface synchronized.`);
+      });
+    }
+
+    // Obsidian simulation launch routine Trigger
+    const actionObsidian = this.querySelector('#action-obsidian');
+    if (actionObsidian) {
+      actionObsidian.addEventListener('click', () => {
+        const mdPath = `${this.selectedBoard.replace(/^\//,'')}/${asset.name.replace(/\.[a-z]+$/, '.md')}`;
+        const obsidianUri = `obsidian://open?vault=${encodeURIComponent(storage.getVaultPath().split('/').pop() || 'Vault')}&file=${encodeURIComponent(mdPath)}`;
+        this.addLog('info', `Firing Electron desk command: ${obsidianUri}`);
+        this.toast('Obsidian Fired', `Simulated local workspace command trigger executed for ${asset.name.replace(/\.[a-z]+$/,'')}`);
+      });
+    }
+  }
+
+  // Visual helper update card texts in masonry footer directly
+  private syncAssetInGridFooter(asset: Asset) {
+    const captionSpan = this.querySelector(`#footer-${asset.id} span`);
+    if (captionSpan) {
+      captionSpan.className = 'truncate font-semibold text-emerald-400';
+      setTimeout(() => {
+        captionSpan.className = 'truncate font-medium text-slate-200 group-hover:text-emerald-400 transition pr-2';
+      }, 1000);
+    }
+  }
+
+  private rearrangeAsset(direction: 'up' | 'down') {
+    const asset = this.assets.find(a => a.id === this.selectedAssetId);
+    if (!asset) return;
+
+    // Get the exact visible list under current filters/board selection
+    const filtered = this.getFilteredAssets();
+    const idx = filtered.findIndex(a => a.id === asset.id);
+    if (idx === -1) return;
+
+    if (direction === 'up') {
+      if (idx === 0) {
+        this.toast('First Item', 'This pin is already at the top of the current board layout.');
+        return;
+      }
+      // Target neighbor is filtered[idx - 1]
+      const neighbor = filtered[idx - 1];
+      // Find where they are in global this.assets array and swap them
+      const globalIdxSelf = this.assets.findIndex(a => a.id === asset.id);
+      const globalIdxNeighbor = this.assets.findIndex(a => a.id === neighbor.id);
+      if (globalIdxSelf !== -1 && globalIdxNeighbor !== -1) {
+        const temp = this.assets[globalIdxSelf];
+        this.assets[globalIdxSelf] = this.assets[globalIdxNeighbor];
+        this.assets[globalIdxNeighbor] = temp;
+      }
+    } else {
+      if (idx === filtered.length - 1) {
+        this.toast('Last Item', 'This pin is already at the bottom of the current board layout.');
+        return;
+      }
+      // Target neighbor is filtered[idx + 1]
+      const neighbor = filtered[idx + 1];
+      // Find where they are in global this.assets array and swap them
+      const globalIdxSelf = this.assets.findIndex(a => a.id === asset.id);
+      const globalIdxNeighbor = this.assets.findIndex(a => a.id === neighbor.id);
+      if (globalIdxSelf !== -1 && globalIdxNeighbor !== -1) {
+        const temp = this.assets[globalIdxSelf];
+        this.assets[globalIdxSelf] = this.assets[globalIdxNeighbor];
+        this.assets[globalIdxNeighbor] = temp;
+      }
+    }
+
+    // Save changes to storage and update layout
+    storage.saveAllAssets(this.assets);
+    this.addLog('success', `Rearranged layout coordinates: Swapped index ordering for ${asset.name}.`);
+    this.updateLayout();
+  }
+
+  // ----------------------------------------------------
+  // Core Business Logics Helpers
+  // ----------------------------------------------------
+  private createNewBoard(name: string) {
+    // Sanitize path separators
+    let formattedPath = name.trim();
+    if (!formattedPath) return;
+    
+    if (!formattedPath.startsWith('/')) {
+      formattedPath = '/' + formattedPath;
+    }
+    
+    // Check duplication values
+    const current = this.getUniqueBoards();
+    if (current.includes(formattedPath)) {
+      this.toast('Board Exists', `The collection ${formattedPath} has already been registered inside database catalog.`);
+      return;
+    }
+
+    // Persist path reference in custom created boards list inside localStorage
+    try {
+      const customRaw = localStorage.getItem('visual_vault_created_boards_list');
+      const list = customRaw ? JSON.parse(customRaw) as string[] : [];
+      if (!list.includes(formattedPath)) {
+        list.push(formattedPath);
+        localStorage.setItem('visual_vault_created_boards_list', JSON.stringify(list));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    this.selectedBoard = formattedPath;
+    this.selectedAssetId = ''; // Completely empty directory state initially
+
+    this.addLog('success', `Created empty system folder directory inside Vault filesystem: ${formattedPath}`);
+    this.addLog('info', `Created markdown catalog binder companion configurations.`);
+    this.updateLayout();
+    
+    // Update header heading title
+    const heading = this.querySelector('#board-title-heading');
+    if (heading) heading.textContent = formattedPath;
+
+    this.toast('New Board Created', `Empty sub-board synced mapping to ${formattedPath}`);
+  }
+
+  /**
+   * Complex files import: Handles multi-file select natively within sandbox.
+   * Utilizes offscreen context mapping to read real resolution and extract 5 color arrays.
+   */
+  private handleImportedFiles(files: File[]) {
+    this.addLog('info', `Synchronous walkdir background scanner: Triage queue size = ${files.length} items.`);
+    
+    let processed = 0;
+    
+    files.forEach(file => {
+      // Validate is image file
+      if (!file.type.startsWith('image/')) {
+        this.addLog('warn', `Triage exception: skipped index '${file.name}', unrecognized file signature.`);
+        processed++;
+        return;
+      }
+
+      this.addLog('info', `Background scanner processing header payload: ${file.name}`);
+      
+      const fileUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = async () => {
+        const resolution = `${img.naturalWidth}x${img.naturalHeight}`;
+        const approxSize = file.size > 1024 * 1024 
+          ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+          : `${(file.size / 1024).toFixed(0)} KB`;
+
+        // Extract color palettes on miniature representation
+        const palette = await extractColorsFromImage(fileUrl);
+        
+        const importedAsset: Asset = {
+          id: `as_user_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          name: file.name,
+          board: this.selectedBoard === 'ALL' ? '/ Environment_Ref/Neo_Tokyo' : this.selectedBoard,
+          resolution,
+          size: approxSize,
+          colors: palette,
+          tags: ['User-Import', 'Raw-Reference'],
+          metadata: {
+            tags: ['import', 'reference', 'raw-data'],
+            artist: storage.getVaultPath().split('/').pop() || 'Workspace',
+            rating: '4',
+            status: 'completed',
+            title: file.name.replace(/\.[a-zA-Z0-9]+$/, '').replace(/[-_]/g, ' '),
+            notes: ''
+          },
+          imageUrl: fileUrl,
+          lastModified: 'Just now'
+        };
+
+        this.assets = storage.addAsset(importedAsset);
+        this.selectedAssetId = importedAsset.id;
+        
+        this.addLog('success', `SQLite synced entry for newly added file: ${file.name}`);
+        this.addLog('success', `Obsidian serialized Markdown companion created: ${file.name.replace(/\.[a-zA-Z0-9]+$/, '.md')}`);
+        
+        processed++;
+        
+        if (processed === files.length) {
+          this.updateLayout();
+          this.toast('Vault Swarm Complete', `Successfully imported and synced ${files.length} references inside directory.`);
+        }
+      };
+      
+      img.onerror = () => {
+        this.addLog('warn', `Index crash: Failed decoding binary stream of ${file.name}`);
+        processed++;
+      };
+      
+      img.src = fileUrl;
+    });
+  }
+
+  // ----------------------------------------------------
+  // Spacebar Lightbox Overlay Business Controls
+  // ----------------------------------------------------
+  private toggleLightbox() {
+    const backdrop = this.querySelector('#lightbox-backdrop');
+    if (!backdrop) return;
+
+    this.isLightboxOpen = !this.isLightboxOpen;
+
+    if (this.isLightboxOpen) {
+      backdrop.classList.remove('hidden');
+      this.populateLightboxData();
+      this.addLog('info', `Activated Full-Immersive Lightbox view.`);
+    } else {
+      backdrop.classList.add('hidden');
+      // Revoke any dynamic focus
+      window.focus();
+    }
+  }
+
+  private populateLightboxData() {
+    const asset = this.assets.find(a => a.id === this.selectedAssetId);
+    if (!asset) return;
+
+    const boardNode = this.querySelector('#lightbox-badge-board');
+    const titleNode = this.querySelector('#lightbox-heading-title');
+    const imgNode = this.querySelector('#lightbox-img') as HTMLImageElement;
+    const resNode = this.querySelector('#lightbox-meta-resolution');
+    const sizeNode = this.querySelector('#lightbox-meta-size');
+    const swatchesNode = this.querySelector('#lightbox-swatches');
+
+    // Fill left textual structures
+    if (boardNode) boardNode.textContent = asset.board;
+    if (titleNode) titleNode.textContent = asset.name;
+    if (imgNode) {
+      imgNode.style.transform = 'scale(0.95)';
+      imgNode.src = asset.imageUrl;
+      setTimeout(() => {
+        imgNode.style.transform = 'scale(1)';
+      }, 55);
+    }
+    if (resNode) resNode.textContent = asset.resolution;
+    if (sizeNode) sizeNode.textContent = asset.size;
+
+    // Color Swatches inside lightbox footer (left panel)
+    if (swatchesNode) {
+      swatchesNode.innerHTML = asset.colors.map(color => `
+        <div class="w-3.5 h-3.5 rounded border border-white/20" style="background-color: ${color}" title="${color}"></div>
+      `).join('');
+    }
+
+    // Now populate the Right Side Inspector! (Pinterest detailed sidebar list)
+    const rawYaml = stringifyYAMLFrontmatter(asset.metadata);
+    const mdName = asset.name.replace(/\.[a-zA-Z0-9]+$/, '.md');
+
+    // Stars Rating HTML
+    let lbStarsInHtml = '';
+    for (let i = 1; i <= 5; i++) {
+      const active = i <= parseInt(asset.metadata.rating);
+      lbStarsInHtml += `
+        <span class="lb-star-rating-item text-lg cursor-pointer transition ${active ? 'text-amber-500' : 'text-slate-600 hover:text-amber-400/50'}" data-rate="${i}">★</span>
+      `;
+    }
+
+    // Interactive custom tags List
+    const lbTagsInHtml = asset.metadata.tags.map(tag => `
+      <span class="lb-meta-tag-badge bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded px-2 py-0.5 text-[10px] tracking-tight inline-flex items-center gap-1">
+        ${tag}
+        <span class="lb-meta-tag-remove cursor-pointer hover:text-white transition font-bold text-[10px]" data-tag="${tag}">×</span>
+      </span>
+    `).join('');
+
+    // Color palette hex labels copying swatches
+    const lbPaletteInHtml = asset.colors.map(color => `
+      <div class="lb-palette-swatch flex flex-col gap-1 flex-1 cursor-pointer group/sw" data-hex="${color}">
+        <div class="h-8 rounded border border-white/10 transition group-hover/sw:border-emerald-500/30" style="background-color: ${color}"></div>
+        <span class="mono text-[8.5px] text-center text-slate-500 group-hover/sw:text-emerald-400 transition mt-0.5">${color}</span>
+      </div>
+    `).join('');
+
+    const scrollDiv = this.querySelector('#lightbox-inspector-scroll');
+    if (scrollDiv) {
+      scrollDiv.innerHTML = `
+        <div class="space-y-5 animate-fade-in text-left">
+          
+          <!-- Asset ID context header -->
+          <div class="space-y-1 pb-4 border-b border-white/[0.04]">
+            <label class="text-[9px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Asset Identification</label>
+            <h4 class="text-white font-semibold text-sm truncate flex items-center justify-between" title="${asset.name}">
+              <span>${asset.name}</span>
+              <button id="lb-asset-delete-btn" class="p-1 hover:bg-red-500/10 text-red-400/80 hover:text-red-400 rounded transition ml-2" title="Delete index asset companion">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+              </button>
+            </h4>
+            <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>Disk updated: ${asset.lastModified}</span>
+              <span class="text-emerald-400">.png Sync ok</span>
+            </div>
+          </div>
+
+          <!-- Markdown frontmatter companion YAML edits -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-[9px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Companion Obsidian MD</label>
+              <span class="text-[10px] text-emerald-500/60 font-mono flex items-center gap-1">
+                <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+                ${mdName}
+              </span>
+            </div>
+
+            <div class="relative group">
+              <textarea id="lb-markdown-yaml-editor" class="w-full h-28 bg-black font-mono text-[10px] leading-relaxed text-slate-400 p-2.5 rounded border border-white/5 focus:border-emerald-500/20 focus:text-slate-300 outline-none resize-none transition-all custom-scrollbar flex" spellcheck="false" title="Directly edit plaintext YAML frontmatter metadata — edits immediately mirror into form variables!">${rawYaml}</textarea>
+              <div class="absolute bottom-1 right-2 text-[8px] mono text-slate-600 group-focus-within:text-emerald-400 pointer-events-none transition-colors">Obsidian Link</div>
+            </div>
+
+            <button id="lb-action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider">
+              Open Companion in Obsidian
+            </button>
+          </div>
+
+          <!-- Forms metadata config parameters -->
+          <div class="space-y-3 pt-4 border-t border-white/[0.04]">
+            <label class="text-[9px] uppercase tracking-widest text-[#10B981] font-mono font-bold cursor-default">Database Sync Parameters</label>
+            
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 font-semibold">Pin Name / Title:</span>
+              <input type="text" id="lb-meta-title-input" value="${asset.metadata.title || ''}" 
+                class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" placeholder="E.g., Neo Tokyo Temple Alleyway Sunset..." />
+            </div>
+
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 font-semibold">Pin Notes / Description:</span>
+              <textarea id="lb-meta-notes-input" class="w-full h-22 bg-black/40 text-xs px-2.5 py-2 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none resize-none custom-scrollbar" placeholder="Add custom notes, design prompts, research observations, color palette ideas, or notes similar to Pin boards...">${asset.metadata.notes || ''}</textarea>
+            </div>
+
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 font-semibold">Artist / Creator:</span>
+              <input type="text" id="lb-meta-artist-input" value="${asset.metadata.artist || ''}" 
+                class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" placeholder="Chen-K design team..." />
+            </div>
+
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 font-semibold">Asset Status: </span>
+              <select id="lb-meta-status-select" class="w-full bg-black text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none">
+                <option value="completed" ${asset.metadata.status === 'completed' ? 'selected' : ''}>Completed Reference</option>
+                <option value="in-progress" ${asset.metadata.status === 'in-progress' ? 'selected' : ''}>Work-in-Progress (WIP)</option>
+                <option value="review" ${asset.metadata.status === 'review' ? 'selected' : ''}>Awaiting Design Review</option>
+                <option value="draft" ${asset.metadata.status === 'draft' ? 'selected' : ''}>Draft Sketch studies</option>
+              </select>
+            </div>
+
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 font-semibold">Visual Vault Grade:</span>
+              <div class="flex items-center gap-1 bg-black/20 p-1.5 rounded border border-white/5 w-fit">
+                ${lbStarsInHtml}
+              </div>
+            </div>
+          </div>
+
+          <!-- Extract color palette swatches -->
+          <div class="space-y-2 pt-4 border-t border-white/[0.04]">
+            <div class="flex justify-between items-center">
+              <label class="text-[9px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Color Palette Extract</label>
+              <span class="text-[8.5px] text-slate-500 font-mono">Click to Copy</span>
+            </div>
+            <div class="flex gap-2">
+              ${lbPaletteInHtml}
+            </div>
+          </div>
+
+          <!-- Custom tags parameters -->
+          <div class="space-y-2 pt-4 border-t border-white/[0.04]">
+            <label class="text-[9px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Obsidian Companion Tags</label>
+            <div class="flex flex-wrap gap-1 leading-relaxed">
+              ${lbTagsInHtml}
+            </div>
+            <div class="flex items-center gap-1.5 bg-black/40 border border-white/5 rounded pl-2.5 py-1 pr-1 w-full mt-2 focus-within:border-emerald-500/20">
+              <span class="text-[10px] text-slate-600 font-mono font-semibold">#</span>
+              <input type="text" id="lb-add-tag-input" placeholder="add_new_tag..." 
+                class="bg-transparent text-xs text-white placeholder-slate-600 outline-none w-full" />
+              <button id="lb-add-tag-btn" class="p-1 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded font-bold uppercase text-[9px] transition shrink-0 hidden">add</button>
+            </div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    this.attachLightboxInspectorEvents();
+  }
+
+  private attachLightboxInspectorEvents() {
+    const asset = this.assets.find(a => a.id === this.selectedAssetId);
+    if (!asset) return;
+
+    // Delete asset record click from lightbox
+    const deleteBtn = this.querySelector('#lb-asset-delete-btn');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        if (confirm(`Remove index companion configuration for '${asset.name}'? Companion .md and cache entries will be unlinked.`)) {
+          this.assets = storage.deleteAsset(asset.id);
+          this.addLog('warn', `Unlinked database entry and deleted file metadata block: ${asset.name.replace(/\.[a-z]+$/, '.md')}`);
+          
+          this.toggleLightbox(); // Close modal on delete!
+
+          // Switch selections
+          if (this.assets.length > 0) {
+            this.selectedAssetId = this.assets[0].id;
+          } else {
+            this.selectedAssetId = '';
+          }
+          this.updateLayout();
+          this.toast('Companion Unlinked', `Metadata file and catalog caches for ${asset.name} unlinked.`);
+        }
+      });
+    }
+
+    // Star Rating Click triggers for lightbox
+    const ratingStars = this.querySelectorAll('.lb-star-rating-item');
+    ratingStars.forEach(node => {
+      node.addEventListener('click', (e) => {
+        const element = e.currentTarget as HTMLElement;
+        const rate = element.dataset.rate || '5';
+        
+        asset.metadata.rating = rate;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Transactional write successful [catalog.db]: Rating updated (${rate} Stars).`);
+        
+        // Instant updates: update both visual panels!
+        this.populateLightboxData();
+        this.renderInspector();
+        this.syncAssetInGridFooter(asset);
+        this.toast('SQLite Synchronized', `Obsidian meta-rating graded as ${rate} Stars.`);
+      });
+    });
+
+    // Option Status selects for lightbox
+    const statusSelect = this.querySelector('#lb-meta-status-select') as HTMLSelectElement;
+    if (statusSelect) {
+      statusSelect.addEventListener('change', () => {
+        const val = statusSelect.value;
+        asset.metadata.status = val;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Mirroring .md markdown state to disk for ${asset.name}: companion status='${val}'`);
+        this.populateLightboxData();
+        this.renderInspector();
+        this.toast('Markdown Mirror ok', `YAML state mirrored down: status: '${val}'`);
+      });
+    }
+
+    // String input creators Artist for lightbox
+    const artistInput = this.querySelector('#lb-meta-artist-input') as HTMLInputElement;
+    if (artistInput) {
+      artistInput.addEventListener('change', () => {
+        const val = artistInput.value.trim() || 'Unknown';
+        asset.metadata.artist = val;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Obsidian front-matter write: artist='${val}'`);
+        this.populateLightboxData();
+        this.renderInspector();
+      });
+      artistInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') artistInput.blur();
+      });
+    }
+
+    // Display Title / Pin Name for lightbox sync
+    const lbTitleInput = this.querySelector('#lb-meta-title-input') as HTMLInputElement | null;
+    if (lbTitleInput) {
+      lbTitleInput.addEventListener('change', () => {
+        const val = lbTitleInput.value.trim();
+        asset.metadata.title = val;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Transactional write [catalog.db]: Pin Display Title updated to "${val}".`);
+        this.populateLightboxData();
+        this.renderInspector();
+        
+        // Update grid visual card footer title instantly without full masonry re-render
+        const gridCardFooterSpan = this.querySelector(`#footer-${asset.id} span`);
+        if (gridCardFooterSpan) {
+          gridCardFooterSpan.textContent = val || asset.name;
+        }
+        this.syncAssetInGridFooter(asset);
+      });
+      lbTitleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') lbTitleInput.blur();
+      });
+    }
+
+    // Inspiration Notes / Description for lightbox sync
+    const lbNotesInput = this.querySelector('#lb-meta-notes-input') as HTMLTextAreaElement | null;
+    if (lbNotesInput) {
+      lbNotesInput.addEventListener('change', () => {
+        const val = lbNotesInput.value.trim();
+        asset.metadata.notes = val;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Transactional write [catalog.db]: Inspiration Notes updated.`);
+        this.populateLightboxData();
+        this.renderInspector();
+      });
+    }
+
+    // Color Swatch Clipboard copies inside lightbox
+    const swatches = this.querySelectorAll('.lb-palette-swatch');
+    swatches.forEach(sw => {
+      sw.addEventListener('click', (e) => {
+        const node = e.currentTarget as HTMLElement;
+        const hex = node.dataset.hex || '#000000';
+        
+        navigator.clipboard.writeText(hex).then(() => {
+          this.toast('HEX Copied', `${hex} copied to local clipboard.`);
+          this.addLog('info', `Clipboard transaction read hex swatch: ${hex}`);
+          
+          // Temporary highlight
+          const span = node.querySelector('span');
+          if (span) {
+            const org = span.textContent;
+            span.textContent = 'COPIED!';
+            span.classList.add('text-emerald-400');
+            setTimeout(() => {
+              span.textContent = org;
+              span.classList.remove('text-emerald-400');
+            }, 1000);
+          }
+        }).catch(err => {
+          console.error('Copy failure', err);
+        });
+      });
+    });
+
+    // Companion Tag Removes for lightbox
+    const tagRemovals = this.querySelectorAll('.lb-meta-tag-remove');
+    tagRemovals.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Avoid selector bubbling
+        const node = e.currentTarget as HTMLElement;
+        const tag = node.dataset.tag || '';
+
+        asset.metadata.tags = asset.metadata.tags.filter(t => t !== tag);
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('warn', `Unlinked Markdown entry descriptor: unlinked tag #${tag}`);
+        this.populateLightboxData();
+        this.renderInspector();
+        this.toast('Front-matter modified', `Metadata descriptor tag #${tag} unlinked.`);
+      });
+    });
+
+    // Add Tag triggers for lightbox
+    const lbAddTagIn = this.querySelector('#lb-add-tag-input') as HTMLInputElement;
+    const lbAddTagBtn = this.querySelector('#lb-add-tag-btn') as HTMLButtonElement;
+    
+    if (lbAddTagIn && lbAddTagBtn) {
+      const handleLbAddTag = () => {
+        const val = lbAddTagIn.value.trim().toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '');
+        if (val) {
+          if (!asset.metadata.tags.includes(val)) {
+            asset.metadata.tags.push(val);
+            storage.updateAsset(asset.id, { metadata: asset.metadata });
+            
+            this.addLog('success', `Obsidian indexing transaction: Append tag descriptor #${val}`);
+            this.populateLightboxData();
+            this.renderInspector();
+            this.toast('Tag Appended', `#${val} appended to Obsidian companion config file.`);
+          } else {
+            this.toast('Duplicate Tag', `#${val} is already bound to this active asset.`);
+          }
+          lbAddTagIn.value = '';
+          lbAddTagBtn.classList.add('hidden');
+        }
+      };
+
+      lbAddTagIn.addEventListener('input', () => {
+        if (lbAddTagIn.value.trim()) {
+          lbAddTagBtn.classList.remove('hidden');
+        } else {
+          lbAddTagBtn.classList.add('hidden');
+        }
+      });
+
+      lbAddTagIn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleLbAddTag();
+      });
+
+      lbAddTagBtn.addEventListener('click', handleLbAddTag);
+    }
+
+    // YAML direct Textarea editing for lightbox
+    const lbYamlArea = this.querySelector('#lb-markdown-yaml-editor') as HTMLTextAreaElement;
+    if (lbYamlArea) {
+      lbYamlArea.addEventListener('change', () => {
+        const rawYamlText = lbYamlArea.value;
+        const updatedMeta = parseYAMLFrontmatter(rawYamlText, asset.metadata);
+        
+        asset.metadata = updatedMeta;
+        storage.updateAsset(asset.id, { metadata: asset.metadata });
+        
+        this.addLog('success', `Obsidian Dual-Sync Mirror: Direct client manual modifications compiled.`);
+        this.populateLightboxData();
+        this.renderInspector();
+        this.syncAssetInGridFooter(asset);
+        this.toast('Obsidian Sync Ok', `Markdown frontmatter dual interface synchronized.`);
+      });
+    }
+
+    // Obsidian simulation launch routine Trigger for lightbox
+    const lbActionObsidian = this.querySelector('#lb-action-obsidian');
+    if (lbActionObsidian) {
+      lbActionObsidian.addEventListener('click', () => {
+        const mdPath = `${this.selectedBoard.replace(/^\//,'')}/${asset.name.replace(/\.[a-z]+$/, '.md')}`;
+        const obsidianUri = `obsidian://open?vault=${encodeURIComponent(storage.getVaultPath().split('/').pop() || 'Vault')}&file=${encodeURIComponent(mdPath)}`;
+        this.addLog('info', `Firing Electron desk command: ${obsidianUri}`);
+        this.toast('Obsidian Fired', `Simulated local workspace command trigger executed for ${asset.name.replace(/\.[a-z]+$/,'')}`);
+      });
+    }
+  }
+
+  private navigateLightbox(direction: number) {
+    const filtered = this.getFilteredAssets();
+    if (filtered.length <= 1) return;
+
+    let currentIdx = filtered.findIndex(a => a.id === this.selectedAssetId);
+    if (currentIdx === -1) currentIdx = 0;
+
+    let nextIdx = currentIdx + direction;
+    if (nextIdx >= filtered.length) nextIdx = 0;
+    if (nextIdx < 0) nextIdx = filtered.length - 1;
+
+    this.selectedAssetId = filtered[nextIdx].id;
+    this.populateLightboxData();
+    this.renderInspector();
+    
+    // Auto sync layout view selection highlights in behind grid
+    this.querySelectorAll('.asset-card').forEach(n => {
+      const nodeId = (n as HTMLElement).dataset.id;
+      if (nodeId === this.selectedAssetId) {
+        n.classList.add('ring-2', 'ring-emerald-500', 'border-emerald-500', 'bg-[#121215]');
+        n.classList.remove('border-white/10', 'bg-slate-900/60');
+        n.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else {
+        n.classList.add('border-white/10', 'bg-slate-900/60');
+        n.classList.remove('ring-2', 'ring-emerald-500', 'border-emerald-500', 'bg-[#121215]');
+      }
+    });
+  }
+
+  // Custom high density beautiful toast alert messages matching Dark slate themes
+  private toast(title: string, msg: string) {
+    const parent = this.querySelector('#toast-overlay');
+    if (!parent) return;
+
+    const t = document.createElement('div');
+    t.className = 'bg-[#121215] border border-white/5 shadow-2xl p-3 rounded-lg text-xs w-64 pointer-events-auto cursor-pointer animate-slide-in flex flex-col gap-0.5 select-none hover:border-emerald-500/20';
+    t.innerHTML = `
+      <div class="flex justify-between items-center text-white font-semibold">
+        <span class="flex items-center gap-1.5 text-emerald-400">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          ${title}
+        </span>
+        <span class="text-slate-600 hover:text-white transition-colors text-sm px-1 font-bold">×</span>
+      </div>
+      <p class="text-[10.5px] text-slate-400 pt-0.5">${msg}</p>
+    `;
+
+    // Click close
+    t.addEventListener('click', () => {
+      t.classList.add('opacity-0', 'scale-95');
+      setTimeout(() => t.remove(), 250);
+    });
+
+    parent.appendChild(t);
+    setTimeout(() => {
+      if (t.parentNode) {
+        t.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => t.remove(), 250);
+      }
+    }, 4000);
+  }
+}
+
+// ----------------------------------------------------
+// Bootstrapping the Application Module element
+// ----------------------------------------------------
+customElements.define('vault-app', VaultApp);
+
+document.addEventListener('DOMContentLoaded', () => {
+  const root = document.getElementById('root');
+  if (root) {
+    root.innerHTML = '';
+    root.appendChild(document.createElement('vault-app'));
+  }
+});
+
+// Immediately render in case of loaded scripts executing first
+const directRoot = document.getElementById('root');
+if (directRoot && !directRoot.hasChildNodes()) {
+  directRoot.innerHTML = '';
+  directRoot.appendChild(document.createElement('vault-app'));
+}
