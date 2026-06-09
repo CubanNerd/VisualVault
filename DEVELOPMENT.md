@@ -4,6 +4,12 @@ Welcome to the **VisualVault Developer Maintenance Guide**. This document outlin
 
 ---
 
+### 📖 Essential Documentation
+- **[Detailed Developer Architecture Guide](./docs/DEVELOPER_GUIDE.md)**: Deep dive into the native Custom Element rendering lifecycle, multi-vault dynamic partitioning state engine, regex-based Obsidian YAML frontmaster stringify/parser utilities, and Electron desktop wrappers.
+- **[User Operation Manual](./docs/USER_GUIDE.md)**: Describes end-user features, search mechanics, localized user profile view-modes, and subdirectory preservation loops during folder deletion chores.
+
+---
+
 ## 🏗️ Architectural Overview
 
 VisualVault is a high-performance, local-first design asset catalog styled like an Obsidian workstation. 

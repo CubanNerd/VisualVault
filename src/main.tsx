@@ -23,6 +23,7 @@ interface Asset {
   metadata: AssetMetadata;
   imageUrl: string; // Data URL or object URL
   lastModified: string; // string timestamp
+  vaultPath?: string; // Originating folder vault path
 }
 
 // ----------------------------------------------------
@@ -385,7 +386,7 @@ class StorageService {
     return `visual_catalog_db_v3_${path.replace(/[^a-zA-Z0-9_]/g, '_')}`;
   }
 
-  getVaults(): { name: string; path: string; lastOpened: number }[] {
+  getVaults(): { name: string; path: string; lastOpened: number; mounted?: boolean }[] {
     try {
       const raw = localStorage.getItem('visual_vaults_list_v1');
       if (raw) return JSON.parse(raw);
@@ -398,16 +399,16 @@ class StorageService {
     }
     // Setup elegant default pre-registered vaults for design-crafting demo workspace
     const defaults = [
-      { name: 'Design Reference Library', path: '/Users/design/Desktop/Ref_Library', lastOpened: Date.now() },
-      { name: 'Neo-Tokyo Concept Art', path: '/Users/design/Desktop/Neo_Tokyo', lastOpened: Date.now() - 1000 },
-      { name: 'Cyberpunk Grid Archive', path: '/Users/projects/Cyberpunk_Grid', lastOpened: Date.now() - 2000 },
-      { name: 'Mechanic Parts & Blueprint', path: '/Users/blueprints/Mech_Grid', lastOpened: Date.now() - 3000 }
+      { name: 'Design Reference Library', path: '/Users/design/Desktop/Ref_Library', lastOpened: Date.now(), mounted: true },
+      { name: 'Neo-Tokyo Concept Art', path: '/Users/design/Desktop/Neo_Tokyo', lastOpened: Date.now() - 1000, mounted: false },
+      { name: 'Cyberpunk Grid Archive', path: '/Users/projects/Cyberpunk_Grid', lastOpened: Date.now() - 2000, mounted: false },
+      { name: 'Mechanic Parts & Blueprint', path: '/Users/blueprints/Mech_Grid', lastOpened: Date.now() - 3000, mounted: false }
     ];
     localStorage.setItem('visual_vaults_list_v1', JSON.stringify(defaults));
     return defaults;
   }
 
-  saveVaults(vaults: { name: string; path: string; lastOpened: number }[]) {
+  saveVaults(vaults: { name: string; path: string; lastOpened: number; mounted?: boolean }[]) {
     localStorage.setItem('visual_vaults_list_v1', JSON.stringify(vaults));
   }
 
@@ -415,42 +416,40 @@ class StorageService {
     try {
       const activeKey = this.getVaultKey();
       const data = localStorage.getItem(activeKey);
-      if (data) return JSON.parse(data);
+      let assets: Asset[] = [];
 
-      if (localStorage.getItem('visual_vaults_cleaned') === 'true') {
-        return [];
-      }
-
-      // Migration check path: if we are at default Ref_Library, migrate from old v2 db key
-      if (this.getVaultPath() === '/Users/design/Desktop/Ref_Library') {
+      if (data) {
+        assets = JSON.parse(data);
+      } else if (localStorage.getItem('visual_vaults_cleaned') === 'true') {
+        assets = [];
+      } else if (this.getVaultPath() === '/Users/design/Desktop/Ref_Library') {
         const oldData = localStorage.getItem(this.key);
         if (oldData) {
           localStorage.setItem(activeKey, oldData);
-          return JSON.parse(oldData);
+          assets = JSON.parse(oldData);
+        }
+      } else {
+        // Populate companion archives automatically for high-fidelity demos
+        const pathL = this.getVaultPath().toLowerCase();
+        if (pathL.includes('neo_tokyo')) {
+          const mock = defaultMockAssets().filter(a => a.board === '/ Environment_Ref/Neo_Tokyo');
+          assets = mock.length ? mock : defaultMockAssets();
+          localStorage.setItem(activeKey, JSON.stringify(assets));
+        } else if (pathL.includes('cyberpunk') || pathL.includes('cybercity') || pathL.includes('cyber_grid')) {
+          const mock = defaultMockAssets().filter(a => a.board === '/ UI_Elements/Cyberpunk_2077');
+          assets = mock.length ? mock : defaultMockAssets();
+          localStorage.setItem(activeKey, JSON.stringify(assets));
+        } else if (pathL.includes('blueprint') || pathL.includes('mech_grid') || pathL.includes('mech')) {
+          const mock = defaultMockAssets().filter(a => a.board.includes('Mech') || a.board.includes('Weapon'));
+          assets = mock.length ? mock : defaultMockAssets();
+          localStorage.setItem(activeKey, JSON.stringify(assets));
+        } else {
+          assets = [];
         }
       }
 
-      // Populate companion archives automatically for high-fidelity demos
-      const pathL = this.getVaultPath().toLowerCase();
-      if (pathL.includes('neo_tokyo')) {
-        const mock = defaultMockAssets().filter(a => a.board === '/ Environment_Ref/Neo_Tokyo');
-        const assets = mock.length ? mock : defaultMockAssets();
-        localStorage.setItem(activeKey, JSON.stringify(assets));
-        return assets;
-      } else if (pathL.includes('cyberpunk') || pathL.includes('cybercity') || pathL.includes('cyber_grid')) {
-        const mock = defaultMockAssets().filter(a => a.board === '/ UI_Elements/Cyberpunk_2077');
-        const assets = mock.length ? mock : defaultMockAssets();
-        localStorage.setItem(activeKey, JSON.stringify(assets));
-        return assets;
-      } else if (pathL.includes('blueprint') || pathL.includes('mech_grid') || pathL.includes('mech')) {
-        const mock = defaultMockAssets().filter(a => a.board.includes('Mech') || a.board.includes('Weapon'));
-        const assets = mock.length ? mock : defaultMockAssets();
-        localStorage.setItem(activeKey, JSON.stringify(assets));
-        return assets;
-      }
-
-      // Otherwise returning empty list for a newly initialized empty vault, exactly like Obsidian behavior
-      return [];
+      const activePath = this.getVaultPath();
+      return assets.map(a => ({ ...a, vaultPath: a.vaultPath || activePath }));
     } catch (e) {
       console.error('Failed to parse assets from storage', e);
     }
@@ -458,7 +457,28 @@ class StorageService {
   }
 
   saveAllAssets(assets: Asset[]) {
-    localStorage.setItem(this.getVaultKey(), JSON.stringify(assets));
+    // Partition assets back to their respective origin vaults
+    const activePath = this.getVaultPath();
+    const partitions: Record<string, Asset[]> = {};
+
+    assets.forEach(a => {
+      const p = a.vaultPath || activePath;
+      if (!partitions[p]) {
+        partitions[p] = [];
+      }
+      partitions[p].push(a);
+    });
+
+    // Save each partition to its respective localStorage key
+    Object.keys(partitions).forEach(p => {
+      const vk = `visual_catalog_db_v3_${p.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      localStorage.setItem(vk, JSON.stringify(partitions[p]));
+    });
+
+    // Clear active key specifically if it's completely empty and not partition-active
+    if (!partitions[activePath]) {
+      localStorage.setItem(this.getVaultKey(), JSON.stringify([]));
+    }
   }
 
   wipeAllVaultCaches() {
@@ -481,20 +501,52 @@ class StorageService {
   }
 
   updateAsset(id: string, updatedFields: Partial<Asset>) {
-    const assets = this.getAllAssets();
-    const idx = assets.findIndex(a => a.id === id);
-    if (idx !== -1) {
-      assets[idx] = { ...assets[idx], ...updatedFields };
-      this.saveAllAssets(assets);
-      if (this.onAssetUpdated) {
-        this.onAssetUpdated(assets[idx]);
+    const vaults = this.getVaults();
+    const activePath = this.getVaultPath();
+    let targetVaultPath = activePath;
+
+    // Fast trace which vault hosts this asset reference
+    for (const vault of vaults) {
+      const vk = `visual_catalog_db_v3_${vault.path.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      try {
+        const raw = localStorage.getItem(vk);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Asset[];
+          if (parsed.some(a => a.id === id)) {
+            targetVaultPath = vault.path;
+            break;
+          }
+        }
+      } catch (e) {
+        console.error(e);
       }
-      return assets[idx];
+    }
+
+    const vk = `visual_catalog_db_v3_${targetVaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+    try {
+      const raw = localStorage.getItem(vk);
+      if (raw) {
+        const assets = JSON.parse(raw) as Asset[];
+        const idx = assets.findIndex(a => a.id === id);
+        if (idx !== -1) {
+          assets[idx] = { ...assets[idx], ...updatedFields };
+          localStorage.setItem(vk, JSON.stringify(assets));
+          if (this.onAssetUpdated) {
+            this.onAssetUpdated(assets[idx]);
+          }
+          return assets[idx];
+        }
+      }
+    } catch (e) {
+      console.error(e);
     }
     return null;
   }
 
   addAsset(asset: Asset) {
+    const activePath = this.getVaultPath();
+    asset.vaultPath = asset.vaultPath || activePath;
+
     const assets = this.getAllAssets();
     assets.unshift(asset);
     this.saveAllAssets(assets);
@@ -502,10 +554,39 @@ class StorageService {
   }
 
   deleteAsset(id: string) {
-    const assets = this.getAllAssets();
-    const filtered = assets.filter(a => a.id !== id);
-    this.saveAllAssets(filtered);
-    return filtered;
+    const vaults = this.getVaults();
+    
+    // Purge item globally across matching registers
+    for (const vault of vaults) {
+      const vk = `visual_catalog_db_v3_${vault.path.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      try {
+        const raw = localStorage.getItem(vk);
+        if (raw) {
+          const assets = JSON.parse(raw) as Asset[];
+          const filtered = assets.filter(a => a.id !== id);
+          if (filtered.length !== assets.length) {
+            localStorage.setItem(vk, JSON.stringify(filtered));
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Also fallback purge from the active local cache
+    const activeKey = this.getVaultKey();
+    try {
+      const raw = localStorage.getItem(activeKey);
+      if (raw) {
+        const assets = JSON.parse(raw) as Asset[];
+        const filtered = assets.filter(a => a.id !== id);
+        if (filtered.length !== assets.length) {
+          localStorage.setItem(activeKey, JSON.stringify(filtered));
+        }
+      }
+    } catch (e) {}
+
+    return this.getAllAssets();
   }
 }
 
@@ -633,6 +714,8 @@ class VaultApp extends HTMLElement {
   private activeFont = 'inter';
   private isSettingsOpen = false;
   private activeSettingsTab: 'vault' | 'general' = 'vault';
+  private workspaceMode: 'unified' | 'focused' = 'focused';
+  private isCreatingSection = false;
 
   // Modern browser File System Access API (Sandbox Directory Sync) properties
   private isSandboxedDirectory = false;
@@ -654,7 +737,8 @@ class VaultApp extends HTMLElement {
       localStorage.setItem('visual_vault_created_boards_list', JSON.stringify(defaultBoards));
     }
 
-    this.assets = storage.getAllAssets();
+    this.workspaceMode = (localStorage.getItem('visual_vault_workspace_mode') as 'unified' | 'focused') || 'focused';
+    this.loadAssets();
     
     // Wire up storage updates tracking observer interface to sync metadata files to disk
     storage.onAssetUpdated = (asset: Asset) => {
@@ -1327,34 +1411,52 @@ class VaultApp extends HTMLElement {
       return;
     }
 
-    // Dynamic HTML injection of vault elements with high-contrast active highlights, indicator dots, and actions
+    // Dynamic HTML injection of vault elements with high-contrast active highlights, indicator dots, status badges and actions
     listContainer.innerHTML = vaults.map((vault, i) => {
       const isCurrent = vault.path === currentPath;
-      const accentBorder = isCurrent ? 'border-emerald-500/30 bg-emerald-500/[0.03]' : 'border-white/5 bg-black/20 hover:border-white/10';
+      const isMounted = vault.mounted !== false;
+      
+      const accentBorder = isCurrent 
+        ? 'border-emerald-500/30 bg-emerald-500/[0.03]' 
+        : (!isMounted 
+          ? 'border-white/5 bg-black/10 opacity-60 hover:opacity-100 hover:border-white/10' 
+          : 'border-white/5 bg-black/20 hover:border-white/10');
+          
       const indicatorDot = isCurrent ? '<span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shrink-0"></span>' : '';
+      
+      const mountStatusBadge = isMounted
+        ? `<span class="text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono font-bold tracking-wide uppercase shrink-0">Mounted</span>`
+        : `<span class="text-[8px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded font-mono font-bold tracking-wide uppercase shrink-0">Unloaded</span>`;
+
       const actionText = isCurrent ? 'Active Vault' : 'Open Vault';
       const actionClass = isCurrent 
-        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold' 
+        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold cursor-default' 
         : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 cursor-pointer font-medium active:scale-95 hover:text-emerald-400';
 
+      const mountActionBtn = isMounted
+        ? `<button data-idx="${i}" class="vault-toggle-mount-btn text-[10px] px-2.5 py-1 rounded transition border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-medium cursor-pointer active:scale-95" title="Unload/Unmount this vault from the active catalog" data-action="unmount">Unload</button>`
+        : `<button data-idx="${i}" class="vault-toggle-mount-btn text-[10px] px-2.5 py-1 rounded transition border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium cursor-pointer active:scale-95" title="Mount/Load this vault back into active catalog" data-action="mount">Mount</button>`;
+
       return `
-        <div class="p-3 rounded-lg border ${accentBorder} flex items-center justify-between gap-4 transition group">
+        <div class="p-3 rounded-lg border ${accentBorder} flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition group">
           <div class="flex items-center gap-3 min-w-0">
             <div class="w-8 h-8 rounded-md bg-black/40 flex items-center justify-center border border-white/5 shrink-0">
-              <svg class="w-4 h-4 ${isCurrent ? 'text-emerald-400' : 'text-slate-400 opacity-60'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 ${isCurrent ? 'text-emerald-400' : (isMounted ? 'text-slate-400 opacity-60' : 'text-slate-500 opacity-40')}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
               </svg>
             </div>
             <div class="min-w-0">
-              <div class="flex items-center gap-1.5 pb-0.5">
+              <div class="flex items-center gap-2 pb-0.5">
                 <span class="text-xs font-bold text-white truncate">${vault.name}</span>
                 ${indicatorDot}
+                ${mountStatusBadge}
               </div>
               <span class="text-[10px] text-slate-500 font-mono block truncate" title="${vault.path}">${vault.path}</span>
             </div>
           </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <button data-idx="${i}" class="vault-open-btn text-[10px] px-2.5 py-1 rounded transition ${actionClass}">${actionText}</button>
+          <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            ${mountActionBtn}
+            <button data-idx="${i}" class="vault-open-btn text-[10px] px-2.5 py-1 rounded transition ${actionClass}" ${isCurrent ? 'disabled' : ''}>${actionText}</button>
             <button data-idx="${i}" class="vault-delete-btn text-slate-500 hover:text-red-400 p-1.5 rounded transition hover:bg-red-500/10 cursor-pointer" title="Remove vault index from history">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -1372,6 +1474,45 @@ class VaultApp extends HTMLElement {
         const clickedVault = vaults[idx];
         if (clickedVault) {
           this.switchVault(clickedVault.path);
+        }
+      });
+    });
+
+    // Wire up element-specific event listeners for mounting/unmounting toggles
+    listContainer.querySelectorAll('.vault-toggle-mount-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt((btn as HTMLElement).dataset.idx || '0');
+        const action = (btn as HTMLElement).dataset.action;
+        const clickedVault = vaults[idx];
+        if (clickedVault) {
+          if (action === 'unmount') {
+            clickedVault.mounted = false;
+            this.addLog('warn', `Unmounted vault: "${clickedVault.name}" unloaded from active catalog.`);
+            this.toast('Vault Unloaded', `Successfully unloaded "${clickedVault.name}" reference pool.`);
+            
+            // If the unmounted vault was the currently active vault, switch active to the first available mounted vault
+            if (clickedVault.path === currentPath) {
+              const firstMounted = vaults.find(v => v.path !== clickedVault.path && v.mounted !== false);
+              if (firstMounted) {
+                this.switchVault(firstMounted.path);
+              } else {
+                this.switchVault('/Users/design/Desktop/Ref_Library');
+              }
+            } else {
+              storage.saveVaults(vaults);
+              this.loadAssets();
+              this.updateLayout();
+              this.populateVaultManager();
+            }
+          } else {
+            clickedVault.mounted = true;
+            storage.saveVaults(vaults);
+            this.addLog('success', `Mounted vault: "${clickedVault.name}" loaded back into active catalog.`);
+            this.toast('Vault Mounted', `Successfully mounted and loaded "${clickedVault.name}".`);
+            this.loadAssets();
+            this.updateLayout();
+            this.populateVaultManager();
+          }
         }
       });
     });
@@ -1415,14 +1556,20 @@ class VaultApp extends HTMLElement {
     // 1. Fetch current vaults index history
     let vaults = storage.getVaults();
     
-    // 2. Locate or initialize target layout record
+    // Auto-unmount/unload all other vaults when activating a specific vault
+    vaults.forEach(v => {
+      v.mounted = (v.path === newPath);
+    });
+    
+     // 2. Locate or initialize target layout record
     let vault = vaults.find(v => v.path === newPath);
     if (!vault) {
       const actualName = name || newPath.split(/[/\\]/).pop() || 'Untitled Vault';
-      vault = { name: actualName, path: newPath, lastOpened: Date.now() };
+      vault = { name: actualName, path: newPath, lastOpened: Date.now(), mounted: true };
       vaults.push(vault);
     } else {
       vault.lastOpened = Date.now();
+      vault.mounted = true; // Auto-mount upon explicit activation
       if (name) {
         vault.name = name;
       }
@@ -1433,7 +1580,7 @@ class VaultApp extends HTMLElement {
     storage.setVaultPath(newPath);
 
     // 4. Mount database collections specifically isolated for this vault to prevent data bleeding
-    this.assets = storage.getAllAssets();
+    this.loadAssets();
 
     // 5. Instantly clear selected filter options to prevent mismatching indices
     this.selectedBoard = 'ALL';
@@ -1639,10 +1786,12 @@ class VaultApp extends HTMLElement {
         vaults.push({
           name: `📁 ${handle.name} (Direct Sync)`,
           path: mockPath,
-          lastOpened: Date.now()
+          lastOpened: Date.now(),
+          mounted: true
         });
       } else {
         vault.lastOpened = Date.now();
+        vault.mounted = true;
       }
       storage.saveVaults(vaults);
       storage.setVaultPath(mockPath);
@@ -2008,43 +2157,137 @@ class VaultApp extends HTMLElement {
     }
   }
 
-  private getUniqueBoards(): string[] {
-    const list = new Set<string>();
-    const vaultPath = storage.getVaultPath();
+  private isVaultPathLoaded(vaultPath: string): boolean {
+    const vaults = storage.getVaults();
+    const vault = vaults.find(v => v.path === vaultPath);
+    return !vault || vault.mounted !== false;
+  }
 
-    // Load registered board names from localStorage, scoped specifically to the active vault
-    try {
-      const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-      const customRaw = localStorage.getItem(customKey);
-      if (customRaw) {
-        const parsed = JSON.parse(customRaw) as string[];
-        parsed.forEach(b => {
-          if (b && b !== 'ALL') {
-            list.add(b);
-          }
-        });
-      } else {
-        // Fallback: seed boards only if they contain assets in this vault, or if the vault is the main Reference Library
-        const seeds = [
-          '/ Environment_Ref/Neo_Tokyo',
-          '/ Cyberpunk_City',
-          '/ Mech_Technical',
-          '/ Character_Design'
-        ];
-        const isRefLibrary = vaultPath === '/Users/design/Desktop/Ref_Library';
-        seeds.forEach(s => {
-          const hasAsset = this.assets.some(a => a.board === s);
-          if (isRefLibrary || hasAsset) {
-            list.add(s);
-          }
-        });
+  private isBoardAllowed(board: string): boolean {
+    const vaults = storage.getVaults();
+    
+    // Map board names to companion vault paths
+    let requiredVaultPath = '';
+    if (board.includes('Neo_Tokyo') || board.includes('Neo-Tokyo')) {
+      requiredVaultPath = '/Users/design/Desktop/Neo_Tokyo';
+    } else if (board.includes('Cyberpunk_City') || board.includes('Cyberpunk') || board.includes('Cyber_City')) {
+      requiredVaultPath = '/Users/projects/Cyberpunk_Grid';
+    } else if (board.includes('Mech_Technical') || board.includes('Mech') || board.includes('Weapon')) {
+      requiredVaultPath = '/Users/blueprints/Mech_Grid';
+    }
+    
+    if (requiredVaultPath) {
+      const v = vaults.find(va => va.path === requiredVaultPath);
+      if (v && v.mounted === false) {
+        return false; // This vault/board is unloaded, do not show!
       }
-    } catch (e) {
-      console.error(e);
+    }
+    return true;
+  }
+
+  private isAssetAllowed(asset: Asset): boolean {
+    const assetVaultPath = asset.vaultPath || storage.getVaultPath();
+    const vaults = storage.getVaults();
+    const v = vaults.find(va => va.path === assetVaultPath);
+    if (v && v.mounted === false) {
+      return false;
+    }
+    if (asset.board && !this.isBoardAllowed(asset.board)) {
+      return false;
+    }
+    return true;
+  }
+
+  private loadAssets() {
+    let rawAssets: Asset[] = [];
+    if (this.workspaceMode === 'unified') {
+      const vaults = storage.getVaults();
+      let combined: Asset[] = [];
+      const seenIds = new Set<string>();
+
+      const activePath = storage.getVaultPath();
+      const activeAssets = storage.getAllAssets();
+      activeAssets.forEach(a => {
+        if (!seenIds.has(a.id)) {
+          a.vaultPath = a.vaultPath || activePath;
+          seenIds.add(a.id);
+          combined.push(a);
+        }
+      });
+
+      vaults.forEach(v => {
+        if (v.path !== activePath) {
+          if (v.mounted === false) {
+            return; // Skip loading assets from unmounted/unloaded vaults
+          }
+          try {
+            const pathKey = `visual_catalog_db_v3_${v.path.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+            const data = localStorage.getItem(pathKey);
+            if (data) {
+              const loaded = JSON.parse(data) as Asset[];
+              loaded.forEach(a => {
+                if (!seenIds.has(a.id)) {
+                  a.vaultPath = a.vaultPath || v.path;
+                  seenIds.add(a.id);
+                  combined.push(a);
+                }
+              });
+            }
+          } catch (e) {
+            console.error('Failed to parse assets for vault ' + v.name, e);
+          }
+        }
+      });
+      rawAssets = combined;
+    } else {
+      rawAssets = storage.getAllAssets();
     }
 
+    // Filter loaded assets strictly according to the mounted/loaded vaults
+    this.assets = rawAssets.filter(a => this.isAssetAllowed(a));
+  }
+
+  private getUniqueBoards(): string[] {
+    const list = new Set<string>();
+    const vaultsToScan = this.workspaceMode === 'unified'
+      ? storage.getVaults().filter(v => v.mounted !== false).map(v => v.path)
+      : [storage.getVaultPath()].filter(p => this.isVaultPathLoaded(p));
+
+    vaultsToScan.forEach(vaultPath => {
+      // Load registered board names from localStorage, scoped specifically to each scanned vault
+      try {
+        const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+        const customRaw = localStorage.getItem(customKey);
+        if (customRaw) {
+          const parsed = JSON.parse(customRaw) as string[];
+          parsed.forEach(b => {
+            if (b && b !== 'ALL' && this.isBoardAllowed(b)) {
+              list.add(b);
+            }
+          });
+        } else {
+          // Fallback: seed boards only if they contain assets in this vault, or if the vault is the main Reference Library
+          const seeds = [
+            '/ Environment_Ref/Neo_Tokyo',
+            '/ Cyberpunk_City',
+            '/ Mech_Technical',
+            '/ Character_Design'
+          ];
+          const isRefLibrary = vaultPath === '/Users/design/Desktop/Ref_Library';
+          seeds.forEach(s => {
+            const hasAsset = this.assets.some(a => a.board === s);
+            if ((isRefLibrary && this.isBoardAllowed(s)) || hasAsset) {
+              list.add(s);
+            }
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    });
+
     this.assets.forEach(a => {
-      if (a.board && a.board !== 'ALL') {
+      if (a.board && a.board !== 'ALL' && this.isBoardAllowed(a.board)) {
         list.add(a.board);
       }
     });
@@ -2138,7 +2381,26 @@ class VaultApp extends HTMLElement {
           <aside class="vault-sidebar-bg w-60 bg-[#0F0F11] border-r border-white/5 flex flex-col shrink-0">
             <div id="sidebar-lists" class="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-5">
               
-              <!-- System lists navigation -->
+              <!-- Workspace Perspective Mode -->
+              <div class="space-y-2 pb-3 border-b border-white/5">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-[10px] uppercase tracking-widest text-[#10B981] font-extrabold cursor-default font-mono">Workspace View Mode</h3>
+                  <span class="text-[9px] px-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-bold font-mono">CORE</span>
+                </div>
+                <div class="grid grid-cols-2 gap-1 bg-black/40 p-0.5 rounded border border-white/5 vault-rounded">
+                  <button id="view-mode-focused" class="py-1 px-1 rounded text-[10px] text-center font-bold font-mono cursor-pointer transition select-none ${this.workspaceMode === 'focused' ? 'bg-[#10B981] text-black shadow-lg font-extrabold' : 'text-slate-400 hover:text-white hover:bg-white/5 font-semibold'}" title="Focused Solitude (Profile 2): Only loads active project assets. Simple and distraction-free workspace.">
+                    Focused
+                  </button>
+                  <button id="view-mode-unified" class="py-1 px-1 rounded text-[10px] text-center font-bold font-mono cursor-pointer transition select-none ${this.workspaceMode === 'unified' ? 'bg-[#10B981] text-black shadow-lg font-extrabold' : 'text-slate-400 hover:text-white hover:bg-white/5 font-semibold'}" title="Unified Arena (Profile 1): Combines all directories collectively. Browse and filter everything together.">
+                    Unified
+                  </button>
+                </div>
+                <p id="workspace-mode-desc" class="text-[10px] text-slate-500 italic leading-relaxed pt-0.5 select-none font-mono tracking-tight">
+                  ${this.workspaceMode === 'focused' 
+                    ? '● Focused Solitude: Isolating project reference directories.' 
+                    : '● Unified Arena: Intercepting and merging all Visual Vaults.'}
+                </p>
+                      <!-- System lists navigation -->
               <div class="space-y-1">
                 <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 cursor-default">Library</h3>
                 
@@ -2155,21 +2417,6 @@ class VaultApp extends HTMLElement {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                   </svg>
                   <span>Recently Indexed</span>
-                </div>
-                 <div id="nav-settings-btn" class="flex items-center gap-2.5 p-2 rounded text-sm cursor-pointer transition hover:bg-white/5 text-slate-400">
-                  <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                  </svg>
-                  <span>Vault Settings</span>
-                </div>
-
-                <div id="nav-load-vaults-btn" class="flex items-center gap-2.5 p-2 rounded text-sm cursor-pointer transition hover:bg-white/5 text-slate-400">
-                  <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                  </svg>
-                  <span>Load Vaults</span>
-                  <span class="ml-auto text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-1.5 py-0.5 rounded font-mono font-bold">MANAGE</span>
                 </div>
               </div>
 
@@ -2204,17 +2451,43 @@ class VaultApp extends HTMLElement {
               </div>
 
               <!-- SQLite indexing logs -->
-              <div class="space-y-2 pt-2">
-                <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Asset Activity log</h3>
-                <div id="sqlite-activity-logs" class="bg-black/30 rounded border border-white/5 p-2 font-mono text-[9px] text-slate-400 h-28 overflow-y-auto custom-scrollbar space-y-1.5 vault-rounded">
+              <div class="space-y-2 pt-2 group">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-[10px] uppercase tracking-widest text-[#10B981] group-hover:text-[#10B981] font-bold cursor-default transition-colors">Asset Activity log</h3>
+                  <div class="flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                    <span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-[8px] text-emerald-400 uppercase font-mono tracking-wider font-bold">Monitor</span>
+                  </div>
+                </div>
+                <div id="sqlite-activity-logs" class="bg-black/40 rounded-xl border border-white/5 group-hover:border-emerald-500/25 p-2.5 font-mono text-[9px] text-slate-400 h-28 overflow-y-auto custom-scrollbar space-y-1.5 vault-rounded transition-all duration-300 backdrop-blur-xs shadow-inner">
                   <!-- Log entries go here -->
                 </div>
               </div>
 
             </div>
 
-            <!-- Performance metadata meter matching elegant dark theme styling -->
-            <div class="p-4 border-t border-white/5 shrink-0 bg-[#0A0A0B]/60">
+            <!-- Load Vaults and Settings + Performance metered footer section -->
+            <div class="p-4 border-t border-white/5 shrink-0 bg-[#0A0A0B]/60 space-y-4">
+              <!-- Sidebar load vault and settings commands -->
+              <div class="space-y-1">
+                <div id="nav-load-vaults-btn" class="flex items-center gap-2.5 p-2 rounded text-xs cursor-pointer transition hover:bg-white/5 text-slate-400 font-sans select-none" title="Open the Vaults Sync/Connection Manager">
+                  <svg class="w-4 h-4 opacity-70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                  </svg>
+                  <span class="font-medium">Load Vaults</span>
+                  <span class="ml-auto text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-1.5 py-0.5 rounded font-mono font-bold">MANAGE</span>
+                </div>
+
+                <div id="nav-settings-btn" class="flex items-center gap-2.5 p-2 rounded text-xs cursor-pointer transition hover:bg-white/5 text-slate-400 font-sans select-none" title="Open theme and global preferences">
+                  <svg class="w-4 h-4 opacity-70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  </svg>
+                  <span class="font-medium">Vault Settings</span>
+                </div>
+              </div>
+
+              <!-- Performance metadata meter matching elegant dark theme styling -->
               <div class="bg-black/40 rounded p-3 text-[10px] mono text-slate-500 space-y-1.5 vault-rounded">
                 <div class="flex justify-between font-mono">
                   <span>Tauri DB Indexer</span>
@@ -2285,6 +2558,9 @@ class VaultApp extends HTMLElement {
 
             <!-- Active Grid/Masonry container with robust animations -->
             <div class="flex-grow">
+              <div id="active-board-sections-container" class="mb-6 hidden">
+                <!-- Pinterest-style sections rendered dynamically here -->
+              </div>
               <div id="catalog-masonry" class="columns-3 gap-3">
                 <!-- Javascript maps asset elements here -->
               </div>
@@ -2941,6 +3217,7 @@ class VaultApp extends HTMLElement {
     }
 
     this.renderBoardNavigation();
+    this.renderSections();
     this.renderCatalog();
     this.renderInspector();
     
@@ -2951,31 +3228,256 @@ class VaultApp extends HTMLElement {
     if (footerCount) footerCount.textContent = `Vault Index: ${14203 + this.assets.length - 12} files`;
   }
 
+  private renderSections() {
+    const container = this.querySelector('#active-board-sections-container') as HTMLElement | null;
+    if (!container) return;
+
+    if (this.selectedBoard === 'ALL') {
+      container.innerHTML = '';
+      container.classList.add('hidden');
+      return;
+    }
+
+    const rawPath = this.selectedBoard.replace(/^\/\s*/, '');
+    const parts = rawPath.split('/').filter(Boolean);
+    const isFirstLevelBoard = parts.length === 1;
+
+    if (!isFirstLevelBoard) {
+      container.innerHTML = '';
+      container.classList.add('hidden');
+      return;
+    }
+
+    container.classList.remove('hidden');
+
+    const boards = this.getUniqueBoards();
+    const parentBoard = this.selectedBoard;
+    const sections = boards.filter(b => b.startsWith(parentBoard + '/'));
+
+    const sectionsHtml = sections.map(sec => {
+      const secAssets = this.assets.filter(a => a.board === sec);
+      const secLabel = sec.replace(parentBoard + '/', '');
+
+      return `
+        <div data-section-board="${sec}" class="section-card flex flex-col bg-[#0F0F11]/90 border border-white/5 hover:border-emerald-500/20 hover:bg-[#121215] rounded-xl p-3 w-56 cursor-pointer transition duration-250 select-none group relative">
+          
+          <!-- Compact collage of assets -->
+          <div class="h-24 w-full bg-black/40 rounded-lg overflow-hidden flex gap-1 mb-2.5 border border-white/[0.03] select-none p-1">
+            ${secAssets.length > 0 ? `
+              <div class="flex-grow h-full relative overflow-hidden bg-white/[0.01]">
+                <img src="${secAssets[0].imageUrl}" class="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
+              </div>
+              ${secAssets.length > 1 ? `
+                <div class="w-1/3 flex flex-col gap-1 h-full">
+                  <div class="flex-1 overflow-hidden">
+                    <img src="${secAssets[1].imageUrl}" class="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
+                  </div>
+                  ${secAssets.length > 2 ? `
+                    <div class="flex-1 overflow-hidden">
+                      <img src="${secAssets[2].imageUrl}" class="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
+                    </div>
+                  ` : `
+                    <div class="flex-1 border border-dashed border-white/5 rounded flex items-center justify-center text-[8px] text-slate-800 font-mono">+</div>
+                  `}
+                </div>
+              ` : ''}
+            ` : `
+              <div class="w-full h-full flex flex-col items-center justify-center text-slate-700">
+                <svg class="w-5 h-5 stroke-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2z"></path>
+                </svg>
+                <span class="text-[8px] font-mono mt-1">Empty Section</span>
+              </div>
+            `}
+          </div>
+
+          <div class="text-left flex items-center justify-between gap-1.5 flex-grow">
+            <div class="truncate">
+              <span class="block text-xs font-semibold text-slate-200 group-hover:text-emerald-400 transition truncate" title="${secLabel}">${secLabel}</span>
+              <span class="block text-[10px] text-slate-500 font-mono">${secAssets.length} pin${secAssets.length === 1 ? '' : 's'}</span>
+            </div>
+            <!-- Delete section button -->
+            <button data-delete-section="${sec}" class="delete-section-btn p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded opacity-0 group-hover:opacity-100 transition cursor-pointer" title="Delete Section Folder">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const addNewCardHtml = this.isCreatingSection ? `
+      <div id="inline-add-section-card" class="bg-[#111113] border border-emerald-500/35 rounded-xl p-3 flex flex-col justify-between w-56 shrink-0 h-36">
+        <div class="space-y-1.5 text-left">
+          <label class="text-[9px] uppercase tracking-widest text-[#10B981] font-mono font-bold">New Section Name</label>
+          <input id="inline-section-name-input" type="text" class="bg-black/60 text-white text-xs border border-white/5 focus:border-[#10B981] rounded-lg p-1.5 w-full outline-none font-sans" placeholder="e.g. Neo Tokyo" spellcheck="false" />
+        </div>
+        <div class="flex items-center justify-end gap-1.5 mt-2 shrink-0">
+          <button id="inline-section-cancel" class="text-[10px] text-slate-500 hover:text-white px-2.5 py-1 rounded transition font-mono cursor-pointer font-bold">Cancel</button>
+          <button id="inline-section-save" class="text-[10px] bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold px-3 py-1 rounded transition font-mono cursor-pointer">Create</button>
+        </div>
+      </div>
+    ` : `
+      <div id="card-new-section-trigger" class="border border-dashed border-white/10 hover:border-emerald-500/30 bg-black/10 hover:bg-black/20 rounded-xl p-3 flex flex-col items-center justify-center gap-2 cursor-pointer transition duration-250 select-none w-56 shrink-0 h-36 group">
+        <div class="w-8 h-8 rounded-full bg-slate-900/60 border border-white/5 flex items-center justify-center group-hover:bg-emerald-500/10 group-hover:border-emerald-500/20 transition">
+          <svg class="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+          </svg>
+        </div>
+        <span class="text-xs font-semibold text-slate-400 group-hover:text-emerald-400 transition">Create Section</span>
+      </div>
+    `;
+
+    container.innerHTML = `
+      <div class="space-y-3.5 mb-2 font-sans select-none">
+        <div class="flex items-center justify-between border-b border-white/[0.04] pb-2">
+          <div class="flex items-center gap-2 text-left">
+            <span class="text-xs uppercase tracking-widest text-[#10B981] font-mono font-bold">Pinterest Board Sections</span>
+            <span class="text-[10px] bg-emerald-500/10 text-emerald-400 font-mono px-2 py-0.5 rounded-full font-bold">${sections.length}</span>
+          </div>
+          <p class="text-[11px] text-slate-500 font-mono hidden md:block">Organize pins into structural folders inside this board</p>
+        </div>
+        <div class="flex items-center gap-4 overflow-x-auto pb-2 custom-scrollbar flex-nowrap scroll-smooth">
+          ${sectionsHtml}
+          ${addNewCardHtml}
+        </div>
+      </div>
+    `;
+
+    this.attachSectionEventListeners();
+  }
+
+  private attachSectionEventListeners() {
+    const container = this.querySelector('#active-board-sections-container');
+    if (!container) return;
+
+    container.querySelectorAll('.section-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('.delete-section-btn')) {
+          return;
+        }
+        const secBoard = (card as HTMLElement).dataset.sectionBoard;
+        if (secBoard) {
+          this.selectedBoard = secBoard;
+          this.selectedAssetId = '';
+          const currentBoardAssets = this.assets.filter(a => a.board === secBoard);
+          if (currentBoardAssets.length > 0) {
+            this.selectedAssetId = currentBoardAssets[0].id;
+          }
+          this.updateLayout();
+          this.addLog('info', `Drilled down into board section: ${secBoard}`);
+        }
+      });
+    });
+
+    container.querySelectorAll('.delete-section-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const secBoard = (btn.closest('[data-section-board]') as HTMLElement)?.dataset.sectionBoard;
+        if (secBoard) {
+          this.deleteBoard(secBoard);
+        }
+      });
+    });
+
+    const trigger = this.querySelector('#card-new-section-trigger');
+    if (trigger) {
+      trigger.addEventListener('click', () => {
+        this.isCreatingSection = true;
+        this.renderSections();
+      });
+    }
+
+    const cancelBtn = this.querySelector('#inline-section-cancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        this.isCreatingSection = false;
+        this.renderSections();
+      });
+    }
+
+    const saveBtn = this.querySelector('#inline-section-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        this.saveInlineSection();
+      });
+    }
+
+    const input = this.querySelector('#inline-section-name-input') as HTMLInputElement | null;
+    if (input) {
+      input.focus();
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          this.saveInlineSection();
+        } else if (e.key === 'Escape') {
+          this.isCreatingSection = false;
+          this.renderSections();
+        }
+      });
+    }
+  }
+
+  private saveInlineSection() {
+    const input = this.querySelector('#inline-section-name-input') as HTMLInputElement | null;
+    if (!input) return;
+
+    const val = input.value.trim();
+    if (!val) {
+      this.isCreatingSection = false;
+      this.renderSections();
+      return;
+    }
+
+    const parentBoard = this.selectedBoard;
+    // Format appropriately: e.g., "/ Environment_Ref" + "/" + "Neo_Tokyo" -> "/ Environment_Ref/Neo_Tokyo"
+    const sectionPath = `${parentBoard}/${val.replace(/[\/\\]+/g, '_')}`;
+
+    this.createNewBoard(sectionPath);
+    this.isCreatingSection = false;
+    this.updateLayout();
+  }
+
   private renderBoardNavigation() {
     const listDiv = this.querySelector('#boards-list-container');
     if (!listDiv) return;
 
     const boards = this.getUniqueBoards();
-    
-    listDiv.innerHTML = boards.map(board => {
+    let containsDeeperFolders = false;
+
+    let boardsHtml = boards.map(board => {
       const activeFolderIcon = `<svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
       const idleFolderIcon = `<svg class="w-3.5 h-3.5 text-slate-500 shrink-0 opacity-40 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
-      
+      const nestedFolderIcon = `<svg class="w-3.5 h-3.5 text-cyan-400 shrink-0 opacity-70 group-hover:opacity-100 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
+
       const parts = board.replace(/^\/\s*/, '').split('/');
       const isSub = parts.length > 1;
-      const displayLabel = isSub ? `${parts[parts.length - 1]}` : `${parts[0]}`;
-      const isActive = this.selectedBoard === board;
+      const isDeeper = parts.length > 2;
       
-      const paddingClass = isSub ? 'pl-6' : 'pl-2';
+      if (isDeeper) {
+        containsDeeperFolders = true;
+      }
+
+      // Deeper folders are promoted/flattened to the 2nd level list with standard subfolders
+      let displayLabel = '';
+      if (isDeeper) {
+        displayLabel = `↳ ${parts.slice(1).join(' › ')}`;
+      } else {
+        displayLabel = isSub ? `${parts[parts.length - 1]}` : `${parts[0]}`;
+      }
+
+      const isActive = this.selectedBoard === board;
+      const paddingClass = isDeeper ? 'pl-8' : (isSub ? 'pl-6' : 'pl-2');
       const colorClass = isActive 
         ? 'text-emerald-400 bg-emerald-500/10 font-bold border-l-2 border-emerald-500 scale-[1.01]' 
         : 'text-slate-400 hover:text-white hover:bg-white/[0.015] border-l-2 border-transparent';
 
       return `
-        <div data-board="${board}" class="board-link flex items-center justify-between text-xs py-2 pr-2.5 rounded-r cursor-pointer transition-all duration-200 ${paddingClass} ${colorClass} group">
+        <div data-board="${board}" class="board-link flex items-center justify-between text-xs py-2 pr-2.5 rounded-r cursor-pointer transition-all duration-200 ${paddingClass} ${colorClass} group" title="Full Structure Path: ${board}">
           <div class="flex items-center gap-2 truncate">
-            ${isActive ? activeFolderIcon : idleFolderIcon}
-            <span class="truncate">${displayLabel}</span>
+            ${isActive ? activeFolderIcon : (isDeeper ? nestedFolderIcon : idleFolderIcon)}
+            <span class="truncate ${isDeeper ? 'italic text-cyan-300/90 font-mono text-[10px]' : ''}">${displayLabel}</span>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
             <button data-delete-board="${board}" class="delete-board-btn text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 p-0.5 rounded opacity-0 group-hover:opacity-100 transition duration-150 cursor-pointer" title="Delete Board Folder">
@@ -2988,6 +3490,39 @@ class VaultApp extends HTMLElement {
         </div>
       `;
     }).join('');
+
+    // Active folder structure/hierarchy guide info banner
+    let structureInfoHtml = '';
+    if (containsDeeperFolders) {
+      structureInfoHtml = `
+        <div class="text-[10px] text-slate-500 bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 rounded p-2.5 mt-2.5 transition duration-200 space-y-1 select-none font-mono tracking-tight text-left">
+          <div class="flex items-center gap-1 text-cyan-400 font-extrabold uppercase text-[9px]">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Hierarchy Traversal
+          </div>
+          <p class="leading-relaxed">
+            Folders nested inside 2nd Level [Sections] are promoted & displayed here on the 2nd level list (marked with <span class="text-cyan-300 font-medium">↳</span>) for seamless cross-board navigation.
+          </p>
+        </div>
+      `;
+    } else {
+      structureInfoHtml = `
+        <div class="text-[9.5px] text-slate-500 bg-black/20 border border-white/5 rounded p-2.5 mt-2.5 select-none font-mono tracking-tight text-left">
+          <div class="text-slate-400 font-bold uppercase text-[8.5px] mb-1">
+            📁 Vault Hierarchy Rule
+          </div>
+          <p class="leading-relaxed">
+            Reflected architecture:<br/>
+            <span class="text-slate-300">Vault [root]</span> ➔ 
+            <span class="text-slate-300">1st Lvl [Boards]</span> ➔ 
+            <span class="text-slate-300">2nd Lvl [Sections]</span> ➔ 
+            <span class="text-slate-300">3rd Lvl [Images]</span>
+          </p>
+        </div>
+      `;
+    }
+
+    listDiv.innerHTML = boardsHtml + structureInfoHtml;
 
     // Highlight Library link (All references)
     const navAll = this.querySelector('#nav-all-assets');
@@ -3045,7 +3580,9 @@ class VaultApp extends HTMLElement {
         return matchTitle || matchArtist || matchSystemTags || matchMetaTags;
       });
 
-      const displayLabel = board.replace(/^\/\s*/, '').split('/').pop() || board;
+      const parts = board.replace(/^\/\s*/, '').split('/');
+      const isDeeper = parts.length > 2;
+      const displayLabel = isDeeper ? `${parts.slice(1).join(' › ')}` : (parts.length > 1 ? parts[parts.length - 1] : parts[0]);
       
       return `
         <div data-board="${board}" class="board-card-item cursor-pointer bg-[#0F0F11]/90 border border-white/5 rounded-2xl p-4 flex flex-col space-y-3 hover:border-emerald-500/20 hover:bg-[#121215] transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl group relative">
@@ -3097,9 +3634,9 @@ class VaultApp extends HTMLElement {
           <!-- Board description -->
           <div class="flex flex-col text-left">
             <!-- Title and counts -->
-            <div class="flex items-center justify-between gap-1.5">
-              <span class="font-semibold text-sm text-slate-100 group-hover:text-emerald-400 transition truncate flex-grow mr-1" title="${displayLabel}">
-                ${displayLabel}
+            <div class="flex items-center justify-between gap-1.5 font-sans">
+              <span class="font-semibold text-sm text-slate-100 group-hover:text-emerald-400 transition truncate flex-grow mr-1 ${isDeeper ? 'text-cyan-300/95 italic font-mono' : ''}" title="${displayLabel}">
+                ${isDeeper ? '↳ ' : ''}${displayLabel}
               </span>
               <div class="flex items-center gap-1.5 shrink-0">
                 <button data-delete-board="${board}" class="main-delete-board-btn text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer" title="Delete Board Folder">
@@ -3480,6 +4017,46 @@ class VaultApp extends HTMLElement {
           this.updateLayout();
           this.toast('Database Cleared', 'Simulated visual catalog metadata recompiled successfully.');
         }
+      });
+    }
+
+    // Workspace Perspective switcher bindings
+    const btnModeFocused = this.querySelector('#view-mode-focused');
+    const btnModeUnified = this.querySelector('#view-mode-unified');
+
+    if (btnModeFocused) {
+      btnModeFocused.addEventListener('click', () => {
+        if (this.workspaceMode === 'focused') return;
+        this.workspaceMode = 'focused';
+        localStorage.setItem('visual_vault_workspace_mode', 'focused');
+        this.loadAssets();
+        this.selectedBoard = 'ALL';
+        
+        // Redraw/Repopulate
+        this.renderShell();
+        this.attachEventListeners();
+        this.updateLayout();
+        
+        this.addLog('info', 'Workspace view mode: Focused Solitude active (distractions hidden).');
+        this.toast('Perspective Isolated', 'Vault view mode isolated strictly to current project.');
+      });
+    }
+
+    if (btnModeUnified) {
+      btnModeUnified.addEventListener('click', () => {
+        if (this.workspaceMode === 'unified') return;
+        this.workspaceMode = 'unified';
+        localStorage.setItem('visual_vault_workspace_mode', 'unified');
+        this.loadAssets();
+        this.selectedBoard = 'ALL';
+
+        // Redraw/Repopulate
+        this.renderShell();
+        this.attachEventListeners();
+        this.updateLayout();
+
+        this.addLog('success', 'Workspace view mode: Unified Arena active (merged all vaults).');
+        this.toast('Perspective Unified', 'Combined reference libraries across all registered vaults!');
       });
     }
 
@@ -4567,11 +5144,14 @@ class VaultApp extends HTMLElement {
   private deleteBoard(boardName: string) {
     if (!boardName || boardName === 'ALL') return;
 
-    if (confirm(`Are you sure you want to delete the board "${boardName}"?`)) {
+    const isSub = boardName.replace(/^\/\s*/, '').split('/').length > 1;
+    const typeLabel = isSub ? 'section' : 'board';
+
+    if (confirm(`Are you sure you want to delete the ${typeLabel} "${boardName}"?`)) {
       const deleteFiles = confirm(
         `Would you also like to delete all reference files currently inside "${boardName}"?\n\n` +
-        `- Click OK (Yes) to delete both the board and its files.\n` +
-        `- Click Cancel (No) to delete the board but keep the files in the vault folder.`
+        `- Click OK (Yes) to delete both the ${typeLabel} and its files.\n` +
+        `- Click Cancel (No) to delete the ${typeLabel} but keep the files in the vault folder.`
       );
 
       // 1. Update the custom created boards list for the current vault

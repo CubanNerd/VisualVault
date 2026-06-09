@@ -4,6 +4,14 @@ An obsidian-style, local-first cataloging workspace for reference images, design
 
 ---
 
+## 📚 Repository Guides & Documentation
+
+To help you get started quickly or inspect the internal architecture, we have created dedicated knowledge base modules:
+*   **[User Guide & Knowledge Base](./docs/USER_GUIDE.md)**: Standard operations guide detailing workspace configuration options, the two core user profiles, folder management, dynamic YAML metadata sync, and local folder permission overrides.
+*   **[Developer Architecture & Integration Guide](./docs/DEVELOPER_GUIDE.md)**: Technical maintenance manual detailing custom web component lifecycles, database partitions, event delegator tracking, regex YAML parsing engines, and local Electron wrappers.
+
+---
+
 ## 🚀 Key Features
 
 - **Obsidian-Style Vault Manager**: Switch smoothly between isolated physical directories (e.g., `/Users/design/...`), persist distinct databases in Indexed/Local Storage, and register new vaults dynamically.
