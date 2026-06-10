@@ -752,6 +752,7 @@ class VaultApp extends HTMLElement {
   private activeSettingsTab: 'vault' | 'general' = 'vault';
   private workspaceMode: 'unified' | 'focused' = 'focused';
   private isCreatingSection = false;
+  private isSidebarClosed = localStorage.getItem('visual_vault_sidebar_closed') === 'true';
 
   // Modern browser File System Access API (Sandbox Directory Sync) properties
   private isSandboxedDirectory = false;
@@ -936,6 +937,32 @@ class VaultApp extends HTMLElement {
 
       body, .vault-app-root, .vault-app-root * {
         font-family: var(--app-font-family) !important;
+      }
+
+      /* Transition-sidebar and collapsible classes */
+      aside.transition-sidebar {
+        transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease, min-width 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-right-width 0.3s ease !important;
+      }
+      
+      aside.sidebar-collapsed {
+        width: 0px !important;
+        min-width: 0px !important;
+        opacity: 0 !important;
+        border-right-width: 0px !important;
+        padding-left: 0px !important;
+        padding-right: 0px !important;
+        pointer-events: none !important;
+      }
+
+      /* Style changes on the selected element sidebar-lists */
+      #sidebar-lists {
+        transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      }
+      
+      .sidebar-collapsed #sidebar-lists {
+        opacity: 0 !important;
+        transform: translateX(-15px) !important;
+        pointer-events: none !important;
       }
 
       /* Elements requiring strict monospace look */
@@ -2585,6 +2612,11 @@ class VaultApp extends HTMLElement {
         <header id="vault-header" class="vault-header-bg h-12 border-b border-white/5 bg-[#0F0F11] flex items-center px-4 justify-between shrink-0">
           <div class="flex items-center gap-6">
             <div class="flex items-center gap-2">
+              <button id="toggle-sidebar-btn" class="p-1 text-slate-400 hover:text-emerald-400 hover:bg-white/5 rounded transition cursor-pointer active:scale-95 flex items-center justify-center mr-1" title="Toggle Sidebar">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
               <div class="w-6 h-6 bg-emerald-500 rounded flex items-center justify-center cursor-pointer hover:bg-emerald-400 transition" id="action-reset">
                 <svg class="w-4 h-4 text-black font-semibold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
@@ -2631,7 +2663,7 @@ class VaultApp extends HTMLElement {
         <main class="flex-grow h-0 flex overflow-hidden">
           
           <!-- LEFT SIDEBAR -->
-          <aside class="vault-sidebar-bg w-60 bg-[#0F0F11] border-r border-white/5 flex flex-col shrink-0">
+          <aside class="vault-sidebar-bg w-60 bg-[#0F0F11] border-r border-white/5 flex flex-col shrink-0 transition-sidebar ${this.isSidebarClosed ? 'sidebar-collapsed' : ''}">
             <div id="sidebar-lists" class="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-5">
               
               <!-- Workspace Perspective Mode -->
@@ -4309,6 +4341,26 @@ class VaultApp extends HTMLElement {
   // Interactions & Events Binding
   // ----------------------------------------------------
   private attachEventListeners() {
+    // Left sidebar slide close/slide open toggle
+    const toggleSidebarBtn = this.querySelector('#toggle-sidebar-btn');
+    if (toggleSidebarBtn) {
+      toggleSidebarBtn.addEventListener('click', () => {
+        this.isSidebarClosed = !this.isSidebarClosed;
+        localStorage.setItem('visual_vault_sidebar_closed', this.isSidebarClosed ? 'true' : 'false');
+        
+        const aside = this.querySelector('aside');
+        if (aside) {
+          if (this.isSidebarClosed) {
+            aside.classList.add('sidebar-collapsed');
+            this.addLog('info', 'Aesthetic UI: Slide-closed Left Sidebar (lists hidden).');
+          } else {
+            aside.classList.remove('sidebar-collapsed');
+            this.addLog('success', 'Aesthetic UI: Slide-opened Left Sidebar (lists visible).');
+          }
+        }
+      });
+    }
+
     // Global board folder rename trigger listener
     const btnRename = this.querySelector('#btn-rename-board');
     if (btnRename) {

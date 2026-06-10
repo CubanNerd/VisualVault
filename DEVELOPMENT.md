@@ -81,15 +81,56 @@ This dynamic mapping separates your data, ensuring that when a developer switche
 
 ---
 
-## 🎨 Layout Modifiers & Custom Themes
+## 🎨 Layout Modifiers, Custom Themes & Google Web Fonts
 
-VisualVault includes three distinctive user interface states handled via theme stylesheets dynamically written into the core app's layout.
+VisualVault includes distinctive user interface states, accent colors, and custom typefaces handled via injected CSS stylesheets configured dynamically.
+
+### System Typography Options
+We support interactive, high-fidelity Google Fonts and System Typefaces:
+- **Default Sans**: Inter Sans
+- **Tech / Futuristic Display**: Space Grotesk, Tektur Futuristic
+- **Legibility**: Outfit (Geometric), Lexend Sans
+- **Editorial / Serif**: Playfair Display, Georgia Serif
+- **Developer / Monospace**: JetBrains Mono, Space Mono, IBM Plex Mono, Courier Classic
+
+The selected font is persisted via local storage element `visual_vault_system_font` and applied globally on change using dynamic runtime CSS template strings in `injectThemeStyles()`.
 
 ### Injected Style Blocks
-The themes are managed by injecting styling adjustments dynamically:
+The layout themes are managed by injecting styling variables dynamically:
 1. **Obsidian Dark (Default)**: Deep carbon canvas (`#0F0F11`), slate borders, emerald inputs, and glowing high-contrast outline states.
 2. **Notion Minimalist (Light)**: Cool gray borders, pristine off-white frames, and classic typography.
 3. **Y2K CRT Matrix**: Glowing lime greens, stark black backgrounds, scanline CSS overlays, and monospace console fonts.
+
+---
+
+## 🎛️ Customizable Schema & Status Sync
+
+VisualVault provides an advanced **Custom Schema & Status Configurator** to align the application metadata with specific database design taxonomies or studio workflows.
+
+### Structure & Layout Schema Interfacing
+Developers and users can custom-label field variables, change placeholder descriptions, or alter dropdown selection status values. The configuration uses the `CustomSchemaConfig` interface:
+```ts
+interface PropertyConfig {
+  label: string;
+  placeholder?: string;
+}
+
+interface CustomSchemaConfig {
+  statuses: { value: string; label: string }[];
+  properties: {
+    title: PropertyConfig;
+    notes: PropertyConfig;
+    artist: PropertyConfig;
+    rating: PropertyConfig;
+    status: PropertyConfig;
+  };
+}
+```
+
+### Persistence & Portability
+- **Storage Target**: Local Storage key `visual_vault_schema_config_v1`.
+- **JSON Import/Export Hooks**: The Settings panel features quick click action triggers to save down custom configurations as `visual_vault_config.json`, or upload and apply schemas instantly.
+- **Form Mapping Sync**: All changed property labels immediately rewrite input fields across both the main inspector panel and active lightbox overlays.
 
 ---
 

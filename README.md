@@ -15,7 +15,9 @@ To help you get started quickly or inspect the internal architecture, we have cr
 ## 🚀 Key Features
 
 - **Obsidian-Style Vault Manager**: Switch smoothly between isolated physical directories (e.g., `/Users/design/...`), persist distinct databases in Indexed/Local Storage, and register new vaults dynamically.
+- **Custom Schema & Status Configurator**: Dynamically adjust metadata property names, placeholder values, and asset statuses. Supports importing and exporting configurations using structured `.json` files.
 - **Color Extraction Grid**: Built-in visual palette calculator that derives prominent color blocks from imported images.
+- **Google Fonts & Typography System**: Shift layout typefaces between highly readable fonts including **Space Mono**, **Space Grotesk**, **Lexend**, **Tektur**, and **IBM Plex Mono**, on top of classic Inter, Outfit, and Playfair Display styles.
 - **Design Typography Themes**: Shift layouts dynamically between Obsidian Charcoal, Notion Minimalist (Off-White), and Y2K CRT Matrix terminal interfaces.
 - **Integrated Markdown/YAML Editor**: Inspect, edit, and write asset metadata sidebars directly synced with local Obsidian `.md` vault specifications.
 
