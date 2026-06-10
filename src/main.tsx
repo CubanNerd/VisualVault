@@ -1738,6 +1738,166 @@ class VaultApp extends HTMLElement {
   }
 
   /**
+   * Safe fallback uploader for Brave/Firefox/Safari or any restricted sandbox browser environments
+   * where window.showDirectoryPicker is blocked, unavailable, or throws permissions exceptions.
+   * Leverages the standard HTML webkitdirectory directory input API to let users load physical design folders.
+   */
+  private handleWebDirectoryFallback() {
+    this.addLog('info', 'Web Directory Fallback: Scanning folder using standard file-system input channels.');
+    this.toast('Web Fallback Active', 'Opening native system directory selection drawer...');
+
+    // Create a hidden input element on-the-fly
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.setAttribute('webkitdirectory', '');
+    input.setAttribute('directory', '');
+    input.setAttribute('multiple', '');
+
+    input.addEventListener('change', async (e: any) => {
+      const files: File[] = Array.from(e.target.files || []);
+      if (files.length === 0) {
+        this.addLog('info', 'Web Directory Fallback: Connection cancelled by user.');
+        return;
+      }
+
+      // Determine the Vault name from the top-level folder components of first item
+      const firstPath = files[0].webkitRelativePath || '';
+      const vaultName = firstPath.split('/')[0] || 'Local Folder Library';
+
+      this.addLog('success', `Web Directory Fallback: Connected successfully. Analyzing ${files.length} items from folder "${vaultName}"...`);
+      this.toast('Syncing Folder', `Parsing folder structured references...`);
+
+      // Mark as integrated Local Directory mock context (read-only for disk writes)
+      this.isSandboxedDirectory = false;
+      this.directoryHandle = null;
+      this.fileHandles.clear();
+      this.mdFileHandles.clear();
+
+      const assetsList: Asset[] = [];
+      const supportedExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp', 'avif', 'tiff', 'jfif', 'heic', 'heif'];
+
+      // Pre-process markdown config logs to make index matching high performance (O(N))
+      const mdFilesMap = new Map<string, File>();
+      const imageFiles: File[] = [];
+
+      files.forEach(file => {
+        const path = file.webkitRelativePath || '';
+        const ext = path.split('.').pop()?.toLowerCase() || '';
+        if (ext === 'md') {
+          mdFilesMap.set(path.toLowerCase(), file);
+        } else if (supportedExtensions.includes(ext)) {
+          imageFiles.push(file);
+        }
+      });
+
+      for (const file of imageFiles) {
+        const fullPath = file.webkitRelativePath || '';
+        const parts = fullPath.split('/');
+
+        // Extract subfolders as design boards (first part is vault name, last part is filename)
+        const subDirs = parts.slice(1, -1);
+        const fileName = parts[parts.length - 1];
+        const boardPath = subDirs.length ? `/${subDirs.join('/')}` : '/';
+
+        const id = `web_ref_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+        const fileNameNoExt = fileName.replace(/\.[a-zA-Z0-9]+$/, '');
+
+        // Reconstruct companion MD path inside the same subfolder
+        const mdPathParts = [parts[0], ...subDirs, `${fileNameNoExt}.md`].join('/');
+
+        let metadata: AssetMetadata = {
+          tags: ['Local-Sync', 'Imported'],
+          artist: 'Local Computer',
+          rating: '5',
+          status: 'completed',
+          title: fileNameNoExt.replace(/[-_]/g, ' '),
+          notes: `Connected via Brave/Firefox Web Directory Fallback.`
+        };
+
+        const mdFile = mdFilesMap.get(mdPathParts.toLowerCase());
+        if (mdFile) {
+          try {
+            const mdText = await mdFile.text();
+            metadata = parseYAMLFrontmatter(mdText, metadata);
+          } catch (e) {
+            console.error('Failed to parse companion MD file', e);
+          }
+        }
+
+        const imageUrl = URL.createObjectURL(file);
+        const size = file.size > 1024 * 1024
+          ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+          : `${(file.size / 1024).toFixed(0)} KB`;
+
+        const colors = ['#0F0F11', '#1A2B3C', '#10B981', '#1E293B', '#111827'];
+
+        const asset: Asset = {
+          id,
+          name: fileName,
+          board: boardPath,
+          resolution: 'Loading...',
+          size,
+          colors,
+          tags: metadata.tags || [],
+          metadata,
+          imageUrl,
+          lastModified: new Date(file.lastModified).toLocaleString()
+        };
+
+        assetsList.push(asset);
+
+        // Extract exact resolutions and color palettes in background threads
+        this.asynchronouslyLoadAssetDetails(id, file, imageUrl, assetsList);
+      }
+
+      if (assetsList.length === 0) {
+        this.toast('Empty Folder', 'No supported visual images discovered inside selected folder.');
+      } else {
+        this.toast('Vault Connected', `Successfully connected vault reference! Indexed ${assetsList.length} files.`);
+        this.addLog('success', `Web Directory Fallback: Mounted vault "${vaultName}" with ${assetsList.length} active assets.`);
+      }
+
+      this.assets = assetsList;
+      this.selectedBoard = 'ALL';
+      this.selectedAssetId = assetsList.length > 0 ? assetsList[0].id : '';
+
+      // Update UI Vault Path input indicator
+      const pathInput = this.querySelector('#vault-path-input') as HTMLInputElement | null;
+      if (pathInput) pathInput.value = `[Connected Directory] /${vaultName}`;
+
+      // Persist path reference in vaults list registry
+      const mockPath = `[web-dir]/${vaultName}`;
+      let vaults = storage.getVaults();
+      
+      // Auto-unmount/unload all other vaults when activating a new directory
+      vaults.forEach(v => {
+        v.mounted = (v.path === mockPath);
+      });
+
+      let vault = vaults.find(v => v.path === mockPath);
+      if (!vault) {
+        vaults.push({
+          name: `📁 ${vaultName} (Folder Connection)`,
+          path: mockPath,
+          lastOpened: Date.now(),
+          mounted: true
+        });
+      } else {
+        vault.lastOpened = Date.now();
+        vault.mounted = true;
+      }
+      storage.saveVaults(vaults);
+      storage.setVaultPath(mockPath);
+
+      this.updateLayout();
+      this.populateVaultManager();
+      this.toggleVaultManagerModal(false);
+    });
+
+    input.click();
+  }
+
+  /**
    * Prompts the user to authorize and connect a local computer directory using the File System Access API.
    * Scans contents recursively, discovers subfolders as design boards, binds markdown YAML observers,
    * and loads native previews completely on the client-side.
@@ -1745,7 +1905,8 @@ class VaultApp extends HTMLElement {
   private async handleWebDirectoryPicker() {
     const showPicker = (window as any).showDirectoryPicker;
     if (!showPicker) {
-      alert('The File System Access API is not supported or is blocked in this browser.\n\n💡 REASONS & QUICK REMEDIES:\n1. IFRAME SANDBOXING: Browsers forbid folder connections inside an iframe preview! Please click "Open in New Tab" at the top-right of your screen to load the fully secure tab where this API is fully unlocked.\n2. BRAVE SHIELDS: Brave blocks the folder picker by default. Click the Lion icon beside the URL address bar and turn Shields OFF for this tab.\n3. SECURE ORIGINS: Ensure you are accessing via HTTPS (or localhost during dev).');
+      this.addLog('info', 'File System Access API is not supported by this browser. Shifting to standard Web Directory Fallback...');
+      this.handleWebDirectoryFallback();
       return;
     }
 
@@ -1781,6 +1942,12 @@ class VaultApp extends HTMLElement {
       // Persist path reference inside vaults registry list
       const mockPath = `[web-dir]/${handle.name}`;
       let vaults = storage.getVaults();
+      
+      // Auto-unmount/unload all other vaults when activating a new directory
+      vaults.forEach(v => {
+        v.mounted = (v.path === mockPath);
+      });
+
       let vault = vaults.find(v => v.path === mockPath);
       if (!vault) {
         vaults.push({
@@ -1805,10 +1972,9 @@ class VaultApp extends HTMLElement {
         this.addLog('info', 'Sandbox API: Connection cancelled.');
       } else {
         console.error(err);
-        this.addLog('warn', `Sandbox API: Connection failure - ${err.message}`);
-        
-        let extraRemedies = `\n\n💡 QUICK SOLVER FOR BRAVE & IFRAMES:\n- Open the app in a NEW TAB using the icon top-right. This completely bypasses the browser's sandbox/iframe permission locks.\n- Brave Browser Users: Click the Red Lion "Shields" button in your browser URL bar and toggle "Shields Down" for this site.`;
-        alert(`Failed to connect local directory folder:\n${err.message}${extraRemedies}`);
+        this.addLog('warn', `Sandbox API: Connection blocked or failed - ${err.message}. Shifting to standard Web Directory Fallback picker.`);
+        this.toast('API Restrained', 'File system access is restricted. Retrying with fallback...');
+        this.handleWebDirectoryFallback();
       }
     }
   }
