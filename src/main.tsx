@@ -27,6 +27,42 @@ interface Asset {
 }
 
 // ----------------------------------------------------
+// Customizable Schema & Status Interfaces
+// ----------------------------------------------------
+interface PropertyConfig {
+  label: string;
+  placeholder?: string;
+}
+
+interface CustomSchemaConfig {
+  statuses: { value: string; label: string }[];
+  properties: {
+    title: PropertyConfig;
+    notes: PropertyConfig;
+    artist: PropertyConfig;
+    rating: PropertyConfig;
+    status: PropertyConfig;
+  };
+}
+
+const defaultSchemaConfig: CustomSchemaConfig = {
+  statuses: [
+    { value: 'completed', label: 'Completed Reference' },
+    { value: 'in-progress', label: 'Work-in-Progress (WIP)' },
+    { value: 'review', label: 'Awaiting Design Review' },
+    { value: 'draft', label: 'Draft Sketch studies' }
+  ],
+  properties: {
+    title: { label: 'Pin Name / Title', placeholder: 'E.g., Neo Tokyo Temple Alleyway Sunset...' },
+    notes: { label: 'Pin notes / Description', placeholder: 'Add custom notes, design prompts, research observations...' },
+    artist: { label: 'Artist / Creator', placeholder: 'Chen-K design team...' },
+    rating: { label: 'Visual Vault Grade' },
+    status: { label: 'Asset Status' }
+  }
+};
+
+
+// ----------------------------------------------------
 // Default Visual Assets Mock DB
 // ----------------------------------------------------
 const defaultColors = {
@@ -722,9 +758,23 @@ class VaultApp extends HTMLElement {
   private directoryHandle: FileSystemDirectoryHandle | null = null;
   private fileHandles: Map<string, FileSystemHandle> = new Map();
   private mdFileHandles: Map<string, FileSystemHandle> = new Map();
+  private schemaConfig: CustomSchemaConfig;
 
   constructor() {
     super();
+    
+    // Load or initialize general schema settings
+    const savedSchema = localStorage.getItem('visual_vault_schema_config_v1');
+    if (savedSchema) {
+      try {
+        this.schemaConfig = JSON.parse(savedSchema);
+      } catch (e) {
+        this.schemaConfig = { ...defaultSchemaConfig };
+      }
+    } else {
+      this.schemaConfig = { ...defaultSchemaConfig };
+    }
+
     
     // Seed initial boards if they do not exist to support editing and custom renaming of default folders
     if (!localStorage.getItem('visual_vault_created_boards_list')) {
@@ -864,6 +914,14 @@ class VaultApp extends HTMLElement {
       fontFamilyStyle = 'Georgia, "Times New Roman", serif';
     } else if (this.activeFont === 'courier') {
       fontFamilyStyle = '"Courier New", Courier, monospace';
+    } else if (this.activeFont === 'space-mono') {
+      fontFamilyStyle = '"Space Mono", monospace';
+    } else if (this.activeFont === 'lexend') {
+      fontFamilyStyle = '"Lexend", sans-serif';
+    } else if (this.activeFont === 'tektur') {
+      fontFamilyStyle = '"Tektur", sans-serif';
+    } else if (this.activeFont === 'ibm-plex-mono') {
+      fontFamilyStyle = '"IBM Plex Mono", monospace';
     }
 
     const universalVariables = `
@@ -2285,6 +2343,35 @@ class VaultApp extends HTMLElement {
       tabVault.className = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300";
       contentVault.classList.add('hidden');
       contentGeneral.classList.remove('hidden');
+      this.populateSchemaSettingsInputs();
+    }
+  }
+
+  private populateSchemaSettingsInputs() {
+    const statusesInput = this.querySelector('#schema-statuses-input') as HTMLInputElement | null;
+    const labelTitle = this.querySelector('#schema-label-title') as HTMLInputElement | null;
+    const labelNotes = this.querySelector('#schema-label-notes') as HTMLInputElement | null;
+    const labelArtist = this.querySelector('#schema-label-artist') as HTMLInputElement | null;
+    const labelRating = this.querySelector('#schema-label-rating') as HTMLInputElement | null;
+    const jsonEditor = this.querySelector('#schema-json-editor') as HTMLTextAreaElement | null;
+
+    if (statusesInput) {
+      statusesInput.value = this.schemaConfig.statuses.map(s => `${s.value}:${s.label}`).join(', ');
+    }
+    if (labelTitle) {
+      labelTitle.value = this.schemaConfig.properties.title?.label || '';
+    }
+    if (labelNotes) {
+      labelNotes.value = this.schemaConfig.properties.notes?.label || '';
+    }
+    if (labelArtist) {
+      labelArtist.value = this.schemaConfig.properties.artist?.label || '';
+    }
+    if (labelRating) {
+      labelRating.value = this.schemaConfig.properties.rating?.label || '';
+    }
+    if (jsonEditor) {
+      jsonEditor.value = JSON.stringify(this.schemaConfig, null, 2);
     }
   }
 
@@ -3300,6 +3387,22 @@ class VaultApp extends HTMLElement {
                         <span class="font-bold text-white">JetBrains Mono</span>
                         <span class="text-[9px] opacity-60">Developer / Technical</span>
                       </button>
+                      <button data-font="space-mono" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Space Mono', monospace">
+                        <span class="font-bold text-white">Space Mono</span>
+                        <span class="text-[9px] opacity-60">Retro Sci-Fi Mono</span>
+                      </button>
+                      <button data-font="lexend" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Lexend', sans-serif">
+                        <span class="font-bold text-white">Lexend Sans</span>
+                        <span class="text-[9px] opacity-60">High Legibility / Clean</span>
+                      </button>
+                      <button data-font="tektur" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Tektur', sans-serif">
+                        <span class="font-bold text-white">Tektur Futuristic</span>
+                        <span class="text-[9px] opacity-60">Angular Cyberpunk Sci-Fi</span>
+                      </button>
+                      <button data-font="ibm-plex-mono" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'IBM Plex Mono', monospace">
+                        <span class="font-bold text-white">IBM Plex Mono</span>
+                        <span class="text-[9px] opacity-60">Engineering Technical</span>
+                      </button>
                     </div>
                   </div>
 
@@ -3321,6 +3424,76 @@ class VaultApp extends HTMLElement {
                       </button>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <!-- Dynamic Property & Status Customizer -->
+              <div class="space-y-4 pt-6 border-t border-white/[0.04]">
+                <label class="text-[10px] uppercase tracking-widest text-[#10B981] font-bold cursor-default font-mono">Custom Schema & Status Configurator</label>
+                <p class="text-xs text-slate-500 leading-relaxed font-sans">Customize your asset's status options and metadata field properties below, or export/import them as a JSON configuration file.</p>
+                
+                <!-- Import/Export buttons -->
+                <div class="flex flex-wrap gap-2 pt-1">
+                  <!-- Import File trigger -->
+                  <label class="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition flex items-center gap-1.5 select-none text-center">
+                    <svg class="w-3.5 h-3.5 text-[#10B981]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    <span>Import JSON File</span>
+                    <input type="file" id="schema-import-file" accept=".json" class="hidden" />
+                  </label>
+                  
+                  <button id="schema-export-btn" class="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition flex items-center gap-1.5 select-none">
+                    <svg class="w-3.5 h-3.5 text-[#10B981]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    <span>Export JSON File</span>
+                  </button>
+                  
+                  <button id="schema-reset-btn" class="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/30 text-red-400 rounded text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition flex items-center gap-1.5 select-none">
+                    <span>Reset Defaults</span>
+                  </button>
+                </div>
+
+                <!-- Custom Statuses comma-separated input or list -->
+                <div class="space-y-1.5 pt-1">
+                  <div class="flex justify-between items-center">
+                    <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider font-mono block">Status Options Config</span>
+                    <span class="text-[9px] text-slate-500 font-mono">Format: value:label, value2:label2</span>
+                  </div>
+                  <input type="text" id="schema-statuses-input" class="w-full bg-[#0A0A0B]/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-[#10B981]/20 text-white outline-none font-mono" placeholder="completed:Completed Reference, in-progress:WIP..." />
+                </div>
+
+                <!-- Field Label customizers -->
+                <div class="space-y-2 pt-2">
+                  <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider font-mono block">Modify Field Labels</span>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div class="space-y-1">
+                      <label class="text-[9px] text-slate-500 font-semibold block font-mono">Title Field Label</label>
+                      <input type="text" id="schema-label-title" class="bg-[#0A0A0B]/30 w-full text-xs px-2.5 py-1 rounded border border-white/5 focus:border-[#10B981]/20 text-white outline-none" />
+                    </div>
+                    <div class="space-y-1">
+                      <label class="text-[9px] text-slate-500 font-semibold block font-mono">Notes/Description Field Label</label>
+                      <input type="text" id="schema-label-notes" class="bg-[#0A0A0B]/30 w-full text-xs px-2.5 py-1 rounded border border-white/5 focus:border-[#10B981]/20 text-white outline-none" />
+                    </div>
+                    <div class="space-y-1">
+                      <label class="text-[9px] text-slate-500 font-semibold block font-mono">Artist Field Label</label>
+                      <input type="text" id="schema-label-artist" class="bg-[#0A0A0B]/30 w-full text-xs px-2.5 py-1 rounded border border-white/5 focus:border-[#10B981]/20 text-white outline-none" />
+                    </div>
+                    <div class="space-y-1">
+                      <label class="text-[9px] text-slate-500 font-semibold block font-mono">Rating Field Label</label>
+                      <input type="text" id="schema-label-rating" class="bg-[#0A0A0B]/30 w-full text-xs px-2.5 py-1 rounded border border-white/5 focus:border-[#10B981]/20 text-white outline-none" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Advanced JSON Code Editor -->
+                <div class="space-y-1.5 pt-2">
+                  <div class="flex justify-between items-center font-mono">
+                    <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Advanced Raw JSON Config</span>
+                    <span id="json-val-feedback" class="text-[9px] text-slate-500">Valid Schema</span>
+                  </div>
+                  <textarea id="schema-json-editor" class="w-full h-36 bg-black font-mono text-[10px] leading-relaxed text-slate-400 p-2.5 rounded border border-white/5 focus:border-[#10B981]/20 focus:text-slate-300 outline-none resize-none transition-all custom-scrollbar flex" spellcheck="false" title="Directly edit the custom schema properties in raw JSON"></textarea>
                 </div>
               </div>
             </div>
@@ -4061,34 +4234,40 @@ class VaultApp extends HTMLElement {
           <label class="text-[10px] uppercase tracking-widest text-[#10B981] font-mono font-bold cursor-default">Database Sync Parameters</label>
           
           <div class="space-y-1">
-            <span class="text-[10px] text-slate-500 font-semibold">Pin Name / Title:</span>
+            <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.title?.label || 'Pin Name / Title'}:</span>
             <input type="text" id="meta-title-input" value="${asset.metadata.title || ''}" 
-              class="w-full bg-black/40 text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" placeholder="E.g., Neo Tokyo Temple Alleyway Sunset..." />
+              class="w-full bg-black/40 text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" placeholder="${this.schemaConfig.properties.title?.placeholder || 'E.g., Neo Tokyo Temple Alleyway Sunset...'}" />
           </div>
 
           <div class="space-y-1">
-            <span class="text-[10px] text-slate-500 font-semibold">Pin notes / Description:</span>
-            <textarea id="meta-notes-input" class="w-full h-22 bg-black/40 text-xs px-2.5 py-2 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none resize-none custom-scrollbar" placeholder="Add custom notes, design prompts, research observations, color palette ideas, or notes similar to Pin boards...">${asset.metadata.notes || ''}</textarea>
+            <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.notes?.label || 'Pin notes / Description'}:</span>
+            <textarea id="meta-notes-input" class="w-full h-22 bg-black/40 text-xs px-2.5 py-2 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none resize-none custom-scrollbar" placeholder="${this.schemaConfig.properties.notes?.placeholder || 'Add custom notes, design prompts, research observations...'}">${asset.metadata.notes || ''}</textarea>
           </div>
 
           <div class="space-y-1">
-            <span class="text-[10px] text-slate-500 font-semibold">Artist / Creator:</span>
+            <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.artist?.label || 'Artist / Creator'}:</span>
             <input type="text" id="meta-artist-input" value="${asset.metadata.artist || ''}" 
-              class="w-full bg-black/40 text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none w-full" placeholder="Chen-K design team..." />
+              class="w-full bg-[#0A0A0B]/40 text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none w-full" placeholder="${this.schemaConfig.properties.artist?.placeholder || 'Chen-K design team...'}" />
           </div>
 
           <div class="space-y-1">
-            <span class="text-[10px] text-slate-500 font-semibold">Asset Status: </span>
+            <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.status?.label || 'Asset Status'}: </span>
             <select id="meta-status-select" class="w-full bg-black text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none">
-              <option value="completed" ${asset.metadata.status === 'completed' ? 'selected' : ''}>Completed Reference</option>
-              <option value="in-progress" ${asset.metadata.status === 'in-progress' ? 'selected' : ''}>Work-in-Progress (WIP)</option>
-              <option value="review" ${asset.metadata.status === 'review' ? 'selected' : ''}>Awaiting Design Review</option>
-              <option value="draft" ${asset.metadata.status === 'draft' ? 'selected' : ''}>Draft Sketch studies</option>
+              ${(() => {
+                const schemaHasVal = this.schemaConfig.statuses.some(s => s.value === asset.metadata.status);
+                let options = this.schemaConfig.statuses.map(s => `
+                  <option value="${s.value}" ${asset.metadata.status === s.value ? 'selected' : ''}>${s.label}</option>
+                `).join('');
+                if (asset.metadata.status && !schemaHasVal) {
+                  options += `<option value="${asset.metadata.status}" selected>${asset.metadata.status}</option>`;
+                }
+                return options;
+              })()}
             </select>
           </div>
 
           <div class="space-y-1.5">
-            <span class="text-[10px] text-slate-500 font-semibold">Visual Vault Grade:</span>
+            <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.rating?.label || 'Visual Vault Grade'}:</span>
             <div class="flex items-center gap-1 bg-black/20 p-1.5 rounded border border-white/5 w-fit">
               ${starsInHtml}
             </div>
@@ -4810,6 +4989,10 @@ class VaultApp extends HTMLElement {
         else if (font === 'system') label = 'System UI';
         else if (font === 'georgia') label = 'Georgia Serif';
         else if (font === 'courier') label = 'Courier Classic';
+        else if (font === 'space-mono') label = 'Space Mono';
+        else if (font === 'lexend') label = 'Lexend';
+        else if (font === 'tektur') label = 'Tektur';
+        else if (font === 'ibm-plex-mono') label = 'IBM Plex Mono';
 
         this.injectThemeStyles();
         this.syncSettingsHighlights();
@@ -4841,7 +5024,198 @@ class VaultApp extends HTMLElement {
 
     const btnAllVaults = this.querySelector('#load-vault-all');
     if (btnAllVaults) {
-      btnAllVaults.addEventListener('click', () => this.loadPresetVault('all'));
+      btnAllVaults.addEventListener('click', () => {
+        this.loadPresetVault('all');
+      });
+    }
+
+    // ----------------------------------------------------
+    // Custom Schema & Status Configurator Event Handlers
+    // ----------------------------------------------------
+    const parseStatusesInput = (text: string) => {
+      return text.split(',').map(item => {
+        const parts = item.split(':');
+        const value = parts[0]?.trim() || '';
+        const label = parts[1]?.trim() || value;
+        return { value, label };
+      }).filter(s => s.value);
+    };
+
+    const saveSchemaConfig = (config: CustomSchemaConfig) => {
+      this.schemaConfig = config;
+      localStorage.setItem('visual_vault_schema_config_v1', JSON.stringify(config));
+      
+      const jsonEditor = this.querySelector('#schema-json-editor') as HTMLTextAreaElement | null;
+      if (jsonEditor && document.activeElement !== jsonEditor) {
+        jsonEditor.value = JSON.stringify(config, null, 2);
+      }
+      
+      this.renderInspector();
+      this.populateLightboxData();
+    };
+
+    const schemaLabelTitle = this.querySelector('#schema-label-title') as HTMLInputElement | null;
+    const schemaLabelNotes = this.querySelector('#schema-label-notes') as HTMLInputElement | null;
+    const schemaLabelArtist = this.querySelector('#schema-label-artist') as HTMLInputElement | null;
+    const schemaLabelRating = this.querySelector('#schema-label-rating') as HTMLInputElement | null;
+    const schemaStatusesInput = this.querySelector('#schema-statuses-input') as HTMLInputElement | null;
+    const schemaJsonEditor = this.querySelector('#schema-json-editor') as HTMLTextAreaElement | null;
+    const feedbackSpan = this.querySelector('#json-val-feedback') as HTMLElement | null;
+
+    if (schemaLabelTitle) {
+      schemaLabelTitle.addEventListener('input', () => {
+        const value = schemaLabelTitle.value.trim() || 'Pin Name / Title';
+        const updated = { ...this.schemaConfig };
+        updated.properties.title.label = value;
+        saveSchemaConfig(updated);
+      });
+    }
+
+    if (schemaLabelNotes) {
+      schemaLabelNotes.addEventListener('input', () => {
+        const value = schemaLabelNotes.value.trim() || 'Pin Notes / Description';
+        const updated = { ...this.schemaConfig };
+        updated.properties.notes.label = value;
+        saveSchemaConfig(updated);
+      });
+    }
+
+    if (schemaLabelArtist) {
+      schemaLabelArtist.addEventListener('input', () => {
+        const value = schemaLabelArtist.value.trim() || 'Artist / Creator';
+        const updated = { ...this.schemaConfig };
+        updated.properties.artist.label = value;
+        saveSchemaConfig(updated);
+      });
+    }
+
+    if (schemaLabelRating) {
+      schemaLabelRating.addEventListener('input', () => {
+        const value = schemaLabelRating.value.trim() || 'Visual Vault Grade';
+        const updated = { ...this.schemaConfig };
+        updated.properties.rating.label = value;
+        saveSchemaConfig(updated);
+      });
+    }
+
+    if (schemaStatusesInput) {
+      schemaStatusesInput.addEventListener('input', () => {
+        const statuses = parseStatusesInput(schemaStatusesInput.value);
+        if (statuses.length > 0) {
+          const updated = { ...this.schemaConfig };
+          updated.statuses = statuses;
+          saveSchemaConfig(updated);
+        }
+      });
+    }
+
+    if (schemaJsonEditor) {
+      schemaJsonEditor.addEventListener('input', () => {
+        try {
+          const parsed = JSON.parse(schemaJsonEditor.value);
+          if (parsed && Array.isArray(parsed.statuses) && parsed.properties) {
+            if (feedbackSpan) {
+              feedbackSpan.textContent = '✓ Valid Schema';
+              feedbackSpan.className = 'text-[9px] text-emerald-400 font-mono';
+            }
+            if (schemaStatusesInput && document.activeElement !== schemaStatusesInput) {
+              schemaStatusesInput.value = parsed.statuses.map((s: any) => `${s.value}:${s.label}`).join(', ');
+            }
+            if (schemaLabelTitle && document.activeElement !== schemaLabelTitle) {
+              schemaLabelTitle.value = parsed.properties.title?.label || '';
+            }
+            if (schemaLabelNotes && document.activeElement !== schemaLabelNotes) {
+              schemaLabelNotes.value = parsed.properties.notes?.label || '';
+            }
+            if (schemaLabelArtist && document.activeElement !== schemaLabelArtist) {
+              schemaLabelArtist.value = parsed.properties.artist?.label || '';
+            }
+            if (schemaLabelRating && document.activeElement !== schemaLabelRating) {
+              schemaLabelRating.value = parsed.properties.rating?.label || '';
+            }
+            
+            this.schemaConfig = parsed;
+            localStorage.setItem('visual_vault_schema_config_v1', JSON.stringify(parsed));
+            this.renderInspector();
+            this.populateLightboxData();
+          } else {
+            if (feedbackSpan) {
+              feedbackSpan.textContent = '✗ Invalid structure';
+              feedbackSpan.className = 'text-[9px] text-red-400 font-mono';
+            }
+          }
+        } catch (e: any) {
+          if (feedbackSpan) {
+            feedbackSpan.textContent = `✗ Parse error: ${e.message.substring(0, 20)}`;
+            feedbackSpan.className = 'text-[9px] text-red-400 font-mono';
+          }
+        }
+      });
+    }
+
+    const schemaResetBtn = this.querySelector('#schema-reset-btn');
+    if (schemaResetBtn) {
+      schemaResetBtn.addEventListener('click', () => {
+        if (confirm('Reset custom metadata schema and statuses back to defaults?')) {
+          saveSchemaConfig({ ...defaultSchemaConfig });
+          this.populateSchemaSettingsInputs();
+          if (feedbackSpan) {
+            feedbackSpan.textContent = '✓ Valid Schema';
+            feedbackSpan.className = 'text-[9px] text-emerald-400 font-mono';
+          }
+          this.toast('Schema Reset', 'Default schema database parameters applied.');
+          this.addLog('success', 'Reset schema metadata models to factory default parameters.');
+        }
+      });
+    }
+
+    const schemaExportBtn = this.querySelector('#schema-export-btn');
+    if (schemaExportBtn) {
+      schemaExportBtn.addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(this.schemaConfig, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'visual_vault_config.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        this.addLog('success', 'Exported customizable schema configuration file: visual_vault_config.json');
+        this.toast('Exported Successfully', 'Schema config downloaded as visual_vault_config.json');
+      });
+    }
+
+    const schemaImportFile = this.querySelector('#schema-import-file') as HTMLInputElement | null;
+    if (schemaImportFile) {
+      schemaImportFile.addEventListener('change', () => {
+        const file = schemaImportFile.files?.[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const parsed = JSON.parse(e.target?.result as string);
+            if (parsed && Array.isArray(parsed.statuses) && parsed.properties) {
+              saveSchemaConfig(parsed);
+              this.populateSchemaSettingsInputs();
+              if (feedbackSpan) {
+                feedbackSpan.textContent = '✓ Valid Schema';
+                feedbackSpan.className = 'text-[9px] text-emerald-400 font-mono';
+              }
+              this.toast('Imported Successfully', 'Custom JSON schema configuration loaded.');
+              this.addLog('success', 'Successfully synchronized external schema metadata properties.');
+            } else {
+              this.toast('Import Failed', 'Invalid JSON config structure. Must contain "statuses" and "properties".');
+            }
+          } catch (err) {
+            this.toast('Import Failed', 'Failed to parse JSON file.');
+          }
+          schemaImportFile.value = ''; // Reset file input
+        };
+        reader.readAsText(file);
+      });
     }
 
     // Modal Board Creation Events
@@ -5583,34 +5957,40 @@ class VaultApp extends HTMLElement {
             <label class="text-[9px] uppercase tracking-widest text-[#10B981] font-mono font-bold cursor-default">Database Sync Parameters</label>
             
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-500 font-semibold">Pin Name / Title:</span>
+              <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.title?.label || 'Pin Name / Title'}:</span>
               <input type="text" id="lb-meta-title-input" value="${asset.metadata.title || ''}" 
-                class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" placeholder="E.g., Neo Tokyo Temple Alleyway Sunset..." />
+                class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" placeholder="${this.schemaConfig.properties.title?.placeholder || 'E.g., Neo Tokyo Temple Alleyway Sunset...'}" />
             </div>
 
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-500 font-semibold">Pin Notes / Description:</span>
-              <textarea id="lb-meta-notes-input" class="w-full h-22 bg-black/40 text-xs px-2.5 py-2 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none resize-none custom-scrollbar" placeholder="Add custom notes, design prompts, research observations, color palette ideas, or notes similar to Pin boards...">${asset.metadata.notes || ''}</textarea>
+              <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.notes?.label || 'Pin Notes / Description'}:</span>
+              <textarea id="lb-meta-notes-input" class="w-full h-22 bg-black/40 text-xs px-2.5 py-2 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none resize-none custom-scrollbar" placeholder="${this.schemaConfig.properties.notes?.placeholder || 'Add custom notes, design prompts, research observations...'}">${asset.metadata.notes || ''}</textarea>
             </div>
 
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-500 font-semibold">Artist / Creator:</span>
+              <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.artist?.label || 'Artist / Creator'}:</span>
               <input type="text" id="lb-meta-artist-input" value="${asset.metadata.artist || ''}" 
-                class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" placeholder="Chen-K design team..." />
+                class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" placeholder="${this.schemaConfig.properties.artist?.placeholder || 'Chen-K design team...'}" />
             </div>
 
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-500 font-semibold">Asset Status: </span>
+              <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.status?.label || 'Asset Status'}: </span>
               <select id="lb-meta-status-select" class="w-full bg-black text-xs px-2 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none">
-                <option value="completed" ${asset.metadata.status === 'completed' ? 'selected' : ''}>Completed Reference</option>
-                <option value="in-progress" ${asset.metadata.status === 'in-progress' ? 'selected' : ''}>Work-in-Progress (WIP)</option>
-                <option value="review" ${asset.metadata.status === 'review' ? 'selected' : ''}>Awaiting Design Review</option>
-                <option value="draft" ${asset.metadata.status === 'draft' ? 'selected' : ''}>Draft Sketch studies</option>
+                ${(() => {
+                  const schemaHasVal = this.schemaConfig.statuses.some(s => s.value === asset.metadata.status);
+                  let options = this.schemaConfig.statuses.map(s => `
+                    <option value="${s.value}" ${asset.metadata.status === s.value ? 'selected' : ''}>${s.label}</option>
+                  `).join('');
+                  if (asset.metadata.status && !schemaHasVal) {
+                    options += `<option value="${asset.metadata.status}" selected>${asset.metadata.status}</option>`;
+                  }
+                  return options;
+                })()}
               </select>
             </div>
 
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-500 font-semibold">Visual Vault Grade:</span>
+              <span class="text-[10px] text-slate-500 font-semibold">${this.schemaConfig.properties.rating?.label || 'Visual Vault Grade'}:</span>
               <div class="flex items-center gap-1 bg-black/20 p-1.5 rounded border border-white/5 w-fit">
                 ${lbStarsInHtml}
               </div>
