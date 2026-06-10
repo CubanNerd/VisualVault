@@ -1581,7 +1581,13 @@ class VaultApp extends HTMLElement {
               if (firstMounted) {
                 this.switchVault(firstMounted.path);
               } else {
-                this.switchVault('/Users/design/Desktop/Ref_Library');
+                // When a vault is unloaded, don't load a default vault. Simply save vaults, clear inputs, and reload layout states
+                storage.saveVaults(vaults);
+                this.loadAssets();
+                this.selectedAssetId = '';
+                this.selectedBoard = 'ALL';
+                this.updateLayout();
+                this.populateVaultManager();
               }
             } else {
               storage.saveVaults(vaults);
@@ -1594,9 +1600,16 @@ class VaultApp extends HTMLElement {
             storage.saveVaults(vaults);
             this.addLog('success', `Mounted vault: "${clickedVault.name}" loaded back into active catalog.`);
             this.toast('Vault Mounted', `Successfully mounted and loaded "${clickedVault.name}".`);
-            this.loadAssets();
-            this.updateLayout();
-            this.populateVaultManager();
+            
+            // Auto-switch to this vault if there isn't any active mounted vault right now
+            const activeVault = vaults.find(v => v.path === currentPath);
+            if (!activeVault || activeVault.mounted === false) {
+              this.switchVault(clickedVault.path);
+            } else {
+              this.loadAssets();
+              this.updateLayout();
+              this.populateVaultManager();
+            }
           }
         }
       });
@@ -1612,6 +1625,8 @@ class VaultApp extends HTMLElement {
             const updated = vaults.filter((_, index) => index !== idx);
             storage.saveVaults(updated);
             this.addLog('info', `Removed vault "${clickedVault.name}" registration history.`);
+            this.loadAssets();
+            this.updateLayout();
             this.populateVaultManager();
           }
         }
@@ -1632,11 +1647,15 @@ class VaultApp extends HTMLElement {
 
     // Direct path routing check for browser-sandboxed local directory vaults
     if (newPath.startsWith('[web-dir]')) {
-      this.handleWebDirectoryPicker();
-      return;
+      const vaultsList = storage.getVaults();
+      const exists = vaultsList.some(v => v.path === newPath);
+      if (!exists) {
+        this.handleWebDirectoryPicker();
+        return;
+      }
     }
 
-    this.isSandboxedDirectory = false;
+    this.isSandboxedDirectory = newPath.startsWith('[web-dir]');
 
     // 1. Fetch current vaults index history
     let vaults = storage.getVaults();
@@ -1677,7 +1696,14 @@ class VaultApp extends HTMLElement {
 
     // 7. Auto-update active top navbar visual controls
     const pathInput = this.querySelector('#vault-path-input') as HTMLInputElement | null;
-    if (pathInput) pathInput.value = newPath;
+    if (pathInput) {
+      if (newPath.startsWith('[web-dir]')) {
+        const folderName = newPath.split('/').pop() || 'Workspace';
+        pathInput.value = `[Connected Local Directory] /${folderName}`;
+      } else {
+        pathInput.value = newPath;
+      }
+    }
 
     // 8. Push dynamic redraw loops to layout elements and catalog lists
     this.updateLayout();
@@ -1973,6 +1999,7 @@ class VaultApp extends HTMLElement {
       }
       storage.saveVaults(vaults);
       storage.setVaultPath(mockPath);
+      storage.saveAllAssets(assetsList);
 
       this.updateLayout();
       this.populateVaultManager();
@@ -2047,6 +2074,7 @@ class VaultApp extends HTMLElement {
       }
       storage.saveVaults(vaults);
       storage.setVaultPath(mockPath);
+      storage.saveAllAssets(assetsList);
 
       this.updateLayout();
       this.populateVaultManager();
@@ -2443,6 +2471,11 @@ class VaultApp extends HTMLElement {
     return !vault || vault.mounted !== false;
   }
 
+  private hasMountedVault(): boolean {
+    const vaults = storage.getVaults();
+    return vaults.some(v => v.mounted !== false);
+  }
+
   private isBoardAllowed(board: string): boolean {
     const vaults = storage.getVaults();
     
@@ -2790,93 +2823,116 @@ class VaultApp extends HTMLElement {
           </aside>
 
           <!-- CENTRAL MASONRY DISPLAY -->
-          <section class="vault-main-content flex-grow bg-[#070708] p-6 overflow-y-auto custom-scrollbar flex flex-col">
+          <section class="vault-main-content flex-grow bg-[#070708] p-6 overflow-y-auto custom-scrollbar flex flex-col justify-center">
             
-            <div class="flex items-center justify-between mb-6 shrink-0 border-b border-white/[0.04] pb-4">
-              <div class="space-y-1 text-left">
-                <div class="flex items-center gap-2">
-                  <h2 id="board-title-heading" class="text-xl font-semibold text-white tracking-tight">/ Environment_Ref/Neo_Tokyo</h2>
-                  <button id="btn-rename-board" class="p-1 px-1.5 text-slate-500 hover:text-emerald-400 rounded hover:bg-white/5 transition inline-flex items-center gap-1 cursor-pointer font-mono text-[9px] font-bold uppercase tracking-wider select-none shrink-0" title="Rename this Folder/Board">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
-                    </svg>
-                    <span>Rename</span>
-                  </button>
-                  <button id="btn-delete-active-board" class="p-1 px-1.5 text-slate-500 hover:text-rose-400 rounded hover:bg-white/5 transition inline-flex items-center gap-1 cursor-pointer font-mono text-[9px] font-bold uppercase tracking-wider select-none shrink-0" title="Delete this Folder/Board">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                    </svg>
-                    <span>Delete</span>
-                  </button>
-                </div>
-                <p id="board-desc" class="text-xs text-slate-500 font-mono">Local subdirectory scan synced inside catalog.db cache</p>
-              </div>
-
-              <!-- Core layout size modifiers & import routines -->
-              <div class="flex items-center gap-3">
-                <div class="bg-black/30 p-0.5 rounded border border-white/5 flex gap-1 vault-rounded">
-                  <button id="size-sm" class="p-1 px-1.5 rounded text-[10px] font-mono hover:text-white hover:bg-white/5 transition text-slate-500 cursor-pointer" title="Dense Density">Dense</button>
-                  <button id="size-md" class="p-1 px-1.5 rounded text-[10px] font-mono select-none hover:text-white hover:bg-white/5 transition bg-white/5 text-emerald-400 font-semibold cursor-pointer" title="Medium Density">Standard</button>
-                  <button id="size-lg" class="p-1 px-1.5 rounded text-[10px] font-mono hover:text-white hover:bg-white/5 transition text-slate-500 cursor-pointer" title="Large Preview Density">Detailed</button>
-                </div>
-                
-                <!-- Silent file picker -->
-                <input type="file" id="local-file-picker" accept="image/*" class="hidden" multiple />
-                <button id="import-trigger-btn" class="vault-btn px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold rounded text-xs transition cursor-pointer shadow-md inline-flex items-center gap-1.5 active:scale-95">
-                  <svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                  </svg>
-                  Import Files
-                </button>
-              </div>
-            </div>
-
-            <!-- Drag & Drop container area -->
-            <div id="drop-zone" class="vault-card border border-dashed border-white/5 hover:border-emerald-500/20 bg-black/10 rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-default shrink-0 group transition mb-4">
-              <div class="pointer-events-none text-slate-500 text-xs flex items-center justify-center gap-2 group-hover:text-emerald-400 transition">
-                <svg class="w-4 h-4 stroke-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                </svg>
-                <span>Drag and drop raw reference assets here to automatically sync metadata and extract swatches</span>
-              </div>
-            </div>
-
-            <!-- Active Grid/Masonry container with robust animations -->
-            <div class="flex-grow">
-              <div id="active-board-sections-container" class="mb-6 hidden">
-                <!-- Pinterest-style sections rendered dynamically here -->
-              </div>
-              <div id="catalog-masonry" class="columns-3 gap-3">
-                <!-- Javascript maps asset elements here -->
-              </div>
-              <div id="catalog-empty-state" class="hidden flex-col items-center justify-center text-center p-10 py-14 bg-black/15 rounded-2xl border border-dashed border-white/5 max-w-xl mx-auto my-12 vault-card">
-                <div class="w-14 h-14 rounded-full bg-slate-900/65 border border-white/5 flex items-center justify-center mb-4 mx-auto">
-                  <svg class="w-7 h-7 text-slate-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                  </svg>
-                </div>
-                <div class="text-slate-200 text-sm font-semibold mb-2" id="empty-state-title">This board folder is empty</div>
-                <p class="text-xs text-slate-400 max-w-md mx-auto mb-6 leading-relaxed">
-                  There are no visual references loaded in <span class="font-mono text-emerald-400 font-semibold" id="empty-state-board-name"></span>. You can load images by copying them in, dragging-and-dropping them, or using clipboard/manual sync:
-                </p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full">
-                  <div class="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl text-left space-y-1">
-                    <span class="text-xs text-slate-300 font-semibold block">Option 1: Drag &amp; Drop</span>
-                    <span class="text-[11px] text-slate-500 block leading-normal">Drag any image files straight from your file manager anywhere into this central view.</span>
+            <div id="vault-active-workspace-panel" class="flex flex-col flex-grow">
+              <div class="flex items-center justify-between mb-6 shrink-0 border-b border-white/[0.04] pb-4">
+                <div class="space-y-1 text-left">
+                  <div class="flex items-center gap-2">
+                    <h2 id="board-title-heading" class="text-xl font-semibold text-white tracking-tight">/ Environment_Ref/Neo_Tokyo</h2>
+                    <button id="btn-rename-board" class="p-1 px-1.5 text-slate-500 hover:text-emerald-400 rounded hover:bg-white/5 transition inline-flex items-center gap-1 cursor-pointer font-mono text-[9px] font-bold uppercase tracking-wider select-none shrink-0" title="Rename this Folder/Board">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                      </svg>
+                      <span>Rename</span>
+                    </button>
+                    <button id="btn-delete-active-board" class="p-1 px-1.5 text-slate-500 hover:text-rose-400 rounded hover:bg-white/5 transition inline-flex items-center gap-1 cursor-pointer font-mono text-[9px] font-bold uppercase tracking-wider select-none shrink-0" title="Delete this Folder/Board">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      </svg>
+                      <span>Delete</span>
+                    </button>
                   </div>
-                  <div class="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl text-left space-y-1">
-                    <span class="text-xs text-slate-300 font-semibold block">Option 2: Copy-Paste File</span>
-                    <span class="text-[11px] text-slate-500 block leading-normal">Copy an image (or file) to clipboard and press <kbd class="px-1.5 py-0.5 bg-black rounded border border-white/10 text-[9px] font-mono">Ctrl+V</kbd> to copy it to this board folder.</span>
-                  </div>
+                  <p id="board-desc" class="text-xs text-slate-500 font-mono">Local subdirectory scan synced inside catalog.db cache</p>
                 </div>
-                <div class="mt-7 text-center">
-                  <button id="empty-state-pick-btn" class="vault-btn px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold rounded text-xs transition cursor-pointer shadow-md inline-flex items-center gap-1.5 active:scale-95">
-                    <svg class="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                <!-- Core layout size modifiers & import routines -->
+                <div class="flex items-center gap-3">
+                  <div class="bg-black/30 p-0.5 rounded border border-white/5 flex gap-1 vault-rounded">
+                    <button id="size-sm" class="p-1 px-1.5 rounded text-[10px] font-mono hover:text-white hover:bg-white/5 transition text-slate-500 cursor-pointer" title="Dense Density">Dense</button>
+                    <button id="size-md" class="p-1 px-1.5 rounded text-[10px] font-mono select-none hover:text-white hover:bg-white/5 transition bg-white/5 text-emerald-400 font-semibold cursor-pointer" title="Medium Density">Standard</button>
+                    <button id="size-lg" class="p-1 px-1.5 rounded text-[10px] font-mono hover:text-white hover:bg-white/5 transition text-slate-500 cursor-pointer" title="Large Preview Density">Detailed</button>
+                  </div>
+                  
+                  <!-- Silent file picker -->
+                  <input type="file" id="local-file-picker" accept="image/*" class="hidden" multiple />
+                  <button id="import-trigger-btn" class="vault-btn px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold rounded text-xs transition cursor-pointer shadow-md inline-flex items-center gap-1.5 active:scale-95">
+                    <svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                     </svg>
-                    Simulate Folder Copy (Choose Images)
+                    Import Files
                   </button>
                 </div>
+              </div>
+
+              <!-- Drag & Drop container area -->
+              <div id="drop-zone" class="vault-card border border-dashed border-white/5 hover:border-emerald-500/20 bg-black/10 rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-default shrink-0 group transition mb-4">
+                <div class="pointer-events-none text-slate-500 text-xs flex items-center justify-center gap-2 group-hover:text-emerald-400 transition">
+                  <svg class="w-4 h-4 stroke-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                  </svg>
+                  <span>Drag and drop raw reference assets here to automatically sync metadata and extract swatches</span>
+                </div>
+              </div>
+
+              <!-- Active Grid/Masonry container with robust animations -->
+              <div class="flex-grow">
+                <div id="active-board-sections-container" class="mb-6 hidden">
+                  <!-- Pinterest-style sections rendered dynamically here -->
+                </div>
+                <div id="catalog-masonry" class="columns-3 gap-3">
+                  <!-- Javascript maps asset elements here -->
+                </div>
+                <div id="catalog-empty-state" class="hidden flex-col items-center justify-center text-center p-10 py-14 bg-black/15 rounded-2xl border border-dashed border-white/5 max-w-xl mx-auto my-12 vault-card">
+                  <div class="w-14 h-14 rounded-full bg-slate-900/65 border border-white/5 flex items-center justify-center mb-4 mx-auto">
+                    <svg class="w-7 h-7 text-slate-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                  </div>
+                  <div class="text-slate-200 text-sm font-semibold mb-2" id="empty-state-title">This board folder is empty</div>
+                  <p class="text-xs text-slate-400 max-w-md mx-auto mb-6 leading-relaxed">
+                    There are no visual references loaded in <span class="font-mono text-emerald-400 font-semibold" id="empty-state-board-name"></span>. You can load images by copying them in, dragging-and-dropping them, or using clipboard/manual sync:
+                  </p>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full">
+                    <div class="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl text-left space-y-1">
+                      <span class="text-xs text-slate-300 font-semibold block">Option 1: Drag &amp; Drop</span>
+                      <span class="text-[11px] text-slate-500 block leading-normal">Drag any image files straight from your file manager anywhere into this central view.</span>
+                    </div>
+                    <div class="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl text-left space-y-1">
+                      <span class="text-xs text-slate-300 font-semibold block">Option 2: Copy-Paste File</span>
+                      <span class="text-[11px] text-slate-500 block leading-normal">Copy an image (or file) to clipboard and press <kbd class="px-1.5 py-0.5 bg-black rounded border border-white/10 text-[9px] font-mono">Ctrl+V</kbd> to copy it to this board folder.</span>
+                    </div>
+                  </div>
+                  <div class="mt-7 text-center">
+                    <button id="empty-state-pick-btn" class="vault-btn px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold rounded text-xs transition cursor-pointer shadow-md inline-flex items-center gap-1.5 active:scale-95">
+                      <svg class="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                      </svg>
+                      Simulate Folder Copy (Choose Images)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel for Warning Warning: No Vaults loaded -->
+            <div id="vault-unloaded-workspace-panel" class="hidden flex-col items-center justify-center text-center p-8 py-16 bg-black/20 my-auto max-w-xl mx-auto border border-dashed border-white/5 rounded-2xl select-none">
+              <div class="w-16 h-16 rounded-full bg-slate-900/65 border border-white/5 flex items-center justify-center mb-5 mx-auto shadow-inner">
+                <svg class="w-8 h-8 text-amber-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+              </div>
+              <h2 class="text-white text-lg font-bold mb-3 tracking-tight">No Vaults Loaded</h2>
+              <p class="text-xs text-slate-400 max-w-md mx-auto mb-6 leading-relaxed font-sans">
+                Your Obsidian-style VisualVault database is currently unloaded. There are no connected or mounted directories active in the workspace. Connect a folder or mount an existing catalog.
+              </p>
+              <div>
+                <button id="unloaded-open-vaults-btn" class="vault-btn px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold rounded text-xs transition cursor-pointer shadow-lg active:scale-95 inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <svg class="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                  </svg>
+                  <span>Open Vaults Manager</span>
+                </button>
               </div>
             </div>
             
@@ -3565,6 +3621,25 @@ class VaultApp extends HTMLElement {
   // Dynamic Views Synchronization
   // ----------------------------------------------------
   private updateLayout() {
+    // Check if there is any mounted vault at all
+    const hasVaults = this.hasMountedVault();
+    const activePanel = this.querySelector('#vault-active-workspace-panel') as HTMLElement | null;
+    const unloadedPanel = this.querySelector('#vault-unloaded-workspace-panel') as HTMLElement | null;
+
+    if (activePanel && unloadedPanel) {
+      if (hasVaults) {
+        activePanel.classList.remove('hidden');
+        activePanel.classList.add('flex');
+        unloadedPanel.classList.add('hidden');
+        unloadedPanel.classList.remove('flex');
+      } else {
+        activePanel.classList.add('hidden');
+        activePanel.classList.remove('flex');
+        unloadedPanel.classList.remove('hidden');
+        unloadedPanel.classList.add('flex');
+      }
+    }
+
     // Sync active heading and description text centrally based on active selectedBoard
     const heading = this.querySelector('#board-title-heading');
     const desc = this.querySelector('#board-desc');
@@ -4341,6 +4416,14 @@ class VaultApp extends HTMLElement {
   // Interactions & Events Binding
   // ----------------------------------------------------
   private attachEventListeners() {
+    // Unloaded Warning panel action button
+    const unloadedBtn = this.querySelector('#unloaded-open-vaults-btn');
+    if (unloadedBtn) {
+      unloadedBtn.addEventListener('click', () => {
+        this.toggleVaultManagerModal(true);
+      });
+    }
+
     // Left sidebar slide close/slide open toggle
     const toggleSidebarBtn = this.querySelector('#toggle-sidebar-btn');
     if (toggleSidebarBtn) {
