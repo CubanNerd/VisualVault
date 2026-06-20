@@ -493,27 +493,39 @@ class StorageService {
   }
 
   saveAllAssets(assets: Asset[]) {
-    // Partition assets back to their respective origin vaults
-    const activePath = this.getVaultPath();
-    const partitions: Record<string, Asset[]> = {};
+    try {
+      // Partition assets back to their respective origin vaults
+      const activePath = this.getVaultPath();
+      const partitions: Record<string, Asset[]> = {};
 
-    assets.forEach(a => {
-      const p = a.vaultPath || activePath;
-      if (!partitions[p]) {
-        partitions[p] = [];
+      assets.forEach(a => {
+        const p = a.vaultPath || activePath;
+        if (!partitions[p]) {
+          partitions[p] = [];
+        }
+        partitions[p].push(a);
+      });
+
+      // Save each partition to its respective localStorage key
+      Object.keys(partitions).forEach(p => {
+        try {
+          const vk = `visual_catalog_db_v3_${p.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+          localStorage.setItem(vk, JSON.stringify(partitions[p]));
+        } catch (storageErr) {
+          console.warn(`[StorageService] LocalStorage quota exceeded while saving vault: ${p}`, storageErr);
+        }
+      });
+
+      // Clear active key specifically if it's completely empty and not partition-active
+      if (!partitions[activePath]) {
+        try {
+          localStorage.setItem(this.getVaultKey(), JSON.stringify([]));
+        } catch (storageErr) {
+          console.warn('[StorageService] LocalStorage quota exceeded while clearing active key', storageErr);
+        }
       }
-      partitions[p].push(a);
-    });
-
-    // Save each partition to its respective localStorage key
-    Object.keys(partitions).forEach(p => {
-      const vk = `visual_catalog_db_v3_${p.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-      localStorage.setItem(vk, JSON.stringify(partitions[p]));
-    });
-
-    // Clear active key specifically if it's completely empty and not partition-active
-    if (!partitions[activePath]) {
-      localStorage.setItem(this.getVaultKey(), JSON.stringify([]));
+    } catch (err) {
+      console.error('[StorageService] saveAllAssets failed:', err);
     }
   }
 
@@ -760,6 +772,11 @@ class VaultApp extends HTMLElement {
   private fileHandles: Map<string, FileSystemHandle> = new Map();
   private mdFileHandles: Map<string, FileSystemHandle> = new Map();
   private schemaConfig: CustomSchemaConfig;
+
+  // Background image metadata and color extraction throttled queue
+  private extractionQueue: { id: string; file: File; imageUrl: string; listContext?: Asset[] }[] = [];
+  private activeExtractions = 0;
+  private readonly maxConcurrentExtractions = 3;
 
   constructor() {
     super();
@@ -1660,9 +1677,11 @@ class VaultApp extends HTMLElement {
     // 1. Fetch current vaults index history
     let vaults = storage.getVaults();
     
-    // Auto-unmount/unload all other vaults when activating a specific vault
+    // Ensure the activated vault is marked as mounted/loaded; preserve other mounted vaults!
     vaults.forEach(v => {
-      v.mounted = (v.path === newPath);
+      if (v.path === newPath) {
+        v.mounted = true;
+      }
     });
     
      // 2. Locate or initialize target layout record
@@ -1980,9 +1999,11 @@ class VaultApp extends HTMLElement {
       const mockPath = `[web-dir]/${vaultName}`;
       let vaults = storage.getVaults();
       
-      // Auto-unmount/unload all other vaults when activating a new directory
+      // Ensure the newly connected directory is marked as mounted/loaded; preserve other mounted vaults!
       vaults.forEach(v => {
-        v.mounted = (v.path === mockPath);
+        if (v.path === mockPath) {
+          v.mounted = true;
+        }
       });
 
       let vault = vaults.find(v => v.path === mockPath);
@@ -2055,9 +2076,11 @@ class VaultApp extends HTMLElement {
       const mockPath = `[web-dir]/${handle.name}`;
       let vaults = storage.getVaults();
       
-      // Auto-unmount/unload all other vaults when activating a new directory
+      // Ensure the newly connected directory is marked as mounted/loaded; preserve other mounted vaults!
       vaults.forEach(v => {
-        v.mounted = (v.path === mockPath);
+        if (v.path === mockPath) {
+          v.mounted = true;
+        }
       });
 
       let vault = vaults.find(v => v.path === mockPath);
@@ -2177,47 +2200,80 @@ class VaultApp extends HTMLElement {
   /**
    * Background parser. Reads actual resolution specs and extracts a gorgeous 5-color
    * visual palette key, instantly updating grid cells on-the-fly.
+   * Throttles operations using a controlled background queue to prevent UI freezing and server/websocket disconnects on massive directories.
    */
   private asynchronouslyLoadAssetDetails(id: string, file: File, imageUrl: string, listContext?: Asset[]) {
+    this.extractionQueue.push({ id, file, imageUrl, listContext });
+    this.processExtractionQueue();
+  }
+
+  private processExtractionQueue() {
+    if (this.activeExtractions >= this.maxConcurrentExtractions || this.extractionQueue.length === 0) {
+      return;
+    }
+
+    const task = this.extractionQueue.shift();
+    if (!task) return;
+
+    this.activeExtractions++;
+    const { id, file, imageUrl, listContext } = task;
+
+    // Fast pre-check: if the asset doesn't exist anymore in the current context, skip immediately
+    const parentList = listContext || this.assets;
+    const assetExists = parentList.some(a => a.id === id);
+    if (!assetExists) {
+      this.activeExtractions--;
+      setTimeout(() => this.processExtractionQueue(), 0);
+      return;
+    }
+
     const img = new Image();
     img.onload = async () => {
-      const parentList = listContext || this.assets;
-      const asset = parentList.find(a => a.id === id);
-      if (asset) {
-        asset.resolution = `${img.naturalWidth}x${img.naturalHeight}`;
-        
-        try {
-          const palette = await extractColorsFromImage(imageUrl);
-          if (palette && palette.length > 0) {
-            asset.colors = palette;
-          }
-        } catch (e) {
-          console.warn('Asynchronous color extraction failed', e);
-        }
-
-        // Apply instant visual resolution updates to DOM
-        const gridCardRes = this.querySelector(`#res-badge-${id}`);
-        if (gridCardRes) gridCardRes.textContent = asset.resolution;
-
-        // Apply instant visual color swatch updates to DOM
-        const gridCardPalette = this.querySelector(`#palette-${id}`);
-        if (gridCardPalette) {
-          gridCardPalette.innerHTML = asset.colors.map(c => `
-            <div class="h-1 flex-grow animate-pulse" style="background-color: ${c};" title="${c}"></div>
-          `).join('');
+      try {
+        const parentListLatest = listContext || this.assets;
+        const asset = parentListLatest.find(a => a.id === id);
+        if (asset) {
+          asset.resolution = `${img.naturalWidth}x${img.naturalHeight}`;
           
-          // Micro-timeout to clear pulsing animation
-          setTimeout(() => {
-            gridCardPalette.querySelectorAll('.animate-pulse').forEach(el => el.classList.remove('animate-pulse'));
-          }, 350);
-        }
+          try {
+            const palette = await extractColorsFromImage(imageUrl);
+            if (palette && palette.length > 0) {
+              asset.colors = palette;
+            }
+          } catch (e) {
+            console.warn('Asynchronous color extraction failed', e);
+          }
 
-        // If this is the currently selected active inspector asset, mirror color palette immediately
-        if (this.selectedAssetId === id) {
-          this.renderInspector();
+          // Apply instant visual resolution updates to DOM
+          const gridCardRes = this.querySelector(`#res-badge-${id}`);
+          if (gridCardRes) gridCardRes.textContent = asset.resolution;
+
+          // Apply instant visual color swatch updates to DOM
+          const gridCardPalette = this.querySelector(`#palette-${id}`);
+          if (gridCardPalette) {
+            gridCardPalette.innerHTML = asset.colors.map(c => `
+              <div class="h-1 flex-grow opacity-90" style="background-color: ${c};" title="${c}"></div>
+            `).join('');
+          }
+
+          // If this is the currently selected active inspector asset, mirror color palette immediately
+          if (this.selectedAssetId === id) {
+            this.renderInspector();
+          }
         }
+      } catch (err) {
+        console.error('Error processing asset from queue:', err);
+      } finally {
+        this.activeExtractions--;
+        this.processExtractionQueue();
       }
     };
+
+    img.onerror = () => {
+      this.activeExtractions--;
+      this.processExtractionQueue();
+    };
+
     img.src = imageUrl;
   }
 
@@ -2512,6 +2568,8 @@ class VaultApp extends HTMLElement {
   }
 
   private loadAssets() {
+    this.extractionQueue = [];
+    this.activeExtractions = 0;
     let rawAssets: Asset[] = [];
     if (this.workspaceMode === 'unified') {
       const vaults = storage.getVaults();
