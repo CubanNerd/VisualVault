@@ -26,10 +26,26 @@ Make sure you have Rust and Cargo installed on your system:
 - **Windows**: Install the Rustup installer from [rustup.rs](https://rustup.rs/) and Visual Studio Build Tools with C++ workloads.
 
 ### Step 2: Initialize Tauri in the Project
-In your project directory, run:
-```bash
-npx tauri init
-```
+
+> ⚠️ **CRITICAL WARNING FOR EXISTING PROJECTS:**
+> Do **NOT** run `npm create tauri-app` (or `npm create tauri-app@latest`). That command is designed for bootstrapping **brand-new, empty projects** from scratch and will create an independent nested folder with generic template files instead of integrating with your existing code.
+> 
+> Instead, to integrate Tauri directly into this **existing** React/TypeScript codebase, you must initialize Tauri directly from the current root directory by running:
+> ```bash
+> npx tauri init
+> ```
+> This command will construct a `src-tauri` directory **internally within your current folder** and leverage your existing `package.json`, `src/`, `vite.config.ts`, and Vite build outputs (`dist/`), rather than creating a nested project.
+> 
+> **How to fix this if you used `npm create tauri-app` by mistake:**
+> 1. Delete the incorrect nested folder (or rename it):
+>    ```bash
+>    rm -rf "Visual Vault"
+>    ```
+> 2. Ensure you are in your actual existing project root folder in your terminal, and run:
+>    ```bash
+>    npx tauri init
+>    ```
+
 Tauri will ask you several questions. Answer them as follows:
 - **What is your app name?** `VisualVault`
 - **What is the window title?** `VisualVault - Workspace Reference Library`
