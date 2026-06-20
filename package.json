@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js dist-win",
     "lint": "tsc --noEmit",
-    "electron:start": "electron electron-main.cjs",
+    "electron:start": "npm run build && electron electron-main.cjs",
+    "electron:dev": "electron electron-main.cjs --dev",
     "electron:build": "npm run build && electron-packager . VisualVault --platform=win32 --arch=x64 --out=dist-win --overwrite --ignore=\"(dist-win|src|tsconfig.json|vite.config.ts)\""
   },
   "dependencies": {
