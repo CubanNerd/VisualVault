@@ -1,4 +1,5 @@
 # VisualVault Desktop Compilation & Integration Guide
+*Last Updated: June 20, 2026*
 
 This guide provides comprehensive, step-by-step instructions on how to compile this Web Component-based **VisualVault** application into a native desktop application using either **Tauri** or **Electron**, with local **SQLite** persistent database integration.
 
@@ -270,40 +271,64 @@ class StorageService {
 }
 ```
 
-### Step 5: Configure Build Action script in `package.json`
-Add these keys to your `package.json`:
+### Step 5: Configure Build Action Script in `package.json`
+
+To package this workspace seamlessly, ensure that your `package.json` designates `electron-main.cjs` as the primary entrypoint and includes compilation targets for Windows and macOS. The scripts have been pre-configured as follows:
 
 ```json
 {
-  "main": "electron-main.js",
+  "main": "electron-main.cjs",
   "scripts": {
-    "electron:dev": "npm run build && electron .",
-    "electron:dist": "npm run build && electron-builder"
-  },
-  "build": {
-    "appId": "com.visualvault.app",
-    "productName": "VisualVault",
-    "files": [
-      "dist/**/*",
-      "electron-main.js",
-      "electron-preload.js"
-    ],
-    "directories": {
-      "output": "dist-electron"
-    },
-    "mac": { "category": "public.app-category.developer-tools" },
-    "win": { "target": "nsis" },
-    "linux": { "target": "AppImage" }
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "electron:start": "npm run build && electron electron-main.cjs",
+    "electron:dev": "electron electron-main.cjs --dev",
+    "electron:build": "npm run build && electron-packager . VisualVault --platform=win32 --arch=x64 --out=dist-win --overwrite --ignore=\"(dist-win|src|tsconfig.json|vite.config.ts)\"",
+    "electron:build:mac": "npm run build && electron-packager . VisualVault --platform=darwin --arch=all --out=dist-mac --overwrite --ignore=\"(dist-mac|src|tsconfig.json|vite.config.ts)\"",
+    "electron:build:all": "npm run build && electron-packager . VisualVault --platform=all --arch=all --out=dist-all --overwrite --ignore=\"(dist-all|src|tsconfig.json|vite.config.ts)\""
   }
 }
 ```
 
-### Step 6: Compile the Electron Executable
-Compile the assets and bundle the native installer executable:
-```bash
-npm run electron:dist
-```
-This builds your installers inside the `dist-electron` folder natively!
+---
+
+### Step 6: Compile the Electron Executable for Windows & macOS
+
+With the packaging configuration established, you can build production-ready binary distributions for Windows or macOS natively or via cross-compilation.
+
+#### 1. Compiling for Windows (`.exe` / `win32`)
+
+*   **Prerequisites**: Standard Node.js environment. No unique native compiler tools are required if packaging from a native Windows terminal.
+*   **Target Architectures**: Configured for `x64` (64-bit systems).
+*   **Compilation Command**:
+    ```bash
+    npm run electron:build
+    ```
+*   **Output Directory**: The compiled Windows folder containing `VisualVault.exe` and its supporting resources will be generated in `./dist-win/`.
+*   **Cross-compilation Note**: If compiling for Windows from a macOS or Linux host, you must have `wine` (Wine Is Not an Emulator) installed on your development host in order to write appropriate executable metadata headers. Otherwise, it is highly recommended to run this command directly on a Windows platform.
+
+#### 2. Compiling for macOS (`.app` / `darwin`)
+
+*   **Prerequisites**: Apple hosts must have **Xcode Command Line Tools** installed. You can install them by running:
+    ```bash
+    xcode-select --install
+    ```
+*   **Target Architectures**: Configured for `all` targets, which bundles binaries for both **Apple Silicon** (M1/M2/M3/M4, `arm64`) and **Intel Processors** (`x64`) for seamless cross-architecture support.
+*   **Compilation Command**:
+    ```bash
+    npm run electron:build:mac
+    ```
+*   **Output Directory**: The compiled macOS app bundle `VisualVault.app` will be created inside `./dist-mac/`.
+*   **Packaging for Users**: To distribute the compiled macOS bundle, developers typically wrap the `.app` file in a DMG installer (using tools like `create-dmg` or `appdmg`) or compress it into a native `.zip` directory.
+*   **Code Signing / Notarization**: To avoid the standard *"App is from an unidentified developer"* macOS Gatekeeper warning, you must sign the binary with an Apple Developer Account using `electron-osx-sign` or register it via `notarize`.
+
+#### 3. Compiling for All Supported Platforms Simultaneously
+
+*   To execute an encompassing sweep and output distributions for Windows, macOS, and Linux in a single package chain, execute:
+    ```bash
+    npm run electron:build:all
+    ```
+    This yields a master `./dist-all/` structure housing binaries mapped across all targeted target environments.
 
 ---
 

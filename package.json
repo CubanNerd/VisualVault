@@ -12,7 +12,9 @@
     "lint": "tsc --noEmit",
     "electron:start": "npm run build && electron electron-main.cjs",
     "electron:dev": "electron electron-main.cjs --dev",
-    "electron:build": "npm run build && electron-packager . VisualVault --platform=win32 --arch=x64 --out=dist-win --overwrite --ignore=\"(dist-win|src|tsconfig.json|vite.config.ts)\""
+    "electron:build": "npm run build && electron-packager . VisualVault --platform=win32 --arch=x64 --out=dist-win --overwrite --ignore=\"(dist-win|src|tsconfig.json|vite.config.ts)\"",
+    "electron:build:mac": "npm run build && electron-packager . VisualVault --platform=darwin --arch=all --out=dist-mac --overwrite --ignore=\"(dist-mac|src|tsconfig.json|vite.config.ts)\"",
+    "electron:build:all": "npm run build && electron-packager . VisualVault --platform=all --arch=all --out=dist-all --overwrite --ignore=\"(dist-all|src|tsconfig.json|vite.config.ts)\""
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

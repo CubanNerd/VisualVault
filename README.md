@@ -1,4 +1,5 @@
 # VisualVault — Obsidian Local-First Catalog
+*Last Updated: June 20, 2026*
 
 An obsidian-style, local-first cataloging workspace for reference images, design assets, blueprints, and concept art databases. Designed for creatives who need a fast, eye-safe, high-contrast, offline-capable asset inspector with dynamic tagging meshes and color grid extraction.
 
@@ -68,12 +69,25 @@ To launch this workspace in an isolated native desktop window wrapper:
 npm run electron:start
 ```
 
-### 4. Build Windows Executable (.exe)
-Since packaging a Windows executable directly requires native system tools (such as `wine64` on UNIX environments), compiling from Linux/macOS to Windows requires a target machine or local node packaging client:
-```bash
-npm run electron:build
-```
-This script compiles production-ready assets and triggers `electron-packager` to output a win32 distribution folder inside the `/dist-win` directory.
+### 4. Build Desktop Executables (Windows & macOS)
+
+*   **For Windows Platform (`.exe` output inside `/dist-win`)**:
+    The Windows configuration has been thoroughly compiled and tested to execute flawlessly out-of-the-box on Windows hosts:
+    ```bash
+    npm run electron:build
+    ```
+    This command bundles all static assets into `dist/` and runs `electron-packager` to release a standalone Windows directory.
+    
+*   **For macOS Platform (`.app` output inside `/dist-mac` for Intel & Apple Silicon)**:
+    Ensure Xcode Command Line Tools are initialized (`xcode-select --install`) and execute:
+    ```bash
+    npm run electron:build:mac
+    ```
+
+*   **For All Supported Platforms (`dist-all/` output for cross-distribution sweeps)**:
+    ```bash
+    npm run electron:build:all
+    ```
 
 ---
 

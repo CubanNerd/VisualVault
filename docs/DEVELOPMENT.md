@@ -1,4 +1,5 @@
 # VisualVault Developer Maintenance & Architecture Guide
+*Last Updated: June 20, 2026*
 
 Welcome to the **VisualVault Developer Maintenance Guide**. This document outlines the application's design, architectural patterns, state managers, tech stack, and build pipelines. It is designed to help maintain, expand, or refactor the codebase.
 
@@ -175,7 +176,7 @@ export default defineConfig({
 
 During project updates, use these actions inside your package manager shell:
 
-- **Standard Local Hot Dev**:
+- **Standard Local Hot Dev** (bypasses Electron wrappers for fast web iterations):
   ```bash
   npm run dev
   ```
@@ -187,9 +188,17 @@ During project updates, use these actions inside your package manager shell:
   ```bash
   npm run electron:start
   ```
-- **Build & Package Windows Executable**:
+- **Build & Package Windows Executable (`.exe` in `dist-win/`)**:
   ```bash
   npm run electron:build
+  ```
+- **Build & Package macOS App Bundle (`.app` in `dist-mac/` for Intel & Apple Silicon)**:
+  ```bash
+  npm run electron:build:mac
+  ```
+- **Build & Package All Platforms Simultaneously (`dist-all/`)**:
+  ```bash
+  npm run electron:build:all
   ```
 
 ---

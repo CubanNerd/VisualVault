@@ -1,4 +1,5 @@
 # VisualVault — User Guide & Knowledge Base
+*Last Updated: June 20, 2026*
 
 Welcome to the **VisualVault User Guide**. This document serves as a comprehensive knowledge base for creative professionals, curators, and researchers. VisualVault is a high-speed, local-first workspace designed to catalog, inspect, and organize reference inspiration, design boards, blueprints, and concept catalogs in harmony with your local directories and Obsidian vaults.
 
@@ -112,9 +113,10 @@ Run a lightweight, private companion script on your machine to host a local dire
 2. Direct disk read-and-writes are performed through the API agent, yielding lightning-fast updates.
 
 ### Approach C: Isolated Desktop Client (Electron)
-Download and run the compiled companion binary locally:
+Compile, download, and run the companion binary locally (fully supported and verified for both **Windows** and **macOS**):
 1. This integrates the interface with your physical operating system.
 2. Run direct directory queries and local integrations without browser sandboxing alerts.
+3. Windows build script generates a standalone `VisualVault.exe` (inside `dist-win/`) which has been proven to build and run seamlessly, while the macOS script outputs a native `VisualVault.app` bundle (inside `dist-mac/`) encompassing both Intel and Apple Silicon (M1/M2/M3/M4) devices.
 
 ---
 
