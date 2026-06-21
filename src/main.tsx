@@ -762,7 +762,7 @@ class VaultApp extends HTMLElement {
   private activeFont = 'inter';
   private isSettingsOpen = false;
   private activeSettingsTab: 'vault' | 'general' = 'vault';
-  private workspaceMode: 'unified' | 'focused' = 'focused';
+  private workspaceMode: 'unified' | 'focused' = 'unified';
   private isCreatingSection = false;
   private isSidebarClosed = localStorage.getItem('visual_vault_sidebar_closed') === 'true';
 
@@ -805,7 +805,7 @@ class VaultApp extends HTMLElement {
       localStorage.setItem('visual_vault_created_boards_list', JSON.stringify(defaultBoards));
     }
 
-    this.workspaceMode = (localStorage.getItem('visual_vault_workspace_mode') as 'unified' | 'focused') || 'focused';
+    this.workspaceMode = (localStorage.getItem('visual_vault_workspace_mode') as 'unified' | 'focused') || 'unified';
     this.loadAssets();
     
     // Wire up storage updates tracking observer interface to sync metadata files to disk
@@ -950,6 +950,14 @@ class VaultApp extends HTMLElement {
         --accent-bg-05: ${accentBg05} !important;
         --accent-bg-20: ${accentBg20} !important;
         --app-font-family: ${fontFamilyStyle} !important;
+      }
+
+      vault-app {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100vh !important;
+        width: 100vw !important;
+        overflow: hidden !important;
       }
 
       body, .vault-app-root, .vault-app-root * {
@@ -1623,6 +1631,15 @@ class VaultApp extends HTMLElement {
             if (!activeVault || activeVault.mounted === false) {
               this.switchVault(clickedVault.path);
             } else {
+              const mountedCount = vaults.filter(v => v.mounted !== false).length;
+              if (mountedCount > 1 && this.workspaceMode === 'focused') {
+                this.workspaceMode = 'unified';
+                localStorage.setItem('visual_vault_workspace_mode', 'unified');
+                this.addLog('success', `Perspective auto-unified to display ${mountedCount} concurrently mounted vaults.`);
+                this.toast('Workspace Unified', `Automatically shifted to Unified mode to display all ${mountedCount} mounted vaults together!`);
+                this.renderShell();
+                this.attachEventListeners();
+              }
               this.loadAssets();
               this.updateLayout();
               this.populateVaultManager();
@@ -1642,9 +1659,26 @@ class VaultApp extends HTMLElement {
             const updated = vaults.filter((_, index) => index !== idx);
             storage.saveVaults(updated);
             this.addLog('info', `Removed vault "${clickedVault.name}" registration history.`);
-            this.loadAssets();
-            this.updateLayout();
-            this.populateVaultManager();
+            
+            if (clickedVault.path === currentPath) {
+              const firstMounted = updated.find(v => v.mounted !== false);
+              if (firstMounted) {
+                this.switchVault(firstMounted.path);
+              } else if (updated.length > 0) {
+                this.switchVault(updated[0].path);
+              } else {
+                storage.setVaultPath('');
+                this.selectedAssetId = '';
+                this.selectedBoard = 'ALL';
+                this.loadAssets();
+                this.updateLayout();
+                this.populateVaultManager();
+              }
+            } else {
+              this.loadAssets();
+              this.updateLayout();
+              this.populateVaultManager();
+            }
           }
         }
       });
@@ -2524,7 +2558,7 @@ class VaultApp extends HTMLElement {
   private isVaultPathLoaded(vaultPath: string): boolean {
     const vaults = storage.getVaults();
     const vault = vaults.find(v => v.path === vaultPath);
-    return !vault || vault.mounted !== false;
+    return vault !== undefined && vault.mounted !== false;
   }
 
   private hasMountedVault(): boolean {
@@ -2547,8 +2581,8 @@ class VaultApp extends HTMLElement {
     
     if (requiredVaultPath) {
       const v = vaults.find(va => va.path === requiredVaultPath);
-      if (v && v.mounted === false) {
-        return false; // This vault/board is unloaded, do not show!
+      if (!v || v.mounted === false) {
+        return false; // This vault/board is unloaded or unmounted, do not show!
       }
     }
     return true;
@@ -2558,8 +2592,11 @@ class VaultApp extends HTMLElement {
     const assetVaultPath = asset.vaultPath || storage.getVaultPath();
     const vaults = storage.getVaults();
     const v = vaults.find(va => va.path === assetVaultPath);
-    if (v && v.mounted === false) {
-      return false;
+    if (!v) {
+      return false; // This vault is removed/unregistered, do not show assets!
+    }
+    if (v.mounted === false) {
+      return false; // This vault is unloaded/unmounted, do not show assets!
     }
     if (asset.board && !this.isBoardAllowed(asset.board)) {
       return false;
@@ -2881,7 +2918,7 @@ class VaultApp extends HTMLElement {
           </aside>
 
           <!-- CENTRAL MASONRY DISPLAY -->
-          <section class="vault-main-content flex-grow bg-[#070708] p-6 overflow-y-auto custom-scrollbar flex flex-col justify-center">
+          <section class="vault-main-content flex-grow bg-[#070708] p-6 overflow-y-auto custom-scrollbar flex flex-col justify-start">
             
             <div id="vault-active-workspace-panel" class="flex flex-col flex-grow">
               <div class="flex items-center justify-between mb-6 shrink-0 border-b border-white/[0.04] pb-4">
