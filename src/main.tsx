@@ -431,21 +431,25 @@ class StorageService {
   getVaults(): { name: string; path: string; lastOpened: number; mounted?: boolean }[] {
     try {
       const raw = localStorage.getItem('visual_vaults_list_v1');
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw) as any[];
+        const filtered = parsed.filter(v => {
+          const p = v.path;
+          return p !== '/Users/design/Desktop/Ref_Library' &&
+                 p !== '/Users/design/Desktop/Neo_Tokyo' &&
+                 p !== '/Users/projects/Cyberpunk_Grid' &&
+                 p !== '/Users/blueprints/Mech_Grid';
+        });
+        if (filtered.length !== parsed.length) {
+          localStorage.setItem('visual_vaults_list_v1', JSON.stringify(filtered));
+        }
+        return filtered;
+      }
     } catch (e) {
       console.error('Failed to parse vaults list', e);
     }
-    // If the vaults were cleaned and empty, return empty list
-    if (localStorage.getItem('visual_vaults_cleaned') === 'true') {
-      return [];
-    }
-    // Setup elegant default pre-registered vaults for design-crafting demo workspace
-    const defaults = [
-      { name: 'Design Reference Library', path: '/Users/design/Desktop/Ref_Library', lastOpened: Date.now(), mounted: true },
-      { name: 'Neo-Tokyo Concept Art', path: '/Users/design/Desktop/Neo_Tokyo', lastOpened: Date.now() - 1000, mounted: false },
-      { name: 'Cyberpunk Grid Archive', path: '/Users/projects/Cyberpunk_Grid', lastOpened: Date.now() - 2000, mounted: false },
-      { name: 'Mechanic Parts & Blueprint', path: '/Users/blueprints/Mech_Grid', lastOpened: Date.now() - 3000, mounted: false }
-    ];
+    // No predefined mock vaults
+    const defaults: { name: string; path: string; lastOpened: number; mounted?: boolean }[] = [];
     localStorage.setItem('visual_vaults_list_v1', JSON.stringify(defaults));
     return defaults;
   }
@@ -997,7 +1001,7 @@ class VaultApp extends HTMLElement {
       }
 
       /* Elements requiring strict monospace look */
-      .mono, .font-mono, #sqlite-activity-logs *, #cpu-val-text, #cpu-bar-fill, .custom-scrollbar, #vault-path-input, .lb-star-rating-item, kbd, code, pre {
+      .mono, .font-mono, #sqlite-activity-logs *, #sqlite-activity-logs-modal *, #cpu-val-text, #cpu-bar-fill, .custom-scrollbar, #vault-path-input, .lb-star-rating-item, kbd, code, pre {
         font-family: "JetBrains Mono", monospace !important;
       }
 
@@ -2706,15 +2710,29 @@ class VaultApp extends HTMLElement {
       }
     });
 
+    // Automatically incorporate 1st Lvl (root of vault) directories as parent boards
+    const allUnique = Array.from(list);
+    allUnique.forEach(b => {
+      const parts = b.replace(/^\/\s*/, '').split('/').filter(Boolean);
+      if (parts.length > 1) {
+        const isSpace = b.startsWith('/ ');
+        const parentPath = (isSpace ? '/ ' : '/') + parts[0];
+        list.add(parentPath);
+      }
+    });
+
     return Array.from(list).sort();
   }
 
   private getFilteredAssets(): Asset[] {
     const query = this.searchQuery.toLowerCase().trim();
     return this.assets.filter(asset => {
-      // Board selection filtering (Support clicking All Assets)
-      if (this.selectedBoard !== 'ALL' && asset.board !== this.selectedBoard) {
-        return false;
+      // Board selection filtering (Support clicking All Assets and parent/root boards matching their subfolder assets)
+      if (this.selectedBoard !== 'ALL') {
+        const isMatch = asset.board === this.selectedBoard || asset.board.startsWith(this.selectedBoard + '/');
+        if (!isMatch) {
+          return false;
+        }
       }
       
       // Keywords full-text scanning
@@ -3241,36 +3259,6 @@ class VaultApp extends HTMLElement {
               <!-- Divider -->
               <div class="border-t border-white/[0.04]"></div>
 
-              <!-- Operation 2: Open Folder as Vault -->
-              <div class="space-y-3">
-                <div class="flex items-center gap-1.5 text-blue-400">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9"></path>
-                  </svg>
-                  <span class="text-[10px] font-bold uppercase tracking-wider font-mono">Open Folder as Vault</span>
-                </div>
-                <p class="text-[11px] text-slate-500 leading-relaxed font-sans">Index an existing visual folder hierarchy on your local system to run reference scans over it.</p>
-                
-                <div class="space-y-2 pt-1 font-sans">
-                  <div class="space-y-1">
-                    <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono font-bold">Vault Name</label>
-                    <input type="text" id="open-vault-name" placeholder="E.g., Cyberpunk Assets" class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" />
-                  </div>
-                  
-                  <div class="space-y-1">
-                    <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono font-bold">Existing Folder Path</label>
-                    <input type="text" id="open-vault-path" placeholder="E.g., /Users/design/Downloads/References" class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none font-mono" />
-                  </div>
-
-                  <button id="btn-open-vault-submit" class="vault-btn w-full mt-2 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold rounded transition active:scale-95 cursor-pointer">
-                    Register &amp; Mount Vault
-                  </button>
-                </div>
-              </div>
-
-              <!-- Divider -->
-              <div class="border-t border-white/[0.04]"></div>
-
               <!-- Operation 3: Modern Web Sandbox Connect -->
               <div class="space-y-3">
                 <div class="flex items-center gap-1.5 text-emerald-400">
@@ -3395,35 +3383,8 @@ class VaultApp extends HTMLElement {
                 </div>
               </div>
 
-              <!-- Predefined Visual vaults load -->
-              <div class="space-y-3 pt-6 border-t border-white/[0.04]">
-                <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Load Predefined Mock Vaults</label>
-                <p class="text-xs text-slate-500 leading-relaxed font-sans">Index predefined workspace caches to preview metadata-tags grids, Obsidian sync templates, and color-swatch palettes.</p>
-                
-                <div class="grid grid-cols-2 gap-2.5 pt-1">
-                  <button id="load-vault-neotokyo" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
-                    🗼 Neo-Tokyo Arch
-                  </button>
-                  <button id="load-vault-cybercity" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
-                    🏙️ Cyberpunk Grid
-                  </button>
-                  <button id="load-vault-blueprint" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
-                    📐 Mech Blueprints
-                  </button>
-                  <button id="load-vault-characters" class="vault-btn px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs transition cursor-pointer font-semibold shadow whitespace-nowrap active:scale-95">
-                    🥋 Character Concept
-                  </button>
-                </div>
-
-                <div class="flex gap-2 pt-2">
-                  <button id="load-vault-all" class="vault-btn w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-black rounded text-xs transition font-semibold active:scale-95 cursor-pointer">
-                    ⚡ Sync All Archives Companion (Simulate Full System Pull)
-                  </button>
-                </div>
-              </div>
-
               <!-- Clean / Wipe active catalog -->
-              <div class="space-y-3 p-4 rounded-xl border border-rose-500/10 bg-rose-500/5 pt-4">
+              <div class="space-y-3 p-4 rounded-xl border border-rose-500/10 bg-rose-500/5 mt-6">
                 <div class="flex items-center gap-1.5 text-rose-400">
                   <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -3440,6 +3401,23 @@ class VaultApp extends HTMLElement {
                     </svg>
                     <span>Clean Sample Vault Database</span>
                   </button>
+                </div>
+              </div>
+
+              <!-- Activity Log Section -->
+              <div class="space-y-3 pt-6 border-t border-white/[0.04]">
+                <div class="flex items-center justify-between">
+                  <label class="text-[10px] uppercase tracking-widest text-[#10B981] font-bold cursor-default font-mono">Activity Log</label>
+                  <div class="flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-[8px] text-emerald-400 uppercase font-mono tracking-wider font-bold">Monitor</span>
+                  </div>
+                </div>
+                <p class="text-xs text-slate-500 leading-relaxed font-sans">
+                  Real-time transaction log monitoring Tauri index tasks, Obsidian YAML dual-sync triggers, and SQLite database catalog caches.
+                </p>
+                <div id="sqlite-activity-logs-modal" class="bg-black/40 rounded-xl border border-white/5 p-3.5 font-mono text-[9px] text-[#A7F3D0] h-32 overflow-y-auto custom-scrollbar space-y-1.5 vault-rounded transition-all duration-300 backdrop-blur-xs shadow-inner">
+                  <!-- Log entries go here dynamically -->
                 </div>
               </div>
             </div>
@@ -3702,20 +3680,37 @@ class VaultApp extends HTMLElement {
   }
 
   private renderLogs() {
-    const loggerDiv = this.querySelector('#sqlite-activity-logs');
-    if (!loggerDiv) return;
-    loggerDiv.innerHTML = this.activeLogs.map(log => {
-      let colorClass = 'text-slate-400';
-      if (log.type === 'success') colorClass = 'text-emerald-400';
-      if (log.type === 'warn') colorClass = 'text-amber-500';
-      
-      return `
-        <div class="flex justify-between border-b border-white/[0.02] pb-1 font-mono">
-          <span class="opacity-40 text-[8px]">${log.time}</span>
-          <span class="${colorClass} truncate pl-2 max-w-[170px] text-[8.5px]">${log.msg}</span>
-        </div>
-      `;
-    }).join('');
+    const sidebarLogs = this.querySelector('#sqlite-activity-logs');
+    if (sidebarLogs) {
+      sidebarLogs.innerHTML = this.activeLogs.map(log => {
+        let colorClass = 'text-slate-400';
+        if (log.type === 'success') colorClass = 'text-emerald-400';
+        if (log.type === 'warn') colorClass = 'text-amber-500';
+        
+        return `
+          <div class="flex justify-between border-b border-white/[0.02] pb-1 font-mono">
+            <span class="opacity-40 text-[8px]">${log.time}</span>
+            <span class="${colorClass} truncate pl-2 max-w-[170px] text-[8.5px]">${log.msg}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const modalLogs = this.querySelector('#sqlite-activity-logs-modal');
+    if (modalLogs) {
+      modalLogs.innerHTML = this.activeLogs.map(log => {
+        let colorClass = 'text-slate-400';
+        if (log.type === 'success') colorClass = 'text-emerald-400';
+        if (log.type === 'warn') colorClass = 'text-amber-500';
+        
+        return `
+          <div class="flex justify-between border-b border-white/[0.02] pb-1 font-mono">
+            <span class="opacity-40 text-[8px]">${log.time}</span>
+            <span class="${colorClass} truncate pl-4 text-[9px]">${log.msg}</span>
+          </div>
+        `;
+      }).join('');
+    }
   }
 
   // ----------------------------------------------------
@@ -3993,7 +3988,13 @@ class VaultApp extends HTMLElement {
     const boards = this.getUniqueBoards();
     let containsDeeperFolders = false;
 
-    let boardsHtml = boards.map(board => {
+    // Filter unique boards to only display the folders on the root of the vault (level 1 directories)
+    const rootBoards = boards.filter(board => {
+      const parts = board.replace(/^\/\s*/, '').split('/').filter(Boolean);
+      return parts.length === 1;
+    });
+
+    let boardsHtml = rootBoards.map(board => {
       const activeFolderIcon = `<svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
       const idleFolderIcon = `<svg class="w-3.5 h-3.5 text-slate-500 shrink-0 opacity-40 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
       const nestedFolderIcon = `<svg class="w-3.5 h-3.5 text-cyan-400 shrink-0 opacity-70 group-hover:opacity-100 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
@@ -4014,7 +4015,8 @@ class VaultApp extends HTMLElement {
         displayLabel = isSub ? `${parts[parts.length - 1]}` : `${parts[0]}`;
       }
 
-      const isActive = this.selectedBoard === board;
+      // Check if selected board matches directly or is inside this parent board
+      const isActive = this.selectedBoard === board || this.selectedBoard.startsWith(board + '/');
       const paddingClass = isDeeper ? 'pl-8' : (isSub ? 'pl-6' : 'pl-2');
       const colorClass = isActive 
         ? 'text-emerald-400 bg-emerald-500/10 font-bold border-l-2 border-emerald-500 scale-[1.01]' 
@@ -4087,8 +4089,13 @@ class VaultApp extends HTMLElement {
     const boards = this.getUniqueBoards();
     const query = this.searchQuery.toLowerCase().trim();
 
+    const rootBoards = boards.filter(board => {
+      const parts = board.replace(/^\/\s*/, '').split('/').filter(Boolean);
+      return parts.length === 1;
+    });
+
     // Filter which boards match the search query or contain matching assets
-    const filteredBoards = boards.filter(board => {
+    const filteredBoards = rootBoards.filter(board => {
       if (!query) return true;
       if (board.toLowerCase().includes(query)) return true;
       
@@ -4117,7 +4124,7 @@ class VaultApp extends HTMLElement {
     gridDiv.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full pb-10';
 
     gridDiv.innerHTML = filteredBoards.map(board => {
-      const boardAssets = this.assets.filter(a => a.board === board);
+      const boardAssets = this.assets.filter(a => a.board === board || a.board.startsWith(board + '/'));
       const matchingAssets = boardAssets.filter(asset => {
         if (!query) return true;
         const matchTitle = asset.name.toLowerCase().includes(query);
@@ -5007,26 +5014,6 @@ class VaultApp extends HTMLElement {
           const pathValue = pathInput.value.trim();
           if (!nameValue || !pathValue) {
             alert('Please specify both a Vault Name and an absolute folder reference path.');
-            return;
-          }
-          this.switchVault(pathValue, nameValue);
-          nameInput.value = '';
-          pathInput.value = '';
-        }
-      });
-    }
-
-    // 7. Open Folder as Vault Form Submit Handler
-    const btnOpenVaultSubmit = this.querySelector('#btn-open-vault-submit');
-    if (btnOpenVaultSubmit) {
-      btnOpenVaultSubmit.addEventListener('click', () => {
-        const nameInput = this.querySelector('#open-vault-name') as HTMLInputElement | null;
-        const pathInput = this.querySelector('#open-vault-path') as HTMLInputElement | null;
-        if (nameInput && pathInput) {
-          const nameValue = nameInput.value.trim();
-          const pathValue = pathInput.value.trim();
-          if (!nameValue || !pathValue) {
-            alert('Please specify both a Vault Name and an existing folder path reference.');
             return;
           }
           this.switchVault(pathValue, nameValue);
