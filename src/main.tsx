@@ -2887,19 +2887,7 @@ class VaultApp extends HTMLElement {
                 
               </div>
 
-              <!-- SQLite indexing logs -->
-              <div class="space-y-2 pt-2 group">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-[10px] uppercase tracking-widest text-[#10B981] group-hover:text-[#10B981] font-bold cursor-default transition-colors">Asset Activity log</h3>
-                  <div class="flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                    <span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span class="text-[8px] text-emerald-400 uppercase font-mono tracking-wider font-bold">Monitor</span>
-                  </div>
-                </div>
-                <div id="sqlite-activity-logs" class="bg-black/40 rounded-xl border border-white/5 group-hover:border-emerald-500/25 p-2.5 font-mono text-[9px] text-slate-400 h-28 overflow-y-auto custom-scrollbar space-y-1.5 vault-rounded transition-all duration-300 backdrop-blur-xs shadow-inner">
-                  <!-- Log entries go here -->
-                </div>
-              </div>
+
 
             </div>
 
