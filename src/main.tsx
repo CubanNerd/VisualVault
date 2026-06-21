@@ -175,6 +175,12 @@ function generateProceduralSVG(filename: string, colors: string[]): string {
   return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 }
 
+(window as any).handleImageError = (img: HTMLImageElement, name: string, colorsCsv: string) => {
+  img.onerror = null;
+  const colors = colorsCsv ? colorsCsv.split(',') : [];
+  img.src = generateProceduralSVG(name, colors);
+};
+
 // Prepare initial seeds
 const defaultMockAssets = (): Asset[] => [
   {
@@ -3806,16 +3812,16 @@ class VaultApp extends HTMLElement {
           <div class="h-24 w-full bg-black/40 rounded-lg overflow-hidden flex gap-1 mb-2.5 border border-white/[0.03] select-none p-1">
             ${secAssets.length > 0 ? `
               <div class="flex-grow h-full relative overflow-hidden bg-white/[0.01]">
-                <img src="${secAssets[0].imageUrl}" class="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
+                <img src="${secAssets[0].imageUrl}" onerror="window.handleImageError(this, '${secAssets[0].name.replace(/'/g, "\\'")}', '${secAssets[0].colors.join(',')}')" class="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
               </div>
               ${secAssets.length > 1 ? `
                 <div class="w-1/3 flex flex-col gap-1 h-full">
                   <div class="flex-1 overflow-hidden">
-                    <img src="${secAssets[1].imageUrl}" class="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
+                    <img src="${secAssets[1].imageUrl}" onerror="window.handleImageError(this, '${secAssets[1].name.replace(/'/g, "\\'")}', '${secAssets[1].colors.join(',')}')" class="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
                   </div>
                   ${secAssets.length > 2 ? `
                     <div class="flex-1 overflow-hidden">
-                      <img src="${secAssets[2].imageUrl}" class="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
+                      <img src="${secAssets[2].imageUrl}" onerror="window.handleImageError(this, '${secAssets[2].name.replace(/'/g, "\\'")}', '${secAssets[2].colors.join(',')}')" class="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
                     </div>
                   ` : `
                     <div class="flex-1 border border-dashed border-white/5 rounded flex items-center justify-center text-[8px] text-slate-800 font-mono">+</div>
@@ -4133,7 +4139,7 @@ class VaultApp extends HTMLElement {
             <!-- Left panel: Big Cover image -->
             <div class="w-[60%] h-full relative overflow-hidden bg-white/[0.01] flex items-center justify-center">
               ${boardAssets[0] ? `
-                <img src="${boardAssets[0].imageUrl}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                <img src="${boardAssets[0].imageUrl}" onerror="window.handleImageError(this, '${boardAssets[0].name.replace(/'/g, "\\'")}', '${boardAssets[0].colors.join(',')}')" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
               ` : `
                 <div class="flex flex-col items-center justify-center text-slate-700">
                   <svg class="w-6 h-6 stroke-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4149,7 +4155,7 @@ class VaultApp extends HTMLElement {
               <!-- Top thumbs -->
               <div class="flex-1 h-0 overflow-hidden bg-white/[0.01] flex items-center justify-center border-l border-white/5">
                 ${boardAssets[1] ? `
-                  <img src="${boardAssets[1].imageUrl}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                  <img src="${boardAssets[1].imageUrl}" onerror="window.handleImageError(this, '${boardAssets[1].name.replace(/'/g, "\\'")}', '${boardAssets[1].colors.join(',')}')" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
                 ` : `
                   <div class="w-full h-full border border-dashed border-white/5 rounded flex items-center justify-center text-[10px] text-slate-800 font-mono">+</div>
                 `}
@@ -4157,7 +4163,7 @@ class VaultApp extends HTMLElement {
               <!-- Bottom thumbs -->
               <div class="flex-1 h-0 overflow-hidden bg-white/[0.01] flex items-center justify-center border-l border-t border-white/5">
                 ${boardAssets[2] ? `
-                  <img src="${boardAssets[2].imageUrl}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                  <img src="${boardAssets[2].imageUrl}" onerror="window.handleImageError(this, '${boardAssets[2].name.replace(/'/g, "\\'")}', '${boardAssets[2].colors.join(',')}')" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
                 ` : `
                   <div class="w-full h-full border border-dashed border-white/5 rounded flex items-center justify-center text-[10px] text-slate-800 font-mono">+</div>
                 `}
@@ -4207,7 +4213,7 @@ class VaultApp extends HTMLElement {
               <div class="flex -space-x-1.5 overflow-hidden">
                 ${boardAssets.slice(0, 4).map(asset => `
                   <div class="w-4 h-4 rounded-full border border-slate-900 bg-slate-700 flex-shrink-0 origin-center hover:scale-125 hover:z-10 transition overflow-hidden">
-                    <img src="${asset.imageUrl}" class="w-full h-full object-cover" />
+                    <img src="${asset.imageUrl}" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="w-full h-full object-cover" />
                   </div>
                 `).join('')}
               </div>
@@ -4281,7 +4287,7 @@ class VaultApp extends HTMLElement {
           
           <!-- Image canvas wrapper -->
           <div class="${heightClass} relative w-full overflow-hidden bg-black/40 flex items-center justify-center">
-            <img src="${asset.imageUrl}" class="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" loading="lazy" />
+            <img src="${asset.imageUrl}" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" loading="lazy" />
             
             <!-- Technical Overlay parameters -->
             <div class="absolute top-2 left-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-[8.5px] mono tracking-tight text-slate-400 opacity-60 group-hover:opacity-100 transition whitespace-nowrap">
@@ -6096,6 +6102,10 @@ class VaultApp extends HTMLElement {
     if (titleNode) titleNode.textContent = asset.name;
     if (imgNode) {
       imgNode.style.transform = 'scale(0.95)';
+      imgNode.onerror = () => {
+        imgNode.onerror = null;
+        imgNode.src = generateProceduralSVG(asset.name, asset.colors);
+      };
       imgNode.src = asset.imageUrl;
       setTimeout(() => {
         imgNode.style.transform = 'scale(1)';
