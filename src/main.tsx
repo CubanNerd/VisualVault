@@ -1075,6 +1075,9 @@ class VaultApp extends HTMLElement {
           background-color: #F7F7F5 !important;
           border-right: 1px solid #E9E9E6 !important;
         }
+        #sidebar-lists > div:nth-of-type(2) {
+          background-color: #fcfcfc !important;
+        }
         #inspector-sidebar {
           background-color: #F7F7F5 !important;
           border-left: 1px solid #E9E9E6 !important;
@@ -1855,6 +1858,13 @@ class VaultApp extends HTMLElement {
         
         // If sandboxed local folder, also sync companion markdown files to match!
         this.saveCompanionMDFile(asset);
+      } else if (asset.board.startsWith(oldName + '/')) {
+        const remaining = asset.board.substring(oldName.length);
+        const childNewName = newName + remaining;
+        asset.board = childNewName;
+        changeCount++;
+        storage.updateAsset(asset.id, { board: childNewName });
+        this.saveCompanionMDFile(asset);
       }
     });
 
@@ -1863,11 +1873,25 @@ class VaultApp extends HTMLElement {
       const vaultPath = storage.getVaultPath();
       const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
       const allBoards = this.getUniqueBoards();
-      const updated = allBoards.map(b => b === oldName ? newName : b);
-      if (!updated.includes(newName)) {
-        updated.push(newName);
+      const updated = allBoards.map(b => {
+        if (b === oldName) {
+          return newName;
+        } else if (b.startsWith(oldName + '/')) {
+          return newName + b.substring(oldName.length);
+        }
+        return b;
+      });
+      
+      const uniqueUpdated: string[] = [];
+      updated.forEach(b => {
+        if (!uniqueUpdated.includes(b)) {
+          uniqueUpdated.push(b);
+        }
+      });
+      if (!uniqueUpdated.includes(newName)) {
+        uniqueUpdated.push(newName);
       }
-      localStorage.setItem(customKey, JSON.stringify(updated));
+      localStorage.setItem(customKey, JSON.stringify(uniqueUpdated));
     } catch (e) {
       console.error('Failed to update serialized custom boards history', e);
     }
@@ -2837,7 +2861,9 @@ class VaultApp extends HTMLElement {
                     ? '● Focused Solitude: Isolating project reference directories.' 
                     : '● Unified Arena: Intercepting and merging all Visual Vaults.'}
                 </p>
-                      <!-- System lists navigation -->
+              </div>
+
+              <!-- System lists navigation -->
               <div class="space-y-1">
                 <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 cursor-default">Library</h3>
                 
@@ -2854,6 +2880,10 @@ class VaultApp extends HTMLElement {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                   </svg>
                   <span>Recently Indexed</span>
+                </div>
+
+                <div id="sidebar-vaults-list-container" class="space-y-1 mt-1.5 pt-2 border-t border-white/5">
+                  <!-- Active vaults list is dynamically injected here -->
                 </div>
               </div>
 
@@ -2884,6 +2914,8 @@ class VaultApp extends HTMLElement {
                     </button>
                   </div>
                 </div>
+
+                <div id="vault-hierarchy-info-container" class="mt-2"></div>
                 
               </div>
 
@@ -3436,7 +3468,7 @@ class VaultApp extends HTMLElement {
                   <button id="theme-btn-matrix" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#000000] border-[#00FF41]/45 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden font-mono">
                     <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#00FF41] hidden" id="theme-bullet-matrix"></div>
                     <span class="text-xs text-[#00FF41] font-bold">Matrix</span>
-                    <span class="text-[10px] text-[#00FF41]/60 font-normal mt-1">Y2K CRT Console</span>
+                    <span class="text-[10px] text-[#00FF41]/60 font-normal mt-1">Retro Terminal</span>
                   </button>
                 </div>
               </div>
@@ -3746,6 +3778,7 @@ class VaultApp extends HTMLElement {
       btnDeleteActive.style.display = this.selectedBoard === 'ALL' ? 'none' : 'inline-flex';
     }
 
+    this.renderSidebarVaults();
     this.renderBoardNavigation();
     this.renderSections();
     this.renderCatalog();
@@ -3900,6 +3933,39 @@ class VaultApp extends HTMLElement {
           this.addLog('info', `Drilled down into board section: ${secBoard}`);
         }
       });
+
+      // Supporting dragging reference cards/images into board sections
+      card.addEventListener('dragover', (e: any) => {
+        const secBoard = (card as HTMLElement).dataset.sectionBoard;
+        if (secBoard) {
+          e.preventDefault(); // crucial to enable drop triggers
+          card.classList.add('bg-emerald-500/10', 'border-emerald-500/40', 'scale-[1.02]');
+        }
+      });
+
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('bg-emerald-500/10', 'border-emerald-500/40', 'scale-[1.02]');
+      });
+
+      card.addEventListener('drop', (e: any) => {
+        e.preventDefault();
+        card.classList.remove('bg-emerald-500/10', 'border-emerald-500/40', 'scale-[1.02]');
+        
+        const secBoard = (card as HTMLElement).dataset.sectionBoard || '';
+        const assetId = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text');
+        
+        if (assetId && secBoard) {
+          const asset = this.assets.find(a => a.id === assetId);
+          if (asset && asset.board !== secBoard) {
+            const oldBoard = asset.board;
+            asset.board = secBoard;
+            storage.saveAllAssets(this.assets);
+            this.addLog('success', `Dropped pin: Moved '${asset.name}' from '${oldBoard}' board to section '${secBoard}'.`);
+            this.updateLayout();
+            this.toast('Asset Relocated', `Moved '${asset.metadata.title || asset.name}' to section '${secBoard.split('/').pop()}'.`);
+          }
+        }
+      });
     });
 
     container.querySelectorAll('.delete-section-btn').forEach(btn => {
@@ -3967,6 +4033,112 @@ class VaultApp extends HTMLElement {
     this.createNewBoard(sectionPath);
     this.isCreatingSection = false;
     this.updateLayout();
+  }
+
+  private renderSidebarVaults() {
+    const listContainer = this.querySelector('#sidebar-vaults-list-container');
+    if (!listContainer) return;
+
+    const vaults = storage.getVaults();
+    const currentPath = storage.getVaultPath();
+    
+    // Determine which vaults to show based on workspace mode
+    let vaultsToRender = [];
+    if (this.workspaceMode === 'unified') {
+      vaultsToRender = vaults.filter(v => v.mounted !== false);
+    } else {
+      vaultsToRender = vaults.filter(v => v.path === currentPath && v.mounted !== false);
+    }
+
+    if (vaultsToRender.length === 0) {
+      listContainer.innerHTML = '';
+      return;
+    }
+
+    // Sort by last opened or alphabetically back-first
+    vaultsToRender.sort((a,b) => (b.lastOpened || 0) - (a.lastOpened || 0));
+
+    const html = vaultsToRender.map(v => {
+      const isCurrent = v.path === currentPath;
+      
+      // Theme-specific styles
+      let itemClass = '';
+      let activeIndicator = '';
+      let iconColor = '';
+      
+      if (this.activeTheme === 'minimalist') {
+        if (isCurrent) {
+          itemClass = 'bg-[#E3E2E0]/50 text-[#37352F] font-bold border border-neutral-300';
+          activeIndicator = '<span class="w-1.5 h-1.5 bg-[#2383E2] rounded-full shrink-0"></span>';
+          iconColor = 'text-[#2383E2]';
+        } else {
+          itemClass = 'text-neutral-500 hover:text-[#37352F] hover:bg-[#E3E2E0]/30 border border-transparent';
+          activeIndicator = '';
+          iconColor = 'text-neutral-400';
+        }
+      } else if (this.activeTheme === 'matrix') {
+        if (isCurrent) {
+          itemClass = 'bg-[#00FF41]/15 text-[#00FF41] border border-[#00FF41] font-mono font-bold';
+          activeIndicator = '<span class="w-1.5 h-1.5 bg-[#00FF41] rounded-full shrink-0 animate-pulse"></span>';
+          iconColor = 'text-[#00FF41]';
+        } else {
+          itemClass = 'text-[#00FF41]/60 hover:text-[#00FF41] hover:bg-[#00FF41]/5 border border-transparent font-mono';
+          activeIndicator = '';
+          iconColor = 'text-[#00FF41]/40';
+        }
+      } else {
+        // Default theme
+        if (isCurrent) {
+          itemClass = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold';
+          activeIndicator = '<span class="w-1.5 h-1.5 bg-emerald-400 rounded-full shrink-0 animate-pulse"></span>';
+          iconColor = 'text-emerald-400';
+        } else {
+          itemClass = 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent';
+          activeIndicator = '';
+          iconColor = 'text-slate-500 group-hover:text-slate-300';
+        }
+      }
+
+      const displayName = v.name || v.path.split(/[/\\]/).pop() || 'Untitled Vault';
+
+      return `
+        <div data-vault-path="${v.path}" class="sidebar-vault-item group flex items-center justify-between text-xs p-2 rounded cursor-pointer transition ${itemClass}" title="${v.path}">
+          <div class="flex items-center gap-2 truncate min-w-0">
+            <svg class="w-3.5 h-3.5 ${iconColor} shrink-0 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+            </svg>
+            <span class="truncate">${displayName}</span>
+          </div>
+          ${activeIndicator}
+        </div>
+      `;
+    }).join('');
+
+    // Formatted header label for structural integrity
+    const headerHtml = `
+      <div class="flex items-center justify-between px-2 py-1 select-none">
+        <span class="text-[9px] uppercase tracking-wider text-slate-500 font-bold font-mono">Mounted Vaults (${vaultsToRender.length})</span>
+        <span class="text-[8px] font-mono opacity-40 uppercase bg-black/30 px-1 py-0.5 border border-white/5 rounded-full">${this.workspaceMode}</span>
+      </div>
+      <div class="space-y-1 mt-1.5">
+        ${html}
+      </div>
+    `;
+
+    listContainer.innerHTML = headerHtml;
+
+    // Attach click events to the sidebar-vault-item
+    listContainer.querySelectorAll('.sidebar-vault-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const path = (item as HTMLElement).dataset.vaultPath;
+        if (path) {
+          const v = vaults.find(vault => vault.path === path);
+          this.switchVault(path, v?.name);
+          this.updateLayout();
+          this.toast('Vault Focused', `Switched active vault target directory to "${v?.name || path}"`);
+        }
+      });
+    });
   }
 
   private renderBoardNavigation() {
@@ -4059,7 +4231,11 @@ class VaultApp extends HTMLElement {
       `;
     }
 
-    listDiv.innerHTML = boardsHtml + structureInfoHtml;
+    listDiv.innerHTML = boardsHtml;
+    const hierarchyContainer = this.querySelector('#vault-hierarchy-info-container') as HTMLElement | null;
+    if (hierarchyContainer) {
+      hierarchyContainer.innerHTML = structureInfoHtml;
+    }
 
     // Highlight Library link (All references)
     const navAll = this.querySelector('#nav-all-assets');
@@ -4282,7 +4458,7 @@ class VaultApp extends HTMLElement {
           
           <!-- Image canvas wrapper -->
           <div class="${heightClass} relative w-full overflow-hidden bg-black/40 flex items-center justify-center">
-            <img src="${asset.imageUrl}" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" loading="lazy" />
+            <img src="${asset.imageUrl}" draggable="false" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" loading="lazy" />
             
             <!-- Technical Overlay parameters -->
             <div class="absolute top-2 left-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-[8.5px] mono tracking-tight text-slate-400 opacity-60 group-hover:opacity-100 transition whitespace-nowrap">
@@ -4698,27 +4874,30 @@ class VaultApp extends HTMLElement {
 
       // Supporting dragging reference cards into sidebar category folders (boards)
       listsDiv.addEventListener('dragover', (e: any) => {
+        e.preventDefault(); // crucial to enable drop triggers in all browsers including Firefox
         const link = e.target.closest('.board-link') as HTMLElement;
         if (link) {
-          e.preventDefault(); // crucial to enable drop triggers
           link.classList.add('bg-emerald-500/10', 'text-emerald-400');
         }
       });
 
       listsDiv.addEventListener('dragleave', (e: any) => {
-        const link = e.target.closest('.board-link') as HTMLElement;
-        if (link) {
+        // Clear highlights on leave to prevent sticky formatting in Firefox
+        listsDiv.querySelectorAll('.board-link').forEach(link => {
           link.classList.remove('bg-emerald-500/10', 'text-emerald-400');
-        }
+        });
       });
 
       listsDiv.addEventListener('drop', (e: any) => {
+        e.preventDefault();
+        listsDiv.querySelectorAll('.board-link').forEach(link => {
+          link.classList.remove('bg-emerald-500/10', 'text-emerald-400');
+        });
+
         const link = e.target.closest('.board-link') as HTMLElement;
         if (link) {
-          e.preventDefault();
-          link.classList.remove('bg-emerald-500/10', 'text-emerald-400');
           const boardName = link.dataset.board || '';
-          const assetId = e.dataTransfer.getData('text/plain');
+          const assetId = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text');
           
           if (assetId && boardName) {
             const asset = this.assets.find(a => a.id === assetId);
@@ -4798,6 +4977,7 @@ class VaultApp extends HTMLElement {
         if (card) {
           const id = card.dataset.id || '';
           e.dataTransfer.setData('text/plain', id);
+          e.dataTransfer.setData('text', id);
           e.dataTransfer.effectAllowed = 'move';
           card.classList.add('opacity-40');
         }
@@ -5901,7 +6081,7 @@ class VaultApp extends HTMLElement {
     if (confirm(`Are you sure you want to delete the ${typeLabel} "${boardName}"?`)) {
       const deleteFiles = confirm(
         `Would you also like to delete all reference files currently inside "${boardName}"?\n\n` +
-        `- Click OK (Yes) to delete both the ${typeLabel} and its files.\n` +
+        `- Click OK (Yes) to delete both the ${typeLabel} and its files/sub-sections.\n` +
         `- Click Cancel (No) to delete the ${typeLabel} but keep the files in the vault folder.`
       );
 
@@ -5909,22 +6089,22 @@ class VaultApp extends HTMLElement {
       const vaultPath = storage.getVaultPath();
       const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
       const allBoards = this.getUniqueBoards();
-      const updatedBoards = allBoards.filter(b => b !== boardName);
+      const updatedBoards = allBoards.filter(b => b !== boardName && !b.startsWith(boardName + '/'));
       localStorage.setItem(customKey, JSON.stringify(updatedBoards));
 
       // 2. Handle associated files (assets)
       if (deleteFiles) {
-        // Delete both the board mapping and the physical reference files representing the assets
-        const fileCount = this.assets.filter(a => a.board === boardName).length;
-        this.assets = this.assets.filter(a => a.board !== boardName);
+        // Delete both the board mapping and the physical reference files representing the assets (including nested sections/sub-boards)
+        const fileCount = this.assets.filter(a => a.board === boardName || a.board.startsWith(boardName + '/')).length;
+        this.assets = this.assets.filter(a => a.board !== boardName && !a.board.startsWith(boardName + '/'));
         storage.saveAllAssets(this.assets);
-        this.addLog('success', `Wiped board "${boardName}" and deleted all ${fileCount} reference files from vault.`);
+        this.addLog('success', `Wiped board "${boardName}" (and all its nested sub-sections) and deleted all ${fileCount} reference files from vault.`);
         this.toast('Board & Files Deleted', `Deleted board "${boardName}" and ${fileCount} files.`);
       } else {
         // Delete board only: files remain in the vault folder at the root level ("/")
         let movedCount = 0;
         this.assets.forEach(a => {
-          if (a.board === boardName) {
+          if (a.board === boardName || a.board.startsWith(boardName + '/')) {
             a.board = '/';
             movedCount++;
           }
@@ -5935,7 +6115,7 @@ class VaultApp extends HTMLElement {
       }
 
       // If the deleted board was the currently active selection, reset to 'ALL'
-      if (this.selectedBoard === boardName) {
+      if (this.selectedBoard === boardName || this.selectedBoard.startsWith(boardName + '/')) {
         this.selectedBoard = 'ALL';
       }
 
