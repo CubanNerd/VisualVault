@@ -332,8 +332,62 @@ With the packaging configuration established, you can build production-ready bin
 
 ---
 
-## 4. Key Considerations for Local Filesystem Access
+## 4. Native Filesystem Integration & Automated Obsidian-Style Vault Restoration
 
-One of the secondary benefits of packaging as a desktop app is bypassing the browser's sandbox restrictions on local directories!
-- **Tauri FS API**: Instead of fallback upload mechanics, use `tauri-plugin-fs` to let users pick folders, read image binaries directly from absolute system paths (e.g., `C:/Users/Ref_Library/`), and render them through custom Tauri protocols.
-- **Node.js FS (`fs-extra`)**: In Electron, the main process has full unrestricted access to read and write directly to your local folders (e.g. your Obsidian vault directories). Simply send the raw folder path via the IPC bridge, and let Node's `fs` read the images right off the native disk!
+One of the secondary benefits of packaging as a desktop app is bypassing the browser's sandbox restrictions on local directories! VisualVault implements a **fully local-first, zero-prompt automated vault restoration system** that mimics Obsidian's native folder handling.
+
+### How it works:
+When running inside the Electron container, the app exposes a high-performance native bridge via `preload.cjs` (`window.electronAPI`), giving the React frontend access to Node's robust `fs` and `path` modules safely without exposing raw Node capabilities to the browser context directly.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                               ELECTRON CONTAINER                            │
+│                                                                             │
+│  ┌──────────────────────┐   scanVault()   ┌──────────────────────────────┐  │
+│  │   React/Vite Core    │ ──────────────> │      Electron Main Process   │  │
+│  │  (main.tsx/index)    │ <────────────── │     (electron-main.cjs)      │  │
+│  └──────────────────────┘   assets JSON   └──────────────────────────────┘  │
+│              │                                           │                  │
+│              ▼ (LocalStorage)                            ▼ (Physical Disk)  │
+│     Saves vaultPath string                    Scans folders, reads/writes   │
+│     e.g. "/Users/design/MyVault"              real image files & YAML .md   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### IPC Interface Architecture (`preload.cjs`):
+The context bridge exposes several native APIs:
+*   `selectDirectory()`: Invokes a native Electron directory selection dialog.
+*   `scanVault(vaultPath)`: Recursively scans a selected directory on the user's disk, finding all image assets (`.png`, `.jpg`, `.webp`, `.svg`, etc.) and parsing any corresponding companion Markdown (`.md`) frontmatter descriptors.
+*   `writeCompanionMD(vaultPath, board, assetName, yamlContent)`: Commits updated metadata configurations back to a physical Obsidian `.md` file inside the vault.
+*   `writeFileBinary(vaultPath, board, assetName, arrayBuffer)`: Commits imported image uploads as real binary files back to the corresponding folders.
+*   `deleteAssetFile(vaultPath, board, assetName)`: Removes both the physical image file and its companion markdown metadata file from the local disk when deleted.
+*   `createBoardDirectory(vaultPath, boardPath)`: Dynamically creates new subdirectories inside the physical vault.
+*   `deleteBoardDirectory(vaultPath, boardPath, keepFiles)`: Prunes physical subfolders, recursively handling file preservation or deletion safety parameters on-disk.
+
+---
+
+### Obsidian-Style Silent Vault Restoration:
+Obsidian guarantees a seamless experience by storing the last opened vault's absolute directory path inside a configuration cache. When the app launches, it reads that path and re-opens the directory immediately without bothering the user with file explorer pickers or permission dialogues. 
+
+VisualVault achieves this by running a restoration checklist on startup:
+1. When `checkAndRestoreLocalVaults()` executes inside `src/main.tsx`, it checks if the platform is running inside Electron (`window.electronAPI`).
+2. If it is, and a stored vault path is retrieved via `storage.getVaultPath()`, the app calls `window.electronAPI.scanVault(activePath)` directly.
+3. The folder is scanned, its files are re-indexed, and their custom metadata is parsed and loaded **silently and automatically in milliseconds**, with zero user permission popups required!
+4. The visual cards are rendered immediately, and the custom scheme `visual-vault://` handles secure native loading of files from the absolute path.
+
+---
+
+## 5. Security & Custom Protocol Handlers
+
+Standard browser contexts block loading local assets via absolute `file://` URLs for security reasons (cross-origin script checks). To solve this gracefully in the desktop app, VisualVault registers a privileged custom protocol handler:
+
+*   **Protocol Name**: `visual-vault://`
+*   **Main Process Registration**:
+    ```javascript
+    protocol.registerSchemesAsPrivileged([
+      { scheme: 'visual-vault', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true } }
+    ]);
+    ```
+*   **Usage**: Absolute paths such as `/Users/design/Concept_Universe/Environment_Ref/city.png` are dynamically translated on the frontend into `visual-vault:///Users/design/Concept_Universe/Environment_Ref/city.png`. Electron safely intercepts these network streams, decodes the absolute local path, and pipes the binary asset directly to the layout viewer safely!
