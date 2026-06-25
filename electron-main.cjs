@@ -1,6 +1,119 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// Register the custom protocol 'visual-vault'
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'visual-vault', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true } }
+]);
+
+function parseYAMLFrontmatterNode(yaml, originalMeta) {
+  const meta = { ...originalMeta };
+  try {
+    const cleanYaml = yaml.replace(/^---/, '').replace(/---$/, '').trim();
+    const rows = cleanYaml.split('\n');
+    for (const row of rows) {
+      const colIdx = row.indexOf(':');
+      if (colIdx === -1) continue;
+      const key = row.substring(0, colIdx).trim().toLowerCase();
+      const val = row.substring(colIdx + 1).trim();
+
+      if (key === 'tags') {
+        const bracketMatch = val.match(/\[(.*)\]/);
+        if (bracketMatch) {
+          meta.tags = bracketMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+        } else {
+          meta.tags = val.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      } else if (key === 'artist') {
+        meta.artist = val;
+      } else if (key === 'rating') {
+        meta.rating = val;
+      } else if (key === 'status') {
+         meta.status = val;
+      } else if (key === 'title') {
+         meta.title = val;
+      } else if (key === 'notes') {
+         meta.notes = val;
+      }
+    }
+  } catch (err) {
+    console.error('YAML frontmatter parsing failed. Using original', err);
+  }
+  return meta;
+}
+
+function scanFolder(currentDir, relativeBoard, vaultPath) {
+  let list = [];
+  if (!fs.existsSync(currentDir)) return list;
+  
+  const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue; // ignore hidden files/folders
+
+    const fullPath = path.join(currentDir, entry.name);
+    if (entry.isDirectory()) {
+      const subBoard = relativeBoard === '/' ? `/${entry.name}` : `${relativeBoard}/${entry.name}`;
+      list = list.concat(scanFolder(fullPath, subBoard, vaultPath));
+    } else if (entry.isFile()) {
+      const ext = path.extname(entry.name).toLowerCase().replace('.', '');
+      const supportedExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp', 'avif', 'tiff', 'jfif', 'heic', 'heif'];
+      if (supportedExtensions.includes(ext)) {
+        // Find companion md
+        const fileNameNoExt = path.basename(entry.name, path.extname(entry.name));
+        const mdPath = path.join(currentDir, `${fileNameNoExt}.md`);
+        
+        let metadata = {
+          tags: ['Local-Sync', 'Imported'],
+          artist: 'Local Computer',
+          rating: '5',
+          status: 'completed',
+          title: fileNameNoExt.replace(/[-_]/g, ' '),
+          notes: 'Natively connected local directory database sync.'
+        };
+
+        if (fs.existsSync(mdPath)) {
+          try {
+            const mdText = fs.readFileSync(mdPath, 'utf-8');
+            metadata = parseYAMLFrontmatterNode(mdText, metadata);
+          } catch (e) {
+            console.error('Error reading/parsing companion md:', e);
+          }
+        }
+
+        // Generate a stable ID based on the relative file path to preserve user ratings/tags/positions!
+        const relativePath = path.join(relativeBoard, entry.name).replace(/\\/g, '/');
+        const id = `electron_ref_${Buffer.from(relativePath).toString('hex')}`;
+
+        const stats = fs.statSync(fullPath);
+        const size = stats.size > 1024 * 1024 
+          ? `${(stats.size / (1024 * 1024)).toFixed(1)} MB` 
+          : `${(stats.size / 1024).toFixed(0)} KB`;
+
+        const colors = ['#0F0F11', '#1A2B3C', '#10B981', '#1E293B', '#111827'];
+
+        // File URL on disk using visual-vault:// scheme
+        const urlSafePath = fullPath.replace(/\\/g, '/');
+        const imageUrl = `visual-vault://${urlSafePath}`;
+
+        list.push({
+          id,
+          name: entry.name,
+          board: relativeBoard,
+          resolution: 'Loading...',
+          size,
+          colors,
+          tags: metadata.tags || [],
+          metadata,
+          imageUrl,
+          lastModified: new Date(stats.mtime).toLocaleString(),
+          vaultPath
+        });
+      }
+    }
+  }
+  return list;
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -14,7 +127,8 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs')
     }
   });
 
@@ -22,7 +136,6 @@ function createWindow() {
   const indexPath = path.join(__dirname, 'dist', 'index.html');
 
   if (isDev) {
-    // In development mode, load directly from the Vite dev server for HMR
     win.loadURL('http://localhost:3000').catch(() => {
       console.warn('Vite dev server not reached on localhost:3000. Trying fallback...');
       if (fs.existsSync(indexPath)) {
@@ -31,10 +144,8 @@ function createWindow() {
         showBuildRequiredPage(win);
       }
     });
-    // Open devtools automatically in dev mode
     win.webContents.openDevTools();
   } else {
-    // In production/normal mode, load compiled static files from dist directory
     if (!fs.existsSync(indexPath)) {
       showBuildRequiredPage(win);
     } else {
@@ -44,7 +155,6 @@ function createWindow() {
     }
   }
 
-  // Key Event delegation to allow F12 or Ctrl+Shift+I (Cmd+Option+I on mac) to toggle Developer Tools
   win.webContents.on('before-input-event', (event, input) => {
     const isControlOrCmd = process.platform === 'darwin' ? input.meta : input.control;
     const isToggleHotkey = (isControlOrCmd && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12';
@@ -55,7 +165,6 @@ function createWindow() {
     }
   });
 
-  // Remove default top menu in windows/mac for a premium app feel
   Menu.setApplicationMenu(null);
   win.removeMenu();
 }
@@ -147,7 +256,23 @@ function showBuildRequiredPage(win) {
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorHtml)}`);
 }
 
+// Setup safe protocol handling
 app.whenReady().then(() => {
+  if (protocol.handle) {
+    protocol.handle('visual-vault', (request) => {
+      const urlPath = request.url.replace('visual-vault://', '');
+      const decodedPath = decodeURIComponent(urlPath);
+      const normalizedPath = path.normalize(decodedPath);
+      return { filePath: normalizedPath };
+    });
+  } else if (protocol.registerFileProtocol) {
+    protocol.registerFileProtocol('visual-vault', (request, callback) => {
+      const urlPath = request.url.replace('visual-vault://', '');
+      const decodedPath = decodeURIComponent(urlPath);
+      callback({ path: path.normalize(decodedPath) });
+    });
+  }
+
   createWindow();
 
   app.on('activate', () => {
@@ -163,3 +288,110 @@ app.on('window-all-closed', () => {
   }
 });
 
+// Native IPC handlers
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory']
+  });
+  if (result.canceled) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle('scan-vault', async (event, vaultPath) => {
+  try {
+    return scanFolder(vaultPath, '/', vaultPath);
+  } catch (err) {
+    console.error('Failed to scan vault natively:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('write-companion-md', async (event, vaultPath, board, assetName, yamlContent) => {
+  try {
+    const boardPath = board === '/' ? '' : board;
+    const fileNameNoExt = assetName.replace(/\.[a-zA-Z0-9]+$/, '');
+    const mdFilePath = path.join(vaultPath, boardPath, `${fileNameNoExt}.md`);
+    
+    fs.mkdirSync(path.dirname(mdFilePath), { recursive: true });
+    fs.writeFileSync(mdFilePath, yamlContent, 'utf-8');
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to write companion MD natively:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('write-file-binary', async (event, vaultPath, board, assetName, arrayBuffer) => {
+  try {
+    const boardPath = board === '/' ? '' : board;
+    const destPath = path.join(vaultPath, boardPath, assetName);
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    fs.writeFileSync(destPath, Buffer.from(arrayBuffer));
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to write binary file natively:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('delete-asset-file', async (event, vaultPath, board, assetName) => {
+  try {
+    const boardPath = board === '/' ? '' : board;
+    const fullImagePath = path.join(vaultPath, boardPath, assetName);
+    const fileNameNoExt = assetName.replace(/\.[a-zA-Z0-9]+$/, '');
+    const fullMDPath = path.join(vaultPath, boardPath, `${fileNameNoExt}.md`);
+
+    if (fs.existsSync(fullImagePath)) {
+      fs.unlinkSync(fullImagePath);
+    }
+    if (fs.existsSync(fullMDPath)) {
+      fs.unlinkSync(fullMDPath);
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to delete asset natively:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('create-board-directory', async (event, vaultPath, boardPath) => {
+  try {
+    const fullDir = path.join(vaultPath, boardPath);
+    fs.mkdirSync(fullDir, { recursive: true });
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to create board directory natively:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('delete-board-directory', async (event, vaultPath, boardPath, keepFiles) => {
+  try {
+    const fullDir = path.join(vaultPath, boardPath);
+    if (!fs.existsSync(fullDir)) return { success: true };
+
+    if (keepFiles) {
+      const files = fs.readdirSync(fullDir);
+      for (const file of files) {
+        const ext = path.extname(file).toLowerCase();
+        const srcPath = path.join(fullDir, file);
+        const destPath = path.join(vaultPath, file);
+        if (fs.existsSync(srcPath) && !fs.statSync(srcPath).isDirectory()) {
+          if (!fs.existsSync(destPath)) {
+            fs.renameSync(srcPath, destPath);
+          } else {
+            const nameNoExt = path.basename(file, ext);
+            const uniqueDest = path.join(vaultPath, `${nameNoExt}_moved_${Date.now()}${ext}`);
+            fs.renameSync(srcPath, uniqueDest);
+          }
+        }
+      }
+    }
+
+    fs.rmSync(fullDir, { recursive: true, force: true });
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to delete board natively:', err);
+    return { success: false, error: err.message };
+  }
+});

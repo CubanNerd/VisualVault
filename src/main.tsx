@@ -783,6 +783,7 @@ class VaultApp extends HTMLElement {
   private mdFileHandles: Map<string, FileSystemHandle> = new Map();
   private schemaConfig: CustomSchemaConfig;
   private needsDirectoryPermission = false;
+  private needsFallbackRelink = false;
   private pendingPermissionVaultPath = '';
   private pendingPermissionVaultName = '';
 
@@ -1883,6 +1884,7 @@ class VaultApp extends HTMLElement {
       this.checkAndRestoreLocalVaults();
     } else {
       this.needsDirectoryPermission = false;
+      this.needsFallbackRelink = false;
       this.directoryHandle = null;
     }
 
@@ -2049,6 +2051,26 @@ class VaultApp extends HTMLElement {
     const fileNameNoExt = asset.name.replace(/\.[a-zA-Z0-9]+$/, '');
     const mdFileName = `${fileNameNoExt}.md`;
     
+    const electronAPI = (window as any).electronAPI;
+    if (electronAPI) {
+      const activePath = storage.getVaultPath();
+      if (activePath) {
+        try {
+          const yamlContent = stringifyYAMLFrontmatter(asset.metadata);
+          const res = await electronAPI.writeCompanionMD(activePath, asset.board, asset.name, yamlContent);
+          if (res && res.success) {
+            this.addLog('success', `Electron API: Wrote real YAML metadata file locally: ${mdFileName}`);
+          } else {
+            throw new Error(res ? res.error : 'Unknown error');
+          }
+        } catch (err: any) {
+          console.error('Failed to write companion .md file natively', err);
+          this.addLog('warn', `Electron API: Failed to write ${mdFileName}. Details: ${err.message}`);
+        }
+      }
+      return;
+    }
+
     try {
       let mdHandle = this.mdFileHandles.get(asset.id) as any;
       if (!mdHandle && this.directoryHandle) {
@@ -2075,6 +2097,11 @@ class VaultApp extends HTMLElement {
    * Leverages the standard HTML webkitdirectory directory input API to let users load physical design folders.
    */
   private handleWebDirectoryFallback() {
+    const electronAPI = (window as any).electronAPI;
+    if (electronAPI) {
+      this.handleWebDirectoryPicker();
+      return;
+    }
     this.addLog('info', 'Web Directory Fallback: Scanning folder using standard file-system input channels.');
     this.toast('Web Fallback Active', 'Opening native system directory selection drawer...');
 
@@ -2223,6 +2250,7 @@ class VaultApp extends HTMLElement {
       storage.saveVaults(vaults);
       storage.setVaultPath(mockPath);
       storage.saveAllAssets(assetsList);
+      this.needsFallbackRelink = false;
 
       this.updateLayout();
       this.populateVaultManager();
@@ -2296,7 +2324,37 @@ class VaultApp extends HTMLElement {
   }
 
   private async checkAndRestoreLocalVaults() {
+    const electronAPI = (window as any).electronAPI;
     const activePath = storage.getVaultPath();
+
+    if (electronAPI) {
+      if (activePath) {
+        this.isSandboxedDirectory = true;
+        this.addLog('info', `Electron API: Automatically restoring physical local vault at: ${activePath}`);
+        try {
+          const assetsList = await electronAPI.scanVault(activePath);
+          this.needsDirectoryPermission = false;
+          this.needsFallbackRelink = false;
+          if (assetsList && assetsList.length > 0) {
+            this.assets = assetsList;
+            storage.saveAllAssets(assetsList);
+            this.loadAssets();
+            this.updateLayout();
+            this.addLog('success', `Electron API: Successfully auto-restored ${assetsList.length} files from local folder without user prompts.`);
+          } else {
+            this.addLog('warn', `Electron API: Vault is empty or could not be scanned at ${activePath}.`);
+          }
+        } catch (e: any) {
+          console.warn('Error natively restoring Electron vault:', e);
+          this.needsFallbackRelink = true;
+          this.pendingPermissionVaultPath = activePath;
+          this.pendingPermissionVaultName = activePath.split(/[/\\]/).pop() || 'Local Vault';
+          this.updateLayout();
+        }
+      }
+      return;
+    }
+
     if (activePath && activePath.startsWith('[web-dir]')) {
       this.isSandboxedDirectory = true;
       this.addLog('info', `Checking for stored folder permission for vault path: ${activePath}`);
@@ -2304,6 +2362,7 @@ class VaultApp extends HTMLElement {
         const handle = await this.loadDirectoryHandleFromIndexedDB(activePath);
         if (handle) {
           this.directoryHandle = handle;
+          this.needsFallbackRelink = false;
           // Check if we already have permission
           const status = await (handle as any).queryPermission({ mode: 'readwrite' });
           if (status === 'granted') {
@@ -2329,13 +2388,26 @@ class VaultApp extends HTMLElement {
             this.updateLayout();
           }
         } else {
-          this.addLog('warn', `No directory handle found in IndexedDB for "${activePath}".`);
+          this.addLog('warn', `No directory handle found in IndexedDB for "${activePath}". Shifting to standard Web Directory Fallback banner...`);
+          this.needsFallbackRelink = true;
+          this.needsDirectoryPermission = false;
+          this.pendingPermissionVaultPath = activePath;
+          const vaultName = activePath.split('/').pop() || 'Linked Folder';
+          this.pendingPermissionVaultName = vaultName;
+          this.updateLayout();
         }
       } catch (e: any) {
         console.warn('Error restoring directory handles from IndexedDB:', e);
+        this.needsFallbackRelink = true;
+        this.needsDirectoryPermission = false;
+        this.pendingPermissionVaultPath = activePath;
+        const vaultName = activePath.split('/').pop() || 'Linked Folder';
+        this.pendingPermissionVaultName = vaultName;
+        this.updateLayout();
       }
     } else {
       this.needsDirectoryPermission = false;
+      this.needsFallbackRelink = false;
     }
   }
 
@@ -2345,6 +2417,73 @@ class VaultApp extends HTMLElement {
    * and loads native previews completely on the client-side.
    */
   private async handleWebDirectoryPicker() {
+    const electronAPI = (window as any).electronAPI;
+
+    if (electronAPI) {
+      try {
+        const physicalPath = await electronAPI.selectDirectory();
+        if (!physicalPath) {
+          this.addLog('info', 'Electron API: Folder selection cancelled by user.');
+          return;
+        }
+
+        const vaultName = physicalPath.split(/[/\\]/).pop() || 'Local Vault';
+        this.addLog('info', `Electron API: Selected physical directory "${vaultName}" at path "${physicalPath}"`);
+        this.toast('Syncing Folder', `Reading entries inside "${vaultName}"...`);
+
+        this.isSandboxedDirectory = true;
+        this.needsDirectoryPermission = false;
+        this.needsFallbackRelink = false;
+
+        const assetsList = await electronAPI.scanVault(physicalPath);
+        if (!assetsList || assetsList.length === 0) {
+          this.toast('Empty Directory', 'No image assets (.png, .jpg, .webp, .svg) discovered.');
+        } else {
+          this.toast('Vault Synced', `Successfully indexed ${assetsList.length} local images!`);
+          this.addLog('success', `Electron API: Successfully indexed ${assetsList.length} files. Obsidian YAML dual-sync active.`);
+        }
+
+        this.assets = assetsList || [];
+        this.selectedBoard = 'ALL';
+        this.selectedAssetId = this.assets.length > 0 ? this.assets[0].id : '';
+
+        // Update Path Text input indicator
+        const pathInput = this.querySelector('#vault-path-input') as HTMLInputElement | null;
+        if (pathInput) pathInput.value = physicalPath;
+
+        let vaults = storage.getVaults();
+        // Remove or handle duplicate paths
+        const exists = vaults.some(v => v.path === physicalPath);
+        if (!exists) {
+          vaults.push({
+            name: `📁 ${vaultName} (Local Connection)`,
+            path: physicalPath,
+            lastOpened: Date.now(),
+            mounted: true
+          });
+        } else {
+          const vault = vaults.find(v => v.path === physicalPath);
+          if (vault) {
+            vault.lastOpened = Date.now();
+            vault.mounted = true;
+          }
+        }
+
+        storage.saveVaults(vaults);
+        storage.setVaultPath(physicalPath);
+        storage.saveAllAssets(this.assets);
+
+        this.updateLayout();
+        this.populateVaultManager();
+        this.toggleVaultManagerModal(false);
+      } catch (err: any) {
+        console.error('Electron directory selection failed:', err);
+        this.addLog('warn', `Electron API error: ${err.message}`);
+        this.toast('Selection Failed', 'Failed to read directory.');
+      }
+      return;
+    }
+
     const showPicker = (window as any).showDirectoryPicker;
     if (!showPicker) {
       this.addLog('info', 'File System Access API is not supported by this browser. Shifting to standard Web Directory Fallback...');
@@ -2413,6 +2552,7 @@ class VaultApp extends HTMLElement {
       storage.saveVaults(vaults);
       storage.setVaultPath(mockPath);
       storage.saveAllAssets(assetsList);
+      this.needsFallbackRelink = false;
 
       this.updateLayout();
       this.populateVaultManager();
@@ -3227,6 +3367,23 @@ class VaultApp extends HTMLElement {
                   </div>
                   <button id="btn-grant-directory-permission" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs rounded transition active:scale-95 cursor-pointer whitespace-nowrap shadow">
                     Grant Permission &amp; Sync
+                  </button>
+                </div>
+              ` : ''}
+
+              ${this.needsFallbackRelink ? `
+                <div class="mb-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-emerald-200 shrink-0">
+                  <div class="flex items-center gap-2.5 text-xs text-left">
+                    <svg class="w-5 h-5 text-emerald-400 shrink-0 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <span class="font-bold">Restore Vault Preview:</span> 
+                      Because this is a secure local connection, you need to re-link your local folder <span class="font-mono bg-black/40 px-1 rounded text-emerald-400">/${this.pendingPermissionVaultName}</span> to load the physical images. All your metadata &amp; ratings are completely safe!
+                    </div>
+                  </div>
+                  <button id="btn-relink-fallback-directory" class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs rounded transition active:scale-95 cursor-pointer whitespace-nowrap shadow">
+                    Re-link Folder &amp; Restore
                   </button>
                 </div>
               ` : ''}
@@ -4999,6 +5156,14 @@ class VaultApp extends HTMLElement {
       });
     }
 
+    // Web directory fallback re-link button
+    const btnRelinkFallback = this.querySelector('#btn-relink-fallback-directory');
+    if (btnRelinkFallback) {
+      btnRelinkFallback.addEventListener('click', () => {
+        this.handleWebDirectoryFallback();
+      });
+    }
+
     // Unloaded Warning panel action button
     const unloadedBtn = this.querySelector('#unloaded-open-vaults-btn');
     if (unloadedBtn) {
@@ -6098,8 +6263,15 @@ class VaultApp extends HTMLElement {
     // Delete asset record click
     const deleteBtn = this.querySelector('#asset-delete-btn');
     if (deleteBtn) {
-      deleteBtn.addEventListener('click', () => {
-        if (confirm(`Remove index companion configuration for '${asset.name}'? Companion .md and cache entries will be unlinked.`)) {
+      deleteBtn.addEventListener('click', async () => {
+        if (confirm(`Remove index companion configuration for '${asset.name}'? Companion .md and physical files will be unlinked and deleted.`)) {
+          const electronAPI = (window as any).electronAPI;
+          if (electronAPI) {
+            const activePath = storage.getVaultPath();
+            if (activePath) {
+              await electronAPI.deleteAssetFile(activePath, asset.board, asset.name);
+            }
+          }
           this.assets = storage.deleteAsset(asset.id);
           this.addLog('warn', `Unlinked database entry and deleted file metadata block: ${asset.name.replace(/\.[a-z]+$/, '.md')}`);
           
@@ -6356,9 +6528,21 @@ class VaultApp extends HTMLElement {
       return;
     }
 
+    const electronAPI = (window as any).electronAPI;
+    const vaultPath = storage.getVaultPath();
+
+    if (electronAPI && vaultPath) {
+      electronAPI.createBoardDirectory(vaultPath, formattedPath).then((res: any) => {
+        if (res && res.success) {
+          this.addLog('success', `Electron API: Created physical directory: ${formattedPath}`);
+        } else {
+          this.addLog('warn', `Electron API: Failed to create physical directory ${formattedPath}`);
+        }
+      });
+    }
+
     // Persist path reference in custom created boards list inside localStorage, scoped specifically to the active vault
     try {
-      const vaultPath = storage.getVaultPath();
       const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
       const customRaw = localStorage.getItem(customKey);
       const list = customRaw ? JSON.parse(customRaw) as string[] : [];
@@ -6397,8 +6581,20 @@ class VaultApp extends HTMLElement {
         `- Click Cancel (No) to delete the ${typeLabel} but keep the files in the vault folder.`
       );
 
-      // 1. Update the custom created boards list for the current vault
       const vaultPath = storage.getVaultPath();
+      const electronAPI = (window as any).electronAPI;
+
+      if (electronAPI && vaultPath) {
+        electronAPI.deleteBoardDirectory(vaultPath, boardName, !deleteFiles).then((res: any) => {
+          if (res && res.success) {
+            this.addLog('success', `Electron API: Deleted physical directory: ${boardName}`);
+          } else {
+            this.addLog('warn', `Electron API: Failed to delete physical directory ${boardName}`);
+          }
+        });
+      }
+
+      // 1. Update the custom created boards list for the current vault
       const customKey = `visual_vault_created_boards_list_${vaultPath.replace(/[^a-zA-Z0-9_]/g, '_')}`;
       const allBoards = this.getUniqueBoards();
       const updatedBoards = allBoards.filter(b => b !== boardName && !b.startsWith(boardName + '/'));
@@ -6418,6 +6614,12 @@ class VaultApp extends HTMLElement {
         this.assets.forEach(a => {
           if (a.board === boardName || a.board.startsWith(boardName + '/')) {
             a.board = '/';
+            // In Electron, we moved physical files in the backend. Let's update frontend urls if they contain board folder
+            if (electronAPI) {
+              const fileName = a.name;
+              const fullNativePath = `${vaultPath}/${fileName}`.replace(/\\/g, '/');
+              a.imageUrl = `visual-vault://${fullNativePath}`;
+            }
             movedCount++;
           }
         });
@@ -6486,7 +6688,39 @@ class VaultApp extends HTMLElement {
         };
 
         // If connected to a real folder, serialize the visual files and companion metadata back to disk in real-time
-        if (this.isSandboxedDirectory && this.directoryHandle) {
+        const electronAPI = (window as any).electronAPI;
+        if (electronAPI) {
+          const activePath = storage.getVaultPath();
+          if (activePath) {
+            try {
+              const arrayBuffer = await file.arrayBuffer();
+              const imgRes = await electronAPI.writeFileBinary(activePath, importedAsset.board, file.name, arrayBuffer);
+              if (imgRes && imgRes.success) {
+                this.addLog('success', `Electron API: Wrote real image binary: ${file.name}`);
+              } else {
+                throw new Error(imgRes ? imgRes.error : 'Binary write failed');
+              }
+
+              const fileNameNoExt = file.name.replace(/\.[a-zA-Z0-9]+$/, '');
+              const mdFileName = `${fileNameNoExt}.md`;
+              const yamlContent = stringifyYAMLFrontmatter(importedAsset.metadata);
+              const mdRes = await electronAPI.writeCompanionMD(activePath, importedAsset.board, file.name, yamlContent);
+              if (mdRes && mdRes.success) {
+                this.addLog('success', `Electron API: Wrote real YAML companion file: ${mdFileName}`);
+              } else {
+                throw new Error(mdRes ? mdRes.error : 'Metadata write failed');
+              }
+
+              // Update URL to use visual-vault:// protocol for permanent native loading
+              const boardPart = importedAsset.board === '/' ? '' : importedAsset.board;
+              const fullNativePath = `${activePath}${boardPart}/${file.name}`.replace(/\\/g, '/');
+              importedAsset.imageUrl = `visual-vault://${fullNativePath}`;
+            } catch (err: any) {
+              console.error('Failed writing file inside native Electron context', err);
+              this.addLog('warn', `Electron API: Failed to commit imported files: ${err.message}`);
+            }
+          }
+        } else if (this.isSandboxedDirectory && this.directoryHandle) {
           try {
             const fileHandle = await this.directoryHandle.getFileHandle(file.name, { create: true });
             const imgWritable = await fileHandle.createWritable();
@@ -6743,8 +6977,15 @@ class VaultApp extends HTMLElement {
     // Delete asset record click from lightbox
     const deleteBtn = this.querySelector('#lb-asset-delete-btn');
     if (deleteBtn) {
-      deleteBtn.addEventListener('click', () => {
-        if (confirm(`Remove index companion configuration for '${asset.name}'? Companion .md and cache entries will be unlinked.`)) {
+      deleteBtn.addEventListener('click', async () => {
+        if (confirm(`Remove index companion configuration for '${asset.name}'? Companion .md and physical files will be unlinked and deleted.`)) {
+          const electronAPI = (window as any).electronAPI;
+          if (electronAPI) {
+            const activePath = storage.getVaultPath();
+            if (activePath) {
+              await electronAPI.deleteAssetFile(activePath, asset.board, asset.name);
+            }
+          }
           this.assets = storage.deleteAsset(asset.id);
           this.addLog('warn', `Unlinked database entry and deleted file metadata block: ${asset.name.replace(/\.[a-z]+$/, '.md')}`);
           
