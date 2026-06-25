@@ -2753,7 +2753,7 @@ class VaultApp extends HTMLElement {
     return this.assets.filter(asset => {
       // Board selection filtering (Support clicking All Assets and parent/root boards matching their subfolder assets)
       if (this.selectedBoard !== 'ALL') {
-        const isMatch = asset.board === this.selectedBoard || asset.board.startsWith(this.selectedBoard + '/');
+        const isMatch = asset.board === this.selectedBoard;
         if (!isMatch) {
           return false;
         }
@@ -2947,7 +2947,7 @@ class VaultApp extends HTMLElement {
               <!-- Performance metadata meter matching elegant dark theme styling -->
               <div class="bg-black/40 rounded p-3 text-[10px] mono text-slate-500 space-y-1.5 vault-rounded">
                 <div class="flex justify-between font-mono">
-                  <span>Tauri DB Indexer</span>
+                  <span>DB Indexer</span>
                   <span id="cpu-val-text" class="text-emerald-500">1.2%</span>
                 </div>
                 <div class="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
