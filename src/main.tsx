@@ -767,9 +767,9 @@ class VaultApp extends HTMLElement {
   private cpuUsage = 1.2;
   private isLightboxOpen = false;
   private activeTheme: 'default' | 'minimalist' | 'matrix' = 'default';
-  private activeAccent = 'emerald';
+  private activeAccent = 'brand';
   private customAccentHex = '';
-  private activeFont = 'inter';
+  private activeFont = 'funnel-display';
   private isSettingsOpen = false;
   private activeSettingsTab: 'vault' | 'general' = 'vault';
   private workspaceMode: 'unified' | 'focused' = 'unified';
@@ -824,9 +824,9 @@ class VaultApp extends HTMLElement {
     };
 
     this.activeTheme = (localStorage.getItem('visual_vault_active_theme') as 'default' | 'minimalist' | 'matrix') || 'default';
-    this.activeAccent = localStorage.getItem('visual_vault_accent_color') || 'emerald';
+    this.activeAccent = localStorage.getItem('visual_vault_accent_color') || 'brand';
     this.customAccentHex = localStorage.getItem('visual_vault_custom_accent_hex') || '';
-    this.activeFont = localStorage.getItem('visual_vault_system_font') || 'inter';
+    this.activeFont = localStorage.getItem('visual_vault_system_font') || 'funnel-display';
     this.addLog('info', 'Indexed local cache successfully.');
     this.addLog('info', `Simulating database: sqlite_sync connected.`);
     this.addLog('info', `UI Theme: ${this.activeTheme.toUpperCase()} style configuration initialized.`);
@@ -909,7 +909,7 @@ class VaultApp extends HTMLElement {
     };
 
     // Determine active accent colour hex
-    let accentHex = '#10B981'; // Emerald default
+    let accentHex = '#6B5AFF'; // Brand default
     if (this.activeAccent === 'purple') accentHex = '#7F6DF2';
     else if (this.activeAccent === 'red') accentHex = '#EF4444';
     else if (this.activeAccent === 'orange') accentHex = '#F97316';
@@ -917,18 +917,29 @@ class VaultApp extends HTMLElement {
     else if (this.activeAccent === 'blue') accentHex = '#2383E2';
     else if (this.activeAccent === 'indigo') accentHex = '#6366F1';
     else if (this.activeAccent === 'pink') accentHex = '#EC4899';
+    else if (this.activeAccent === 'emerald') accentHex = '#10B981';
+    else if (this.activeAccent === 'brand') accentHex = '#6B5AFF';
     else if (this.activeAccent === 'custom' && this.customAccentHex) {
       accentHex = this.customAccentHex;
     }
 
     const accentHoverHex = darkenHexColor(accentHex, 0.15);
-    const accentBg10 = parseHexToRgba(accentHex, 0.10);
-    const accentBg20 = parseHexToRgba(accentHex, 0.20);
     const accentBg05 = parseHexToRgba(accentHex, 0.05);
+    const accentBg10 = parseHexToRgba(accentHex, 0.10);
+    const accentBg15 = parseHexToRgba(accentHex, 0.15);
+    const accentBg20 = parseHexToRgba(accentHex, 0.20);
+    const accentBg25 = parseHexToRgba(accentHex, 0.25);
+    const accentBg30 = parseHexToRgba(accentHex, 0.30);
+    const accentBg35 = parseHexToRgba(accentHex, 0.35);
+    const accentBg40 = parseHexToRgba(accentHex, 0.40);
+    const accentBg50 = parseHexToRgba(accentHex, 0.50);
+    const accentBg60 = parseHexToRgba(accentHex, 0.60);
 
     // Determine active font family
-    let fontFamilyStyle = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    if (this.activeFont === 'space-grotesk') {
+    let fontFamilyStyle = '"Funnel Display", sans-serif';
+    if (this.activeFont === 'inter') {
+      fontFamilyStyle = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    } else if (this.activeFont === 'space-grotesk') {
       fontFamilyStyle = '"Space Grotesk", sans-serif';
     } else if (this.activeFont === 'outfit') {
       fontFamilyStyle = '"Outfit", sans-serif';
@@ -950,15 +961,29 @@ class VaultApp extends HTMLElement {
       fontFamilyStyle = '"Tektur", sans-serif';
     } else if (this.activeFont === 'ibm-plex-mono') {
       fontFamilyStyle = '"IBM Plex Mono", monospace';
+    } else if (this.activeFont === 'funnel-display') {
+      fontFamilyStyle = '"Funnel Display", sans-serif';
     }
 
     const universalVariables = `
       :root, .vault-app-root {
         --accent-primary: ${accentHex} !important;
         --accent-hover: ${accentHoverHex} !important;
-        --accent-bg-10: ${accentBg10} !important;
         --accent-bg-05: ${accentBg05} !important;
+        --accent-bg-10: ${accentBg10} !important;
+        --accent-bg-15: ${accentBg15} !important;
         --accent-bg-20: ${accentBg20} !important;
+        --accent-bg-25: ${accentBg25} !important;
+        --accent-bg-30: ${accentBg30} !important;
+        --accent-bg-35: ${accentBg35} !important;
+        --accent-bg-40: ${accentBg40} !important;
+        --accent-bg-50: ${accentBg50} !important;
+        --accent-bg-60: ${accentBg60} !important;
+        --accent-secondary: #6B5AFF !important;
+        --accent-secondary-hover: #5A49EE !important;
+        --accent-secondary-bg-10: rgba(107, 90, 255, 0.10) !important;
+        --accent-secondary-bg-20: rgba(107, 90, 255, 0.20) !important;
+        --accent-secondary-bg-05: rgba(107, 90, 255, 0.05) !important;
         --app-font-family: ${fontFamilyStyle} !important;
       }
 
@@ -1016,11 +1041,11 @@ class VaultApp extends HTMLElement {
         color: var(--accent-primary) !important;
         opacity: 0.8 !important;
       }
-      .bg-emerald-500, #action-reset, #import-trigger-btn, #empty-state-pick-btn, #modal-board-submit, #load-vault-all {
+      .bg-emerald-500, #import-trigger-btn, #empty-state-pick-btn, #modal-board-submit, #load-vault-all {
         background-color: var(--accent-primary) !important;
         color: #000000 !important;
       }
-      .bg-emerald-500:hover, #action-reset:hover, #import-trigger-btn:hover, #empty-state-pick-btn:hover, #modal-board-submit:hover, #load-vault-all:hover {
+      .bg-emerald-500:hover, #import-trigger-btn:hover, #empty-state-pick-btn:hover, #modal-board-submit:hover, #load-vault-all:hover {
         background-color: var(--accent-hover) !important;
         color: #000000 !important;
       }
@@ -1030,27 +1055,127 @@ class VaultApp extends HTMLElement {
       .hover\\:bg-emerald-400:hover {
         background-color: var(--accent-hover) !important;
       }
-      .bg-emerald-500\\/10 {
-        background-color: var(--accent-bg-10) !important;
-      }
       .bg-emerald-500\\/5 {
         background-color: var(--accent-bg-05) !important;
       }
-      .border-emerald-500\\/20, .hover\\:border-emerald-500\\/20:hover {
-        border-color: var(--accent-bg-20) !important;
+      .bg-emerald-500\\/10 {
+        background-color: var(--accent-bg-10) !important;
       }
-      .border-emerald-500 {
-        border-color: var(--accent-primary) !important;
+      .bg-emerald-500\\/15 {
+        background-color: var(--accent-bg-15) !important;
       }
+      .bg-emerald-500\\/20 {
+        background-color: var(--accent-bg-20) !important;
+      }
+      .bg-emerald-500\\/25 {
+        background-color: var(--accent-bg-25) !important;
+      }
+      .bg-emerald-500\\/30 {
+        background-color: var(--accent-bg-30) !important;
+      }
+      .bg-emerald-500\\/35 {
+        background-color: var(--accent-bg-35) !important;
+      }
+      .bg-emerald-500\\/40 {
+        background-color: var(--accent-bg-40) !important;
+      }
+      .bg-emerald-500\\/50 {
+        background-color: var(--accent-bg-50) !important;
+      }
+      .bg-emerald-500\\/60 {
+        background-color: var(--accent-bg-60) !important;
+      }
+
       .hover\\:bg-emerald-500\\/10:hover {
         background-color: var(--accent-bg-10) !important;
+      }
+      .hover\\:bg-emerald-500\\/15:hover {
+        background-color: var(--accent-bg-15) !important;
       }
       .hover\\:bg-emerald-500\\/20:hover {
         background-color: var(--accent-bg-20) !important;
       }
+      .hover\\:bg-emerald-500\\/35:hover {
+        background-color: var(--accent-bg-35) !important;
+      }
+
+      .border-emerald-500 {
+        border-color: var(--accent-primary) !important;
+      }
+      .border-emerald-500\\/10 {
+        border-color: var(--accent-bg-10) !important;
+      }
+      .border-emerald-500\\/15 {
+        border-color: var(--accent-bg-15) !important;
+      }
+      .border-emerald-500\\/20, .hover\\:border-emerald-500\\/20:hover {
+        border-color: var(--accent-bg-20) !important;
+      }
+      .border-emerald-500\\/25 {
+        border-color: var(--accent-bg-25) !important;
+      }
+      .border-emerald-500\\/30, .hover\\:border-emerald-500\\/30:hover {
+        border-color: var(--accent-bg-30) !important;
+      }
+      .border-emerald-500\\/35 {
+        border-color: var(--accent-bg-35) !important;
+      }
+      .border-emerald-500\\/40 {
+        border-color: var(--accent-bg-40) !important;
+      }
+      .border-emerald-500\\/50 {
+        border-color: var(--accent-bg-50) !important;
+      }
+      .border-emerald-500\\/60 {
+        border-color: var(--accent-bg-60) !important;
+      }
+
       .ring-emerald-500, .ring-2.ring-emerald-500 {
         border-color: var(--accent-primary) !important;
         --tw-ring-color: var(--accent-primary) !important;
+      }
+
+      /* Secondary accent styles for links and buttons using #6B5AFF */
+      .vault-secondary-btn,
+      button.bg-white\\/5,
+      #schema-export-btn,
+      #settings-close-action,
+      #action-obsidian,
+      #lb-action-obsidian,
+      .font-select-btn,
+      #inline-section-cancel,
+      #toggle-sidebar-btn,
+      #action-move-up,
+      #action-move-down {
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      }
+
+      .vault-secondary-btn:hover,
+      button.bg-white\\/5:hover,
+      #schema-export-btn:hover,
+      #settings-close-action:hover,
+      #action-obsidian:hover,
+      #lb-action-obsidian:hover,
+      .font-select-btn:hover,
+      #inline-section-cancel:hover,
+      #toggle-sidebar-btn:hover,
+      #action-move-up:hover,
+      #action-move-down:hover {
+        color: var(--accent-secondary) !important;
+        border-color: var(--accent-secondary-bg-20) !important;
+        background-color: var(--accent-secondary-bg-10) !important;
+      }
+
+      /* Hover states for secondary clickable links, folder names, directory links */
+      .group:hover .group-hover\\:text-emerald-400,
+      .hover\\:text-emerald-400:hover,
+      .hover\\:text-emerald-300:hover,
+      .hover\\:text-emerald-500:hover,
+      #add-tag-btn:hover,
+      #lb-add-tag-btn:hover,
+      a:hover,
+      .vault-link:hover {
+        color: var(--accent-secondary) !important;
       }
     `;
 
@@ -1250,12 +1375,8 @@ class VaultApp extends HTMLElement {
           color: #9A9996 !important;
         }
         #action-reset {
-          background-color: var(--accent-primary) !important;
-          color: #FFFFFF !important;
+          background-color: transparent !important;
           border-radius: 4px !important;
-        }
-        #action-reset svg {
-          stroke: #FFFFFF !important;
         }
         /* Dialog overrides */
         #settings-backdrop, #lightbox-backdrop, #board-create-backdrop, #vault-manager-backdrop {
@@ -2793,9 +2914,10 @@ class VaultApp extends HTMLElement {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <div class="w-6 h-6 bg-emerald-500 rounded flex items-center justify-center cursor-pointer hover:bg-emerald-400 transition" id="action-reset">
-                <svg class="w-4 h-4 text-black font-semibold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+              <div class="w-6 h-6 rounded flex items-center justify-center cursor-pointer hover:opacity-80 transition select-none" id="action-reset" title="VisualVault logo (click to reset filters)">
+                <svg width="24" height="24" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 rounded">
+                  <path fill-rule="evenodd" clip-rule="evenodd" d="M921.62 102.4C1058.13 238.93 1058.13 785.065 921.62 921.604C785.112 1058.13 238.985 1058.13 102.38 921.604C-34.1268 785.065 -34.1268 238.93 102.38 102.4C238.985 -34.1332 785.112 -34.1332 921.62 102.4Z" fill="var(--accent-primary)"/>
+                  <path fill-rule="evenodd" clip-rule="evenodd" d="M368.821 441.361C359.606 432.144 347.107 426.965 334.068 426.965H245.979C232.954 426.965 220.455 421.787 211.226 412.57C202.011 403.354 196.843 390.852 196.843 377.818V291.833C196.843 278.799 202.011 266.298 211.226 257.081C220.455 247.863 232.954 242.686 245.979 242.686H335.328C347.62 242.686 359.453 247.286 368.516 255.58L478.845 356.563C497.621 373.754 526.429 373.754 545.205 356.563L655.534 255.58C664.583 247.286 676.43 242.686 688.707 242.686H778.057C791.096 242.686 803.595 247.863 812.81 257.081C822.025 266.298 827.207 278.799 827.207 291.833V377.818C827.207 390.852 822.025 403.354 812.81 412.57C803.595 421.787 791.096 426.965 778.057 426.965H689.968C676.943 426.965 664.43 432.144 655.215 441.361L546.771 549.807C537.556 559.024 525.057 564.202 512.018 564.202C498.992 564.202 486.494 559.024 477.265 549.807L368.821 441.361ZM368.821 756.478C359.606 747.263 347.107 742.08 334.068 742.08H245.979C232.954 742.08 220.455 736.898 211.226 727.683C202.011 718.468 196.843 705.969 196.843 692.929V606.95C196.843 593.916 202.011 581.414 211.226 572.198C220.455 562.98 232.954 557.803 245.979 557.803H335.328C347.62 557.803 359.453 562.402 368.516 570.697L478.845 671.686C497.621 688.869 526.429 688.869 545.205 671.686L655.534 570.697C664.583 562.402 676.43 557.803 688.707 557.803H778.057C791.096 557.803 803.595 562.98 812.81 572.198C822.025 581.414 827.207 593.916 827.207 606.95V692.929C827.207 705.969 822.025 718.468 812.81 727.683C803.595 736.898 791.096 742.08 778.057 742.08H689.968C676.943 742.08 664.43 747.263 655.215 756.478L546.771 864.924C537.556 874.139 525.057 879.321 512.018 879.321C498.992 879.321 486.494 874.139 477.265 864.924L368.821 756.478ZM425.371 182.788C415.893 173.315 413.066 159.068 418.193 146.691C423.32 134.314 435.389 126.244 448.789 126.244H575.261C588.647 126.244 600.73 134.314 605.857 146.691C610.984 159.068 608.143 173.315 598.679 182.788L546.771 234.689C537.556 243.907 525.057 249.086 512.018 249.086C498.992 249.086 486.494 243.907 477.265 234.689L425.371 182.788Z" fill="#D5D5D5"/>
                 </svg>
               </div>
               <span class="font-semibold text-white tracking-tight cursor-default">VisualVault</span>
@@ -2845,14 +2967,14 @@ class VaultApp extends HTMLElement {
               <!-- Workspace Perspective Mode -->
               <div class="space-y-2 pb-3 border-b border-white/5">
                 <div class="flex items-center justify-between">
-                  <h3 class="text-[10px] uppercase tracking-widest text-[#10B981] font-extrabold cursor-default font-mono">Workspace View Mode</h3>
+                  <h3 class="text-[10px] uppercase tracking-widest text-emerald-400 font-extrabold cursor-default font-mono">Workspace View Mode</h3>
                   <span class="text-[9px] px-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-bold font-mono">CORE</span>
                 </div>
                 <div class="grid grid-cols-2 gap-1 bg-black/40 p-0.5 rounded border border-white/5 vault-rounded">
-                  <button id="view-mode-focused" class="py-1 px-1 rounded text-[10px] text-center font-bold font-mono cursor-pointer transition select-none ${this.workspaceMode === 'focused' ? 'bg-[#10B981] text-black shadow-lg font-extrabold' : 'text-slate-400 hover:text-white hover:bg-white/5 font-semibold'}" title="Focused Solitude (Profile 2): Only loads active project assets. Simple and distraction-free workspace.">
+                  <button id="view-mode-focused" class="py-1 px-1 rounded text-[10px] text-center font-bold font-mono cursor-pointer transition select-none ${this.workspaceMode === 'focused' ? 'bg-emerald-500 text-black shadow-lg font-extrabold' : 'text-slate-400 hover:text-white hover:bg-white/5 font-semibold'}" title="Focused Solitude (Profile 2): Only loads active project assets. Simple and distraction-free workspace.">
                     Focused
                   </button>
-                  <button id="view-mode-unified" class="py-1 px-1 rounded text-[10px] text-center font-bold font-mono cursor-pointer transition select-none ${this.workspaceMode === 'unified' ? 'bg-[#10B981] text-black shadow-lg font-extrabold' : 'text-slate-400 hover:text-white hover:bg-white/5 font-semibold'}" title="Unified Arena (Profile 1): Combines all directories collectively. Browse and filter everything together.">
+                  <button id="view-mode-unified" class="py-1 px-1 rounded text-[10px] text-center font-bold font-mono cursor-pointer transition select-none ${this.workspaceMode === 'unified' ? 'bg-emerald-500 text-black shadow-lg font-extrabold' : 'text-slate-400 hover:text-white hover:bg-white/5 font-semibold'}" title="Unified Arena (Profile 1): Combines all directories collectively. Browse and filter everything together.">
                     Unified
                   </button>
                 </div>
@@ -3238,7 +3360,7 @@ class VaultApp extends HTMLElement {
             <!-- Left Column: Vault List -->
             <div class="w-full md:w-3/5 p-6 border-r border-white/[0.04] flex flex-col overflow-y-auto custom-scrollbar">
               <div class="flex items-center justify-between mb-4">
-                <span class="text-[10px] uppercase tracking-widest text-[#10B981] font-bold font-mono">My Registered Vaults</span>
+                <span class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold font-mono">My Registered Vaults</span>
                 <span class="text-[10px] text-slate-500 font-mono" id="vault-manager-count-label">4 vaults found</span>
               </div>
               
@@ -3427,7 +3549,7 @@ class VaultApp extends HTMLElement {
               <!-- Activity Log Section -->
               <div class="space-y-3 pt-6 border-t border-white/[0.04]">
                 <div class="flex items-center justify-between">
-                  <label class="text-[10px] uppercase tracking-widest text-[#10B981] font-bold cursor-default font-mono">Activity Log</label>
+                  <label class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold cursor-default font-mono">Activity Log</label>
                   <div class="flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span class="text-[8px] text-emerald-400 uppercase font-mono tracking-wider font-bold">Monitor</span>
@@ -3479,6 +3601,12 @@ class VaultApp extends HTMLElement {
                 <p class="text-xs text-slate-500 leading-relaxed font-sans">Pick an interface accent color for folders, active buttons, ratings, and highlights.</p>
                 
                 <div class="flex flex-wrap gap-2 pt-1" id="accent-colors-container">
+                  <!-- Color pill 0: Brand Royal -->
+                  <button data-accent="brand" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#6B5AFF] flex shrink-0"></span>
+                    <span>Brand Royal</span>
+                  </button>
+
                   <!-- Color pill 1: Emerald -->
                   <button data-accent="emerald" class="accent-select-btn relative flex items-center gap-1.5 p-2 px-3 rounded-md border border-white/5 hover:border-white/10 text-xs text-slate-300 cursor-pointer font-semibold bg-black/30 transition">
                     <span class="w-3.5 h-3.5 rounded-full bg-[#10B981] flex shrink-0"></span>
@@ -3554,6 +3682,10 @@ class VaultApp extends HTMLElement {
                   <div class="space-y-1.5 col-span-2">
                     <span class="text-[9px] uppercase tracking-widest text-slate-600 font-bold font-mono">Google Web Fonts</span>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <button data-font="funnel-display" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 flex flex-col transition" style="font-family: 'Funnel Display', sans-serif">
+                        <span class="font-bold text-white font-sans">Funnel Display</span>
+                        <span class="text-[9px] opacity-60">Modern & Expressive Display</span>
+                      </button>
                       <button data-font="inter" class="font-select-btn p-2 px-3 rounded border text-left text-xs bg-black/30 border-white/5 text-slate-300 cursor-pointer hover:border-white/10 font-sans flex flex-col transition" style="font-family: 'Inter', sans-serif">
                         <span class="font-bold text-white">Inter Sans</span>
                         <span class="text-[9px] opacity-60">Classic Swiss/UI Sans</span>
@@ -5307,7 +5439,8 @@ class VaultApp extends HTMLElement {
         localStorage.setItem('visual_vault_accent_color', accent);
         
         let label = accent;
-        if (accent === 'purple') label = 'Obsidian Purple';
+        if (accent === 'brand') label = 'Brand Royal';
+        else if (accent === 'purple') label = 'Obsidian Purple';
         else if (accent === 'blue') label = 'Notion Blue';
         else if (accent === 'red') label = 'Ruby Red';
         else if (accent === 'orange') label = 'Orange';

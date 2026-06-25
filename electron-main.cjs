@@ -10,6 +10,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: '#0A0A0B',
     title: 'VisualVault — Obsidian Local-First Catalog',
+    icon: path.join(__dirname, 'public', 'icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
