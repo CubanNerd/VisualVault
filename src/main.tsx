@@ -782,6 +782,9 @@ class VaultApp extends HTMLElement {
   private fileHandles: Map<string, FileSystemHandle> = new Map();
   private mdFileHandles: Map<string, FileSystemHandle> = new Map();
   private schemaConfig: CustomSchemaConfig;
+  private needsDirectoryPermission = false;
+  private pendingPermissionVaultPath = '';
+  private pendingPermissionVaultName = '';
 
   // Background image metadata and color extraction throttled queue
   private extractionQueue: { id: string; file: File; imageUrl: string; listContext?: Asset[] }[] = [];
@@ -849,6 +852,9 @@ class VaultApp extends HTMLElement {
     
     // Setup Spacebar Hotkey Listener
     window.addEventListener('keydown', this.handleGlobalKeys);
+
+    // Check and restore browser sandbox folder connections on startup/reload
+    this.checkAndRestoreLocalVaults();
   }
 
   disconnectedCallback() {
@@ -1873,6 +1879,13 @@ class VaultApp extends HTMLElement {
     // 4. Mount database collections specifically isolated for this vault to prevent data bleeding
     this.loadAssets();
 
+    if (this.isSandboxedDirectory) {
+      this.checkAndRestoreLocalVaults();
+    } else {
+      this.needsDirectoryPermission = false;
+      this.directoryHandle = null;
+    }
+
     // 5. Instantly clear selected filter options to prevent mismatching indices
     this.selectedBoard = 'ALL';
     this.selectedAssetId = this.assets.length > 0 ? this.assets[0].id : '';
@@ -2219,6 +2232,113 @@ class VaultApp extends HTMLElement {
     input.click();
   }
 
+  private async saveDirectoryHandleToIndexedDB(path: string, handle: FileSystemDirectoryHandle) {
+    return new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("VisualVaultDB", 1);
+      request.onupgradeneeded = (e: any) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains("handles")) {
+          db.createObjectStore("handles");
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("handles")) {
+          db.close();
+          resolve();
+          return;
+        }
+        const tx = db.transaction("handles", "readwrite");
+        const store = tx.objectStore("handles");
+        store.put(handle, path);
+        tx.oncomplete = () => {
+          resolve();
+        };
+        tx.onerror = (err) => {
+          reject(err);
+        };
+      };
+      request.onerror = (err) => reject(err);
+    });
+  }
+
+  private async loadDirectoryHandleFromIndexedDB(path: string): Promise<FileSystemDirectoryHandle | null> {
+    return new Promise<FileSystemDirectoryHandle | null>((resolve, reject) => {
+      const request = indexedDB.open("VisualVaultDB", 1);
+      request.onupgradeneeded = (e: any) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains("handles")) {
+          db.createObjectStore("handles");
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("handles")) {
+          resolve(null);
+          return;
+        }
+        try {
+          const tx = db.transaction("handles", "readonly");
+          const store = tx.objectStore("handles");
+          const getReq = store.get(path);
+          getReq.onsuccess = () => {
+            resolve(getReq.result || null);
+          };
+          getReq.onerror = () => {
+            resolve(null);
+          };
+        } catch (e) {
+          resolve(null);
+        }
+      };
+      request.onerror = () => resolve(null);
+    });
+  }
+
+  private async checkAndRestoreLocalVaults() {
+    const activePath = storage.getVaultPath();
+    if (activePath && activePath.startsWith('[web-dir]')) {
+      this.isSandboxedDirectory = true;
+      this.addLog('info', `Checking for stored folder permission for vault path: ${activePath}`);
+      try {
+        const handle = await this.loadDirectoryHandleFromIndexedDB(activePath);
+        if (handle) {
+          this.directoryHandle = handle;
+          // Check if we already have permission
+          const status = await (handle as any).queryPermission({ mode: 'readwrite' });
+          if (status === 'granted') {
+            this.addLog('info', `Folder permissions already granted for "${handle.name}". Re-syncing...`);
+            this.needsDirectoryPermission = false;
+            this.fileHandles.clear();
+            this.mdFileHandles.clear();
+            const assetsList: Asset[] = [];
+            await this.traverseDirectoryHandle(handle, '', assetsList);
+            if (assetsList.length > 0) {
+              this.assets = assetsList;
+              storage.saveAllAssets(assetsList);
+              this.loadAssets();
+              this.updateLayout();
+              this.addLog('success', `Sandbox API: Auto-restored ${assetsList.length} files from linked folder.`);
+            }
+          } else {
+            // Permission needed! Set state flags so UI displays the permission banner
+            this.needsDirectoryPermission = true;
+            this.pendingPermissionVaultPath = activePath;
+            this.pendingPermissionVaultName = handle.name;
+            this.addLog('warn', `Linked folder "${handle.name}" is locked. Please grant permission in the top banner.`);
+            this.updateLayout();
+          }
+        } else {
+          this.addLog('warn', `No directory handle found in IndexedDB for "${activePath}".`);
+        }
+      } catch (e: any) {
+        console.warn('Error restoring directory handles from IndexedDB:', e);
+      }
+    } else {
+      this.needsDirectoryPermission = false;
+    }
+  }
+
   /**
    * Prompts the user to authorize and connect a local computer directory using the File System Access API.
    * Scans contents recursively, discovers subfolders as design boards, binds markdown YAML observers,
@@ -2263,6 +2383,12 @@ class VaultApp extends HTMLElement {
 
       // Persist path reference inside vaults registry list
       const mockPath = `[web-dir]/${handle.name}`;
+
+      // Save directory handle to IndexedDB for seamless reload
+      this.saveDirectoryHandleToIndexedDB(mockPath, handle).catch(err => {
+        console.warn('Failed to save directory handle to IndexedDB:', err);
+      });
+
       let vaults = storage.getVaults();
       
       // Ensure the newly connected directory is marked as mounted/loaded; preserve other mounted vaults!
@@ -3087,6 +3213,23 @@ class VaultApp extends HTMLElement {
           <section class="vault-main-content flex-grow bg-[#070708] p-6 overflow-y-auto custom-scrollbar flex flex-col justify-start">
             
             <div id="vault-active-workspace-panel" class="flex flex-col flex-grow">
+              
+              ${this.needsDirectoryPermission ? `
+                <div class="mb-4 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-200 shrink-0">
+                  <div class="flex items-center gap-2.5 text-xs text-left">
+                    <svg class="w-5 h-5 text-amber-400 shrink-0 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                      <span class="font-bold">Folder Access Required:</span> 
+                      The directory <span class="font-mono bg-black/40 px-1 rounded text-amber-400">/${this.pendingPermissionVaultName}</span> is locked due to an app reload. Allow permission to automatically restore full image sync.
+                    </div>
+                  </div>
+                  <button id="btn-grant-directory-permission" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs rounded transition active:scale-95 cursor-pointer whitespace-nowrap shadow">
+                    Grant Permission &amp; Sync
+                  </button>
+                </div>
+              ` : ''}
               <div class="flex items-center justify-between mb-6 shrink-0 border-b border-white/[0.04] pb-4">
                 <div class="space-y-1 text-left">
                   <div class="flex items-center gap-2">
@@ -4820,6 +4963,42 @@ class VaultApp extends HTMLElement {
   // Interactions & Events Binding
   // ----------------------------------------------------
   private attachEventListeners() {
+    // Directory Permission Banner button
+    const btnGrantPermission = this.querySelector('#btn-grant-directory-permission');
+    if (btnGrantPermission) {
+      btnGrantPermission.addEventListener('click', async () => {
+        if (this.directoryHandle) {
+          try {
+            const opts = { mode: 'readwrite' };
+            const permission = await (this.directoryHandle as any).requestPermission(opts);
+            if (permission === 'granted') {
+              this.needsDirectoryPermission = false;
+              this.toast('Permission Granted', 'Re-synchronizing images from your linked folder...');
+              
+              this.fileHandles.clear();
+              this.mdFileHandles.clear();
+              const assetsList: Asset[] = [];
+              await this.traverseDirectoryHandle(this.directoryHandle, '', assetsList);
+              
+              if (assetsList.length > 0) {
+                this.assets = assetsList;
+                storage.saveAllAssets(assetsList);
+                this.loadAssets();
+                this.addLog('success', `Sandbox API: Successfully loaded and synced ${assetsList.length} files from linked folder.`);
+              }
+              this.updateLayout();
+            } else {
+              this.toast('Permission Denied', 'Access remains restricted.');
+            }
+          } catch (e: any) {
+            console.error(e);
+            this.addLog('warn', `Failed to request directory permissions: ${e.message}`);
+            this.toast('Sync Failed', 'Failed to restore folder link.');
+          }
+        }
+      });
+    }
+
     // Unloaded Warning panel action button
     const unloadedBtn = this.querySelector('#unloaded-open-vaults-btn');
     if (unloadedBtn) {
