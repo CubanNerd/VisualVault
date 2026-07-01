@@ -1847,7 +1847,7 @@ class VaultApp extends HTMLElement {
       }
     }
 
-    this.isSandboxedDirectory = newPath.startsWith('[web-dir]');
+    this.isSandboxedDirectory = newPath.startsWith('[web-dir]') || !!(window as any).electronAPI;
 
     // 1. Fetch current vaults index history
     let vaults = storage.getVaults();
@@ -2335,20 +2335,26 @@ class VaultApp extends HTMLElement {
           const assetsList = await electronAPI.scanVault(activePath);
           this.needsDirectoryPermission = false;
           this.needsFallbackRelink = false;
-          if (assetsList && assetsList.length > 0) {
+          if (assetsList) {
             this.assets = assetsList;
             storage.saveAllAssets(assetsList);
             this.loadAssets();
+            this.renderShell();
+            this.attachEventListeners();
             this.updateLayout();
-            this.addLog('success', `Electron API: Successfully auto-restored ${assetsList.length} files from local folder without user prompts.`);
-          } else {
-            this.addLog('warn', `Electron API: Vault is empty or could not be scanned at ${activePath}.`);
+            if (assetsList.length > 0) {
+              this.addLog('success', `Electron API: Successfully auto-restored ${assetsList.length} files from local folder without user prompts.`);
+            } else {
+              this.addLog('info', `Electron API: Connected to empty vault folder: ${activePath}`);
+            }
           }
         } catch (e: any) {
           console.warn('Error natively restoring Electron vault:', e);
           this.needsFallbackRelink = true;
           this.pendingPermissionVaultPath = activePath;
           this.pendingPermissionVaultName = activePath.split(/[/\\]/).pop() || 'Local Vault';
+          this.renderShell();
+          this.attachEventListeners();
           this.updateLayout();
         }
       }
@@ -2376,16 +2382,27 @@ class VaultApp extends HTMLElement {
               this.assets = assetsList;
               storage.saveAllAssets(assetsList);
               this.loadAssets();
+              this.renderShell();
+              this.attachEventListeners();
               this.updateLayout();
               this.addLog('success', `Sandbox API: Auto-restored ${assetsList.length} files from linked folder.`);
+            } else {
+              this.renderShell();
+              this.attachEventListeners();
+              this.updateLayout();
             }
           } else {
             // Permission needed! Set state flags so UI displays the permission banner
             this.needsDirectoryPermission = true;
             this.pendingPermissionVaultPath = activePath;
             this.pendingPermissionVaultName = handle.name;
-            this.addLog('warn', `Linked folder "${handle.name}" is locked. Please grant permission in the top banner.`);
+            // Clear expired blob assets to avoid broken images showing in UI before permission is granted
+            this.assets = [];
+            this.loadAssets();
+            this.renderShell();
+            this.attachEventListeners();
             this.updateLayout();
+            this.addLog('warn', `Linked folder "${handle.name}" is locked. Please grant permission in the top banner.`);
           }
         } else {
           this.addLog('warn', `No directory handle found in IndexedDB for "${activePath}". Shifting to standard Web Directory Fallback banner...`);
@@ -2394,6 +2411,8 @@ class VaultApp extends HTMLElement {
           this.pendingPermissionVaultPath = activePath;
           const vaultName = activePath.split('/').pop() || 'Linked Folder';
           this.pendingPermissionVaultName = vaultName;
+          this.renderShell();
+          this.attachEventListeners();
           this.updateLayout();
         }
       } catch (e: any) {
@@ -2403,6 +2422,8 @@ class VaultApp extends HTMLElement {
         this.pendingPermissionVaultPath = activePath;
         const vaultName = activePath.split('/').pop() || 'Linked Folder';
         this.pendingPermissionVaultName = vaultName;
+        this.renderShell();
+        this.attachEventListeners();
         this.updateLayout();
       }
     } else {
@@ -2983,6 +3004,7 @@ class VaultApp extends HTMLElement {
   }
 
   private hasMountedVault(): boolean {
+    if (storage.getVaultPath()) return true;
     const vaults = storage.getVaults();
     return vaults.some(v => v.mounted !== false);
   }
@@ -3011,6 +3033,21 @@ class VaultApp extends HTMLElement {
 
   private isAssetAllowed(asset: Asset): boolean {
     const assetVaultPath = asset.vaultPath || storage.getVaultPath();
+    const activePath = storage.getVaultPath();
+
+    // The currently active vault's assets are always allowed
+    if (assetVaultPath === activePath) {
+      return true;
+    }
+
+    // Default mock vaults are allowed if they are the active vault
+    if (assetVaultPath === '/Users/design/Desktop/Ref_Library' ||
+        assetVaultPath === '/Users/design/Desktop/Neo_Tokyo' ||
+        assetVaultPath === '/Users/projects/Cyberpunk_Grid' ||
+        assetVaultPath === '/Users/blueprints/Mech_Grid') {
+      return assetVaultPath === activePath;
+    }
+
     const vaults = storage.getVaults();
     const v = vaults.find(va => va.path === assetVaultPath);
     if (!v) {
@@ -4384,6 +4421,14 @@ class VaultApp extends HTMLElement {
         card.classList.remove('bg-emerald-500/10', 'border-emerald-500/40', 'scale-[1.02]');
         
         const secBoard = (card as HTMLElement).dataset.sectionBoard || '';
+        
+        // Support dropping external files from OS directly into this board/section card
+        const files = Array.from(e.dataTransfer?.files || []) as File[];
+        if (files.length > 0) {
+          this.handleImportedFiles(files, secBoard);
+          return;
+        }
+
         const assetId = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text');
         
         if (assetId && secBoard) {
@@ -5373,6 +5418,14 @@ class VaultApp extends HTMLElement {
         const link = e.target.closest('.board-link') as HTMLElement;
         if (link) {
           const boardName = link.dataset.board || '';
+          
+          // Support dropping external files from OS directly onto this sidebar board link
+          const files = Array.from(e.dataTransfer?.files || []) as File[];
+          if (files.length > 0) {
+            this.handleImportedFiles(files, boardName);
+            return;
+          }
+
           const assetId = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text');
           
           if (assetId && boardName) {
@@ -6641,14 +6694,19 @@ class VaultApp extends HTMLElement {
    * Complex files import: Handles multi-file select natively within sandbox.
    * Utilizes offscreen context mapping to read real resolution and extract 5 color arrays.
    */
-  private handleImportedFiles(files: File[]) {
+  private handleImportedFiles(files: File[], targetBoard?: string) {
     this.addLog('info', `Synchronous walkdir background scanner: Triage queue size = ${files.length} items.`);
     
     let processed = 0;
+    const importBoard = targetBoard || (this.selectedBoard === 'ALL' ? '/ Environment_Ref/Neo_Tokyo' : this.selectedBoard);
     
     files.forEach(file => {
-      // Validate is image file
-      if (!file.type.startsWith('image/')) {
+      // Validate is image file (either by MIME type or file extension fallback)
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const isImage = file.type.startsWith('image/') || 
+                      ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp', 'avif', 'tiff', 'jfif', 'heic', 'heif'].includes(ext);
+      
+      if (!isImage) {
         this.addLog('warn', `Triage exception: skipped index '${file.name}', unrecognized file signature.`);
         processed++;
         return;
@@ -6670,14 +6728,14 @@ class VaultApp extends HTMLElement {
         const importedAsset: Asset = {
           id: `as_user_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
           name: file.name,
-          board: this.selectedBoard === 'ALL' ? '/ Environment_Ref/Neo_Tokyo' : this.selectedBoard,
+          board: importBoard,
           resolution,
           size: approxSize,
           colors: palette,
           tags: ['User-Import', 'Raw-Reference'],
           metadata: {
             tags: ['import', 'reference', 'raw-data'],
-            artist: storage.getVaultPath().split('/').pop() || 'Workspace',
+            artist: storage.getVaultPath().split(/[/\\]/).pop() || 'Workspace',
             rating: '4',
             status: 'completed',
             title: file.name.replace(/\.[a-zA-Z0-9]+$/, '').replace(/[-_]/g, ' '),
@@ -6693,8 +6751,14 @@ class VaultApp extends HTMLElement {
           const activePath = storage.getVaultPath();
           if (activePath) {
             try {
-              const arrayBuffer = await file.arrayBuffer();
-              const imgRes = await electronAPI.writeFileBinary(activePath, importedAsset.board, file.name, arrayBuffer);
+              let fileData: any;
+              if ((file as any).path) {
+                fileData = (file as any).path;
+              } else {
+                const arrayBuffer = await file.arrayBuffer();
+                fileData = new Uint8Array(arrayBuffer);
+              }
+              const imgRes = await electronAPI.writeFileBinary(activePath, importedAsset.board, file.name, fileData);
               if (imgRes && imgRes.success) {
                 this.addLog('success', `Electron API: Wrote real image binary: ${file.name}`);
               } else {

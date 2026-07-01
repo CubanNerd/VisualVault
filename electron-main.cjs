@@ -1,10 +1,11 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog, protocol } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 // Register the custom protocol 'visual-vault'
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'visual-vault', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true } }
+  { scheme: 'visual-vault', privileges: { standard: true, bypassCSP: true, secure: true, supportFetchAPI: true } }
 ]);
 
 function parseYAMLFrontmatterNode(yaml, originalMeta) {
@@ -260,14 +261,22 @@ function showBuildRequiredPage(win) {
 app.whenReady().then(() => {
   if (protocol.handle) {
     protocol.handle('visual-vault', (request) => {
-      const urlPath = request.url.replace('visual-vault://', '');
+      let urlPath = request.url.replace(/^visual-vault:\/\//i, '');
+      if (process.platform === 'win32' && urlPath.startsWith('/')) {
+        urlPath = urlPath.slice(1);
+      }
       const decodedPath = decodeURIComponent(urlPath);
       const normalizedPath = path.normalize(decodedPath);
-      return { filePath: normalizedPath };
+      // Safely construct file URI encoding spaces and special characters
+      const fileUri = pathToFileURL(normalizedPath).toString();
+      return net.fetch(fileUri);
     });
   } else if (protocol.registerFileProtocol) {
     protocol.registerFileProtocol('visual-vault', (request, callback) => {
-      const urlPath = request.url.replace('visual-vault://', '');
+      let urlPath = request.url.replace(/^visual-vault:\/\//i, '');
+      if (process.platform === 'win32' && urlPath.startsWith('/')) {
+        urlPath = urlPath.slice(1);
+      }
       const decodedPath = decodeURIComponent(urlPath);
       callback({ path: path.normalize(decodedPath) });
     });
@@ -321,12 +330,17 @@ ipcMain.handle('write-companion-md', async (event, vaultPath, board, assetName, 
   }
 });
 
-ipcMain.handle('write-file-binary', async (event, vaultPath, board, assetName, arrayBuffer) => {
+ipcMain.handle('write-file-binary', async (event, vaultPath, board, assetName, fileData) => {
   try {
     const boardPath = board === '/' ? '' : board;
     const destPath = path.join(vaultPath, boardPath, assetName);
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
-    fs.writeFileSync(destPath, Buffer.from(arrayBuffer));
+    
+    if (typeof fileData === 'string') {
+      fs.copyFileSync(fileData, destPath);
+    } else {
+      fs.writeFileSync(destPath, Buffer.from(fileData));
+    }
     return { success: true };
   } catch (err) {
     console.error('Failed to write binary file natively:', err);
