@@ -2338,7 +2338,7 @@ class VaultApp extends HTMLElement {
           if (assetsList) {
             this.assets = assetsList;
             storage.saveAllAssets(assetsList);
-            this.loadAssets();
+            this.loadAssets(assetsList);
             this.renderShell();
             this.attachEventListeners();
             this.updateLayout();
@@ -2381,7 +2381,7 @@ class VaultApp extends HTMLElement {
             if (assetsList.length > 0) {
               this.assets = assetsList;
               storage.saveAllAssets(assetsList);
-              this.loadAssets();
+              this.loadAssets(assetsList);
               this.renderShell();
               this.attachEventListeners();
               this.updateLayout();
@@ -2398,7 +2398,7 @@ class VaultApp extends HTMLElement {
             this.pendingPermissionVaultName = handle.name;
             // Clear expired blob assets to avoid broken images showing in UI before permission is granted
             this.assets = [];
-            this.loadAssets();
+            this.loadAssets([]);
             this.renderShell();
             this.attachEventListeners();
             this.updateLayout();
@@ -3062,7 +3062,7 @@ class VaultApp extends HTMLElement {
     return true;
   }
 
-  private loadAssets() {
+  private loadAssets(activeAssetsOverride?: Asset[]) {
     this.extractionQueue = [];
     this.activeExtractions = 0;
     let rawAssets: Asset[] = [];
@@ -3072,7 +3072,7 @@ class VaultApp extends HTMLElement {
       const seenIds = new Set<string>();
 
       const activePath = storage.getVaultPath();
-      const activeAssets = storage.getAllAssets();
+      const activeAssets = activeAssetsOverride || storage.getAllAssets();
       activeAssets.forEach(a => {
         if (!seenIds.has(a.id)) {
           a.vaultPath = a.vaultPath || activePath;
@@ -3106,7 +3106,7 @@ class VaultApp extends HTMLElement {
       });
       rawAssets = combined;
     } else {
-      rawAssets = storage.getAllAssets();
+      rawAssets = activeAssetsOverride || storage.getAllAssets();
     }
 
     // Filter loaded assets strictly according to the mounted/loaded vaults
@@ -5185,7 +5185,7 @@ class VaultApp extends HTMLElement {
               if (assetsList.length > 0) {
                 this.assets = assetsList;
                 storage.saveAllAssets(assetsList);
-                this.loadAssets();
+                this.loadAssets(assetsList);
                 this.addLog('success', `Sandbox API: Successfully loaded and synced ${assetsList.length} files from linked folder.`);
               }
               this.updateLayout();

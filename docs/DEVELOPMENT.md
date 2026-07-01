@@ -1,5 +1,5 @@
 # VisualVault Developer Maintenance & Architecture Guide
-*Last Updated: June 20, 2026*
+*Last Updated: July 1, 2026*
 
 Welcome to the **VisualVault Developer Maintenance Guide**. This document outlines the application's design, architectural patterns, state managers, tech stack, and build pipelines. It is designed to help maintain, expand, or refactor the codebase.
 
@@ -45,6 +45,7 @@ This approach provides several core benefits:
 ├── package.json               # Script commands, dependencies, and metadata declarations
 ├── vite.config.ts             # Bundler settings configured with relative base output
 ├── electron-main.cjs          # Electron application bootstrap, window controller, and sandbox locks
+├── preload.cjs                # Electron renderer-to-main IPC context bridge security layer
 ├── src/
 │   ├── main.tsx               # The Core Application Core Module (State, UI, Events inside VaultApp)
 │   ├── types.ts               # Shared TypeScript schemas (Asset, AssetMetadata, Vault)

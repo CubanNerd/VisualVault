@@ -290,20 +290,32 @@ if (electronAPI) {
 }
 ```
 
-### 1. Inter-Process Communication (IPC) Handlers
+### 1. Inter-Process Communication (IPC) Handlers & Packaging
 The native layer uses secure, standardized IPC channels to carry out system-level directory and file modifications requested by the custom Web Component frontend:
 
 1.  **`select-directory`**: Calls Electron's `dialog.showOpenDialog` with the `openDirectory` flag to return absolute folder path mappings safely.
-2.  **`scan-vault`**: Leverages native Node.js recursive directory reader utilities to crawl and scan folders, returning fully-indexed visual asset records (`Asset[]`) with automated YAML parsing of companion metadata markdown files.
+2.  **`scan-vault`**: Leverages native Node.js recursive directory reader utilities to crawl and scan folders, returning fully-indexed visual asset records (`Asset[]`) with automated YAML parsing of companion companion metadata markdown files.
 3.  **`write-companion-md`**: Writes custom configurations, status adjustments, notes, ratings, and tags as standard frontmatter blocks into physical `.md` files in real-time.
 4.  **`write-file-binary`**: Receives an `ArrayBuffer` payload from a drag-and-drop or upload operation, translating and writing the binary data directly to disk as a real `.png`, `.jpg`, etc.
 5.  **`delete-asset-file`**: Safely deletes both the physical image file and its companion markdown metadata file from the native filesystem on command.
 6.  **`create-board-directory`**: Dynamically creates real folders on the native storage using `fs.mkdirSync(..., { recursive: true })`.
 7.  **`delete-board-directory`**: Prunes physical folders. When configured to preserve files, it dynamically moves contained files to the vault root first using `fs.renameSync` before removing the board folder.
 
-### 2. Silent Vault Auto-Restoration Lifecycle
-To match the seamless experience of Obsidian, the `VaultApp` initializes an automated restoration cycle:
-1.  **Read Local Storage**: Reads the active vault's absolute path from the local catalog configuration cache (`storage.getVaultPath()`).
-2.  **Native Handshake**: If `window.electronAPI` is active, it calls the `scanVault` handler with the active path.
-3.  **Silent File Indexing**: Electron recursively reads the physical directories, registers subfolders as Visual Boards, matches visual assets to companion `.md` files, and returns the compiled list of records.
-4.  **Instant UI Rendering**: Updates the masonry view, renders visual board metrics, and resolves the local file URLs using the privileged `visual-vault://` protocol safely. The user has their entire workspace instantly restored without seeing a single permission dialog or file selection prompt!
+*Preload Packaging Configuration*: To ensure the context bridge is successfully bundled inside final executable binaries (such as `.exe` or `.app` folders), `preload.cjs` has been explicitly added to the `files` directive inside `package.json`:
+```json
+"files": [
+  "dist/**/*",
+  "electron-main.cjs",
+  "preload.cjs",
+  "package.json"
+]
+```
+
+### 2. Silent Vault Auto-Restoration Lifecycle & Permission Bypass
+To match the seamless experience of Obsidian, the `VaultApp` initializes an automated restoration cycle with robust permission bypasses when executed under Electron:
+
+1.  **Detection and Permission Bypass**: The app detects if it is running inside the desktop container (`this.isSandboxedDirectory = !window.electronAPI`). If so, it forces `this.needsDirectoryPermission = false` on startup, completely bypassing browser-level sandboxed folder permission banner prompts.
+2.  **Read Local Storage**: Reads the active vault's absolute path from the local catalog configuration cache (`storage.getVaultPath()`).
+3.  **Native Handshake & Scans**: Calls the `scanVault` IPC handler via `window.electronAPI.scanVault(activePath)` directly.
+4.  **Bypassing LocalStorage Race Conditions**: The `loadAssets(activeAssetsOverride?: Asset[])` method has been optimized to receive the scanned asset list directly. By running `this.loadAssets(assetsList)`, it bypasses local storage read race conditions on boot, ensuring the freshly-synchronized filesystem assets are rendered instantly without relying on delayed storage writes.
+5.  **Instant UI Rendering**: Updates the masonry view, renders visual board metrics, and resolves local file URLs using the privileged `visual-vault://` protocol safely. The user has their entire workspace instantly restored without seeing a single permission dialog or file selection prompt!

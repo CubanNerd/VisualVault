@@ -1,7 +1,7 @@
 # VisualVault — Obsidian Local-First Catalog
-*Last Updated: June 20, 2026*
+*Last Updated: July 1, 2026*
 
-An obsidian-style, local-first cataloging workspace for reference images, design assets, blueprints, and concept art databases. Designed for creatives who need a fast, eye-safe, high-contrast, offline-capable asset inspector with dynamic tagging meshes and color grid extraction.
+An obsidian-style, local-first cataloging workspace for reference images, design assets, blueprints, and concept art databases. Designed for creatives who need a fast, eye-safe, high-contrast, offline-capable asset inspector with dynamic tagging meshes, drag-and-drop targeting, and color grid extraction.
 
 ---
 
@@ -16,6 +16,8 @@ To help you get started quickly or inspect the internal architecture, we have cr
 ## 🚀 Key Features
 
 - **Obsidian-Style Vault Manager**: Switch smoothly between isolated physical directories (e.g., `/Users/design/...`), persist distinct databases in Indexed/Local Storage, and register new vaults dynamically.
+- **Advanced Target-Aware Drag-and-Drop**: Drag image files from your operating system directly onto specific sidebar board links or main board section cards to instantly copy and categorize assets on-disk.
+- **Zero-Prompt Electron Restoration**: When compiled into a native app, the workspace bypasses browser-level filesystem directory permissions entirely, auto-indexing and restoring the last active vault silently on launch.
 - **Custom Schema & Status Configurator**: Dynamically adjust metadata property names, placeholder values, and asset statuses. Supports importing and exporting configurations using structured `.json` files.
 - **Color Extraction Grid**: Built-in visual palette calculator that derives prominent color blocks from imported images.
 - **Google Fonts & Typography System**: Shift layout typefaces between highly readable fonts including **Space Mono**, **Space Grotesk**, **Lexend**, **Tektur**, and **IBM Plex Mono**, on top of classic Inter, Outfit, and Playfair Display styles.
