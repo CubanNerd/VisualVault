@@ -1,5 +1,5 @@
 # VisualVault Desktop Compilation & Integration Guide
-*Last Updated: July 1, 2026*
+*Last Updated: June 20, 2026*
 
 This guide provides comprehensive, step-by-step instructions on how to compile this Web Component-based **VisualVault** application into a native desktop application using either **Tauri** or **Electron**, with local **SQLite** persistent database integration.
 
@@ -273,17 +273,11 @@ class StorageService {
 
 ### Step 5: Configure Build Action Script in `package.json`
 
-To package this workspace seamlessly, ensure that your `package.json` designates `electron-main.cjs` as the primary entrypoint, includes the preload script in the bundled file exports, and contains compilation targets for Windows and macOS. The core fields are configured as follows:
+To package this workspace seamlessly, ensure that your `package.json` designates `electron-main.cjs` as the primary entrypoint and includes compilation targets for Windows and macOS. The scripts have been pre-configured as follows:
 
 ```json
 {
   "main": "electron-main.cjs",
-  "files": [
-    "dist/**/*",
-    "electron-main.cjs",
-    "preload.cjs",
-    "package.json"
-  ],
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",

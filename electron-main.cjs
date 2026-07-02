@@ -93,10 +93,9 @@ function scanFolder(currentDir, relativeBoard, vaultPath) {
 
         const colors = ['#0F0F11', '#1A2B3C', '#10B981', '#1E293B', '#111827'];
 
-        // File URL on disk using visual-vault:/// scheme
+        // File URL on disk using visual-vault:// scheme
         const urlSafePath = fullPath.replace(/\\/g, '/');
-        const cleanPath = urlSafePath.startsWith('/') ? urlSafePath.slice(1) : urlSafePath;
-        const imageUrl = `visual-vault:///${cleanPath}`;
+        const imageUrl = `visual-vault://${urlSafePath}`;
 
         list.push({
           id,

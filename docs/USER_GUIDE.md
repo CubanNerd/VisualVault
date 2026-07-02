@@ -1,5 +1,5 @@
 # VisualVault — User Guide & Knowledge Base
-*Last Updated: July 1, 2026*
+*Last Updated: June 20, 2026*
 
 Welcome to the **VisualVault User Guide**. This document serves as a comprehensive knowledge base for creative professionals, curators, and researchers. VisualVault is a high-speed, local-first workspace designed to catalog, inspect, and organize reference inspiration, design boards, blueprints, and concept catalogs in harmony with your local directories and Obsidian vaults.
 
@@ -122,7 +122,7 @@ Compile, download, and run the companion binary locally (fully supported and ver
 
 ## ⌨️ Productivity Shortcuts & Tips
 
-- **Targeted Drag-and-Drop**: You can drag an image file from your OS desktop directly onto a custom Board link in your sidebar, or onto one of the **Pinterest Board Sections** cards on your dashboard. VisualVault instantly detects the drop target, copies the file into the corresponding physical directory on-disk, and catalogs the new visual reference inside that targeted category/board automatically.
+- **Folder Drag-and-Drop**: You can drag an image file from your OS desktop directly onto a custom Board on your sidebar. It will automatically catalog the reference inside that board.
 - **Color Extraction Grid**: Hover over the color blocks in an asset's footer to instantly view color hex values. Clicking one copies the value to your clipboard.
-- **Search Logic**: Real-time filtering scans descriptions, titles, tags, and paths. Visual ratio indicators (e.g., `4/12 pins`) highlight matches inside closed boards.
+- **Search Logic**: Real-time filtering scans descriptions, titles, tags, and paths. A visual ratio indicators (e.g., `4/12 pins`) highlights matches inside closed boards.
 - **Theme Selection**: Switch between Obsidian Dark, Notion Light, and Y2K Matrix inside the vault settings menu to suit your environment.
