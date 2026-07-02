@@ -6671,7 +6671,8 @@ class VaultApp extends HTMLElement {
             if (electronAPI) {
               const fileName = a.name;
               const fullNativePath = `${vaultPath}/${fileName}`.replace(/\\/g, '/');
-              a.imageUrl = `visual-vault://${fullNativePath}`;
+              const cleanPath = fullNativePath.startsWith('/') ? fullNativePath.slice(1) : fullNativePath;
+              a.imageUrl = `visual-vault:///${cleanPath}`;
             }
             movedCount++;
           }
@@ -6775,10 +6776,11 @@ class VaultApp extends HTMLElement {
                 throw new Error(mdRes ? mdRes.error : 'Metadata write failed');
               }
 
-              // Update URL to use visual-vault:// protocol for permanent native loading
+              // Update URL to use visual-vault:/// protocol for permanent native loading
               const boardPart = importedAsset.board === '/' ? '' : importedAsset.board;
               const fullNativePath = `${activePath}${boardPart}/${file.name}`.replace(/\\/g, '/');
-              importedAsset.imageUrl = `visual-vault://${fullNativePath}`;
+              const cleanPath = fullNativePath.startsWith('/') ? fullNativePath.slice(1) : fullNativePath;
+              importedAsset.imageUrl = `visual-vault:///${cleanPath}`;
             } catch (err: any) {
               console.error('Failed writing file inside native Electron context', err);
               this.addLog('warn', `Electron API: Failed to commit imported files: ${err.message}`);
