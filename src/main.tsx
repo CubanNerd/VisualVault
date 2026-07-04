@@ -4157,7 +4157,10 @@ class VaultApp extends HTMLElement {
           </div>
 
           <!-- Settings Footer -->
-          <div class="p-4 bg-[#0A0A0B]/60 border-t border-white/5 flex justify-end shrink-0 select-none">
+          <div class="p-4 bg-[#0A0A0B]/60 border-t border-white/5 flex justify-between items-center shrink-0 select-none">
+            <div class="text-[11px] text-slate-400 font-mono" id="settings-developer-credits">
+              ${new Date().getFullYear()} Developed by <a href="https://90m.io" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:text-emerald-300 font-semibold underline transition">90m Studio</a>
+            </div>
             <button id="settings-close-action" class="vault-btn px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs font-semibold uppercase transition tracking-wider cursor-pointer">
               Apply &amp; Close
             </button>
