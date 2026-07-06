@@ -3880,10 +3880,10 @@ class VaultApp extends HTMLElement {
       </div>
 
       <!-- PINBOARD DETAIL MODAL (PINTEREST WINDOW) -->
-      <div id="lightbox-backdrop" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 md:p-8 hidden select-none transition-all duration-300">
+      <div id="lightbox-backdrop" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-0 hidden select-none transition-all duration-300">
         
         <!-- Modal Card Container -->
-        <div class="vault-card bg-[#0F0F11] border border-white/10 rounded-2xl max-w-5xl w-full h-[88vh] flex flex-col md:flex-row overflow-hidden shadow-2xl animate-fade-in relative pointer-events-auto">
+        <div class="vault-card bg-[#0F0F11] w-full h-full flex flex-col md:flex-row overflow-hidden shadow-2xl animate-fade-in relative pointer-events-auto">
           
           <!-- Close Button Top Right of card (Pinterest style) -->
           <button id="lightbox-close" class="absolute top-4 right-4 z-20 text-slate-400 hover:text-white bg-black/40 hover:bg-black/80 w-8 h-8 rounded-full flex items-center justify-center transition border border-white/5 cursor-pointer" title="Close Overlay (ESC)">
@@ -4024,35 +4024,7 @@ class VaultApp extends HTMLElement {
 
             <!-- Right Column: Operations -->
             <div class="w-full md:w-2/5 p-6 bg-black/20 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
-              <!-- Operation 1: Create New Vault -->
-              <div class="space-y-3">
-                <div class="flex items-center gap-1.5 text-emerald-400">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                  </svg>
-                  <span class="text-[10px] font-bold uppercase tracking-wider font-mono">Create New Vault</span>
-                </div>
-                <p class="text-[11px] text-slate-500 leading-relaxed font-sans">Initialize a brand new visual vault. Creates a clean, empty directory workspace.</p>
-                
-                <div class="space-y-2 pt-1 font-sans">
-                  <div class="space-y-1">
-                    <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono font-bold">Vault Name</label>
-                    <input type="text" id="create-vault-name" placeholder="E.g., Design Concept Space" class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none" />
-                  </div>
-                  
-                  <div class="space-y-1">
-                    <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono font-bold">Absolute Folder Path</label>
-                    <input type="text" id="create-vault-path" placeholder="E.g., /Users/design/Desktop/My_Vault" class="w-full bg-black/40 text-xs px-2.5 py-1.5 rounded border border-white/5 focus:border-emerald-500/20 text-white outline-none font-mono" />
-                  </div>
 
-                  <button id="btn-create-vault-submit" class="vault-btn w-full mt-2 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold rounded transition active:scale-95 cursor-pointer">
-                    Create &amp; Mount Vault
-                  </button>
-                </div>
-              </div>
-
-              <!-- Divider -->
-              <div class="border-t border-white/[0.04]"></div>
 
               <!-- Operation 3: Modern Web Sandbox Connect -->
               <div class="space-y-3">
@@ -5301,7 +5273,7 @@ class VaultApp extends HTMLElement {
           </div>
 
           <!-- Caption footer -->
-          <div id="footer-${asset.id}" class="p-3 text-[11.5px] border-t border-white/[0.04] flex items-center justify-between transition-colors">
+          <div id="footer-${asset.id}" class="hidden p-3 text-[11.5px] border-t border-white/[0.04] flex items-center justify-between transition-colors">
             <span class="truncate font-medium text-slate-200 group-hover:text-emerald-400 transition pr-2">${asset.metadata.title || asset.name}</span>
             <span class="shrink-0 text-[10px] bg-white/5 opacity-50 px-1 py-0.5 rounded font-mono">${asset.size}</span>
           </div>
