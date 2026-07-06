@@ -409,3 +409,14 @@ ipcMain.handle('delete-board-directory', async (event, vaultPath, boardPath, kee
     return { success: false, error: err.message };
   }
 });
+
+ipcMain.handle('show-in-folder', async (event, fullPath) => {
+  const { shell } = require('electron');
+  try {
+    shell.showItemInFolder(fullPath);
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to show item in folder natively:', err);
+    return { success: false, error: err.message };
+  }
+});

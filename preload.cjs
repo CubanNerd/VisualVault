@@ -13,5 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createBoardDirectory: (vaultPath, boardPath) => 
     ipcRenderer.invoke('create-board-directory', vaultPath, boardPath),
   deleteBoardDirectory: (vaultPath, boardPath, keepFiles) => 
-    ipcRenderer.invoke('delete-board-directory', vaultPath, boardPath, keepFiles)
+    ipcRenderer.invoke('delete-board-directory', vaultPath, boardPath, keepFiles),
+  showInFolder: (fullPath) =>
+    ipcRenderer.invoke('show-in-folder', fullPath)
 });

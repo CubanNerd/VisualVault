@@ -28,7 +28,7 @@ Make sure you have Rust and Cargo installed on your system:
 
 ### Step 2: Initialize Tauri in the Project
 
-> ⚠️ **CRITICAL WARNING FOR EXISTING PROJECTS:**
+> **CRITICAL WARNING FOR EXISTING PROJECTS:**
 > Do **NOT** run `npm create tauri-app` (or `npm create tauri-app@latest`). That command is designed for bootstrapping **brand-new, empty projects** from scratch and will create an independent nested folder with generic template files instead of integrating with your existing code.
 > 
 > Instead, to integrate Tauri directly into this **existing** React/TypeScript codebase, you must initialize Tauri directly from the current root directory by running:

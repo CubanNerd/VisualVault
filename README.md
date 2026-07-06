@@ -5,7 +5,7 @@ An obsidian-style, local-first cataloging workspace for reference images, design
 
 ---
 
-## 📚 Repository Guides & Documentation
+## Repository Guides & Documentation
 
 To help you get started quickly or inspect the internal architecture, we have created dedicated knowledge base modules:
 *   **[User Guide & Knowledge Base](./docs/USER_GUIDE.md)**: Standard operations guide detailing workspace configuration options, the two core user profiles, folder management, dynamic YAML metadata sync, and local folder permission overrides.
@@ -13,7 +13,7 @@ To help you get started quickly or inspect the internal architecture, we have cr
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 - **Obsidian-Style Vault Manager**: Switch smoothly between isolated physical directories (e.g., `/Users/design/...`), persist distinct databases in Indexed/Local Storage, and register new vaults dynamically.
 - **Custom Schema & Status Configurator**: Dynamically adjust metadata property names, placeholder values, and asset statuses. Supports importing and exporting configurations using structured `.json` files.
@@ -24,9 +24,7 @@ To help you get started quickly or inspect the internal architecture, we have cr
 
 ---
 
-## 🌐 Running From a Remote Web Server with Local Folders
-
-In response to: *"is it possible to run this from a remote web server but load local folders?"*
+## Running From a Remote Web Server with Local Folders
 
 **Yes!** It is fully possible, though standard browser sandboxing prevents a remote website from directly and silently reading raw absolute filesystem paths (like `/Users/design/...` or `C:\Users\...`). 
 
@@ -48,7 +46,7 @@ You can compile this web project into a native executable app (Windows/macOS/Lin
 
 ---
 
-## 🛠️ Development & Toolchain Guide
+## Development & Toolchain Guide
 
 ### 1. Setup Dependencies
 To load and synchronize standard package dependencies:
@@ -91,7 +89,7 @@ npm run electron:start
 
 ---
 
-## 🎨 Themes Available
+## Themes Available
 
 1. **Obsidian Dark**: Safe, ambient dark layout with emerald and glowing obsidian purple accent tones.
 2. **Notion Minimalist**: Pristine Notion-inspired off-white canvas with clean typography and slate gray borders.

@@ -5,7 +5,7 @@ Welcome to the **VisualVault User Guide**. This document serves as a comprehensi
 
 ---
 
-## 📂 Understanding Vaults & Boards
+## Understanding Vaults & Boards
 
 At the core of VisualVault is a simple local-first directory layout:
 
@@ -16,7 +16,7 @@ At the core of VisualVault is a simple local-first directory layout:
 
 ---
 
-## 📁 Nested Folders & Deeper Hierarchies
+## Nested Folders & Deeper Hierarchies
 
 VisualVault maintains a clean workspace by projecting a structured folder layout. However, should your filesystem contain directory structures deeper than the typical format (e.g., folders nested *inside* the 2nd level, like `Environment_Ref/Neo_Tokyo/Streets` or `Character_Design/Mecha_Pilots/Anomalies/Elite/`):
 
@@ -26,7 +26,7 @@ VisualVault maintains a clean workspace by projecting a structured folder layout
 
 ---
 
-## 🎨 Tailoring Your Workspace: The User Profiles
+## Tailoring Your Workspace: The User Profiles
 
 VisualVault adapts dynamically to different styles of reference organization. In the left sidebar under the **Workspace View Mode** selector, you can toggle between two modes:
 
@@ -42,7 +42,7 @@ VisualVault adapts dynamically to different styles of reference organization. In
 
 ---
 
-## 🗄️ Managing Boards & Subfolders
+## Managing Boards & Subfolders
 
 VisualVault offers nested directory management to easily create, rename, and prune boards directly from your browser sidebar, main dashboard, or active board header.
 
@@ -63,7 +63,7 @@ You can delete a board folder from **three distinct access points**:
 - **The Main Panel (All Boards View)**: When looking at all boards as visual cards, click the **Trash Icon** appearing on the card hover state.
 - **The Active Board Header**: While viewing a specific board, click the **Delete** button next to its path coordinates.
 
-#### ⚠️ The File Retention Prompt
+#### The File Retention Prompt
 Upon clicking delete on a board, you will see a two-step prompt:
 1. **Board Confirmation**: Verification that you intend to clear the folder configuration.
 2. **File Retention Query**:
@@ -79,7 +79,7 @@ When viewing any 1st-level Board (e.g., `/ Environment_Ref`), a dedicated **Pint
 
 ---
 
-## 📝 Obsidian Sync & Sidebar YAML Editor
+## Obsidian Sync & Sidebar YAML Editor
 
 Each image card represents a reference asset. These are synchronized on-the-fly with companion `.md` files containing YAML front-matter blocks, matching Obsidian's standard metadata catalog.
 
@@ -97,7 +97,7 @@ Click the **Launch in Obsidian** action inside an asset's sidebar details:
 
 ---
 
-## ⚙️ Setting Up Remote Access to Local Folders
+## Setting Up Remote Access to Local Folders
 
 If you run VisualVault from a remote web server (rather than your local machine), the browser's sandbox model naturally blocks direct, silent scans of absolute paths. You have **three seamless approaches** to load local assets:
 
@@ -120,7 +120,7 @@ Compile, download, and run the companion binary locally (fully supported and ver
 
 ---
 
-## ⌨️ Productivity Shortcuts & Tips
+## Productivity Shortcuts & Tips
 
 - **Folder Drag-and-Drop**: You can drag an image file from your OS desktop directly onto a custom Board on your sidebar. It will automatically catalog the reference inside that board.
 - **Color Extraction Grid**: Hover over the color blocks in an asset's footer to instantly view color hex values. Clicking one copies the value to your clipboard.

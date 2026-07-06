@@ -648,6 +648,85 @@ class StorageService {
   }
 }
 
+// ----------------------------------------------------
+// Custom Taxonomy Definitions & Helpers
+// ----------------------------------------------------
+let TAXONOMY_PRESETS = {
+  medium: ['illustration', 'photo', 'poster', 'signage', 'packaging', 'ad', 'film still'],
+  eraStyle: ['Bauhaus', 'Swiss/International', '90s grunge', 'contemporary', 'Minimalist', 'Vaporwave', 'Cyberpunk', 'Retro-Futurism'],
+  source: ['Pinterest', 'Are.na', 'Behance', 'Dribbble', 'Instagram', 'Tumblr', 'Web']
+};
+
+function loadTaxonomyFromStorage() {
+  try {
+    const saved = localStorage.getItem('visual_taxonomy_presets_v1');
+    if (saved) {
+      TAXONOMY_PRESETS = JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('Failed to load taxonomy presets', e);
+  }
+}
+
+function saveTaxonomyToStorage() {
+  try {
+    localStorage.setItem('visual_taxonomy_presets_v1', JSON.stringify(TAXONOMY_PRESETS));
+  } catch (e) {
+    console.error('Failed to save taxonomy presets', e);
+  }
+}
+
+// Initialize dynamic taxonomy
+loadTaxonomyFromStorage();
+
+function classifyTag(tag: string): 'medium' | 'eraStyle' | 'source' | 'custom' {
+  const t = tag.toLowerCase().trim();
+  if (TAXONOMY_PRESETS.medium.map(v => v.toLowerCase()).includes(t)) return 'medium';
+  if (TAXONOMY_PRESETS.eraStyle.map(v => v.toLowerCase()).includes(t)) return 'eraStyle';
+  if (TAXONOMY_PRESETS.source.map(v => v.toLowerCase()).includes(t)) return 'source';
+  return 'custom';
+}
+
+function renderPresetsHtml(tags: string[], isLightbox: boolean): string {
+  const activeTags = tags.map(t => t.toLowerCase().trim());
+  const classPrefix = isLightbox ? 'lb-' : '';
+  
+  const renderGroup = (label: string, items: string[], colorClass: string, activeColorClass: string) => {
+    const buttons = items.map(item => {
+      const isActive = activeTags.includes(item.toLowerCase().trim());
+      const btnClass = isActive 
+        ? `${activeColorClass} border-current font-semibold` 
+        : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border-transparent';
+      return `
+        <button class="${classPrefix}preset-tag-btn px-2 py-0.5 rounded-[4px] text-[9.5px] border font-mono transition duration-200 cursor-pointer select-none ${btnClass}" data-tag="${item}">
+          ${isActive ? '✓ ' : ''}${item}
+        </button>
+      `;
+    }).join('');
+    
+    return `
+      <div class="space-y-1 text-left">
+        <span class="text-[9px] font-bold uppercase tracking-wider block ${colorClass}">${label}</span>
+        <div class="flex flex-wrap gap-1">${buttons}</div>
+      </div>
+    `;
+  };
+
+  return `
+    <div class="mt-3.5 bg-black/40 border border-white/5 rounded p-3.5 space-y-3.5">
+      <div class="text-[9.5px] uppercase font-mono tracking-wider text-slate-400 font-extrabold flex justify-between select-none">
+        <span>Taxonomy Quick-Pick</span>
+        <span class="text-emerald-400 text-[9px] font-normal font-sans">Toggle tags</span>
+      </div>
+      <div class="space-y-3">
+        ${renderGroup('🖼️ Medium', TAXONOMY_PRESETS.medium, 'text-blue-400', 'bg-blue-500/20 text-blue-300 border-blue-500/40')}
+        ${renderGroup('🎨 Era or Style Movement', TAXONOMY_PRESETS.eraStyle, 'text-purple-400', 'bg-purple-500/20 text-purple-300 border-purple-500/40')}
+        ${renderGroup('🌐 Source (Attribution)', TAXONOMY_PRESETS.source, 'text-amber-400', 'bg-amber-500/20 text-amber-300 border-amber-500/40')}
+      </div>
+    </div>
+  `;
+}
+
 const storage = new StorageService();
 
 // ----------------------------------------------------
@@ -771,7 +850,7 @@ class VaultApp extends HTMLElement {
   private customAccentHex = '';
   private activeFont = 'funnel-display';
   private isSettingsOpen = false;
-  private activeSettingsTab: 'vault' | 'general' = 'vault';
+  private activeSettingsTab: 'vault' | 'general' | 'taxonomy' = 'vault';
   private workspaceMode: 'unified' | 'focused' = 'unified';
   private isCreatingSection = false;
   private isSidebarClosed = localStorage.getItem('visual_vault_sidebar_closed') === 'true';
@@ -2911,26 +2990,175 @@ class VaultApp extends HTMLElement {
     this.toggleSettings(false); // Close settings panel
   }
 
-  private switchSettingsTab(tab: 'vault' | 'general') {
+  private switchSettingsTab(tab: 'vault' | 'general' | 'taxonomy') {
     this.activeSettingsTab = tab;
     const tabVault = this.querySelector('#settings-tab-vault');
     const tabGeneral = this.querySelector('#settings-tab-general');
+    const tabTaxonomy = this.querySelector('#settings-tab-taxonomy');
     const contentVault = this.querySelector('#settings-content-vault');
     const contentGeneral = this.querySelector('#settings-content-general');
+    const contentTaxonomy = this.querySelector('#settings-content-taxonomy');
 
-    if (!tabVault || !tabGeneral || !contentVault || !contentGeneral) return;
+    if (!tabVault || !tabGeneral || !tabTaxonomy || !contentVault || !contentGeneral || !contentTaxonomy) return;
+
+    const activeClass = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-emerald-400 border-emerald-500 bg-white/[0.02]";
+    const inactiveClass = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300";
+
+    tabVault.className = inactiveClass;
+    tabGeneral.className = inactiveClass;
+    tabTaxonomy.className = inactiveClass;
+    contentVault.classList.add('hidden');
+    contentGeneral.classList.add('hidden');
+    contentTaxonomy.classList.add('hidden');
 
     if (tab === 'vault') {
-      tabVault.className = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-emerald-400 border-emerald-500 bg-white/[0.02]";
-      tabGeneral.className = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300";
+      tabVault.className = activeClass;
       contentVault.classList.remove('hidden');
-      contentGeneral.classList.add('hidden');
-    } else {
-      tabGeneral.className = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-emerald-400 border-emerald-500 bg-white/[0.02]";
-      tabVault.className = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300";
-      contentVault.classList.add('hidden');
+    } else if (tab === 'general') {
+      tabGeneral.className = activeClass;
       contentGeneral.classList.remove('hidden');
       this.populateSchemaSettingsInputs();
+    } else if (tab === 'taxonomy') {
+      tabTaxonomy.className = activeClass;
+      contentTaxonomy.classList.remove('hidden');
+      this.populateTaxonomySettings();
+    }
+  }
+
+  private populateTaxonomySettings() {
+    const editor = this.querySelector('#taxonomy-settings-editor');
+    if (!editor) return;
+
+    const renderCategoryEditor = (
+      key: 'medium' | 'eraStyle' | 'source',
+      label: string,
+      colorClass: string,
+      badgeBgClass: string,
+      badgeTextClass: string
+    ) => {
+      const tagsList = TAXONOMY_PRESETS[key];
+      const tagsHtml = tagsList.map(tag => `
+        <span class="flex items-center gap-1 bg-black/40 border border-white/5 rounded pl-2.5 pr-1.5 py-1 text-xs font-mono text-slate-300 hover:border-white/10 transition select-none group">
+          <span>${tag}</span>
+          <button class="settings-tax-remove-btn text-slate-500 hover:text-rose-400 font-bold text-[10.5px] p-0.5 cursor-pointer" data-category="${key}" data-tag="${tag}">×</button>
+        </span>
+      `).join('');
+
+      return `
+        <div class="bg-[#0A0A0B]/40 border border-white/5 rounded-xl p-4 space-y-3 text-left">
+          <div class="flex justify-between items-center select-none">
+            <span class="text-[10px] uppercase tracking-wider font-extrabold ${colorClass}">${label}</span>
+            <span class="text-[9px] text-slate-500 font-mono">${tagsList.length} tags</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            ${tagsHtml || '<span class="text-xs text-slate-600 italic font-mono pl-1">No tags configured</span>'}
+          </div>
+          
+          <div class="flex gap-2 pt-1">
+            <input type="text" id="add-tax-${key}-input" placeholder="Add new tag to ${key}..." 
+              class="flex-grow bg-[#050506]/60 border border-white/5 rounded px-2.5 py-1.5 text-xs text-white outline-none focus:border-emerald-500/20 font-mono placeholder-slate-700" />
+            <button class="settings-tax-add-btn bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded text-xs font-mono font-bold transition uppercase cursor-pointer" data-category="${key}">
+              + Add
+            </button>
+          </div>
+        </div>
+      `;
+    };
+
+    editor.innerHTML = `
+      ${renderCategoryEditor('medium', '🖼️ Mediums (Asset Format)', 'text-blue-400', 'bg-blue-500/10', 'text-blue-400')}
+      ${renderCategoryEditor('eraStyle', '🎨 Era & Styles (Visual Movements)', 'text-purple-400', 'bg-purple-500/10', 'text-purple-400')}
+      ${renderCategoryEditor('source', '🌐 Sources (Attribution Platforms)', 'text-amber-400', 'bg-amber-500/10', 'text-amber-400')}
+    `;
+
+    // Bind event listeners for removal
+    const removeBtns = this.querySelectorAll('.settings-tax-remove-btn');
+    removeBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const category = target.dataset.category as 'medium' | 'eraStyle' | 'source';
+        const tag = target.dataset.tag || '';
+        
+        const index = TAXONOMY_PRESETS[category].indexOf(tag);
+        if (index !== -1) {
+          TAXONOMY_PRESETS[category].splice(index, 1);
+          saveTaxonomyToStorage();
+          this.populateTaxonomySettings();
+          
+          // Re-render other parts of the UI that rely on taxonomy
+          this.renderTaxonomyNavigation();
+          this.renderInspector();
+          this.populateLightboxData();
+          this.addLog('warn', `Removed taxonomy tag '${tag}' from '${category}'`);
+          this.toast('Taxonomy Updated', `Removed '${tag}'`);
+        }
+      });
+    });
+
+    // Bind add triggers
+    const addBtns = this.querySelectorAll('.settings-tax-add-btn');
+    addBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const category = target.dataset.category as 'medium' | 'eraStyle' | 'source';
+        const input = this.querySelector(`#add-tax-${category}-input`) as HTMLInputElement;
+        if (!input) return;
+
+        const val = input.value.trim();
+        if (!val) return;
+
+        // Check duplicates
+        if (TAXONOMY_PRESETS[category].map(t => t.toLowerCase().trim()).includes(val.toLowerCase().trim())) {
+          this.toast('Duplicate Tag', `Tag '${val}' already exists in ${category}`);
+          return;
+        }
+
+        TAXONOMY_PRESETS[category].push(val);
+        saveTaxonomyToStorage();
+        input.value = '';
+        this.populateTaxonomySettings();
+        
+        // Re-render UI
+        this.renderTaxonomyNavigation();
+        this.renderInspector();
+        this.populateLightboxData();
+        this.addLog('success', `Added taxonomy tag '${val}' to '${category}'`);
+        this.toast('Taxonomy Updated', `Added '${val}'`);
+      });
+    });
+
+    // Bind input Enter key press
+    ['medium', 'eraStyle', 'source'].forEach(key => {
+      const input = this.querySelector(`#add-tax-${key}-input`) as HTMLInputElement;
+      if (input) {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            const addBtn = this.querySelector(`.settings-tax-add-btn[data-category="${key}"]`) as HTMLElement;
+            if (addBtn) addBtn.click();
+          }
+        });
+      }
+    });
+
+    // Bind reset trigger
+    const resetBtn = this.querySelector('#settings-taxonomy-reset');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (confirm('Reset taxonomy presets to factory defaults? This will restore standard Medium, Era/Style, and Source lists.')) {
+          TAXONOMY_PRESETS = {
+            medium: ['illustration', 'photo', 'poster', 'signage', 'packaging', 'ad', 'film still'],
+            eraStyle: ['Bauhaus', 'Swiss/International', '90s grunge', 'contemporary', 'Minimalist', 'Vaporwave', 'Cyberpunk', 'Retro-Futurism'],
+            source: ['Pinterest', 'Are.na', 'Behance', 'Dribbble', 'Instagram', 'Tumblr', 'Web']
+          };
+          saveTaxonomyToStorage();
+          this.populateTaxonomySettings();
+          this.renderTaxonomyNavigation();
+          this.renderInspector();
+          this.populateLightboxData();
+          this.addLog('success', 'Reset taxonomy presets to factory defaults.');
+          this.toast('Taxonomy Reset', 'Factory default presets restored.');
+        }
+      });
     }
   }
 
@@ -3195,6 +3423,91 @@ class VaultApp extends HTMLElement {
     });
   }
 
+  private applyTagFilter(tag: string) {
+    this.searchQuery = tag;
+    const searchInput = this.querySelector('#asset-search') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.value = tag;
+    }
+    const clearBtn = this.querySelector('#search-clear-btn');
+    if (clearBtn) {
+      if (tag) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+    }
+    this.renderCatalog();
+    this.renderTaxonomyNavigation();
+    this.toast('Filter Applied', `Displaying only assets matching tag #${tag}`);
+  }
+
+  private renderTaxonomyNavigation() {
+    const taxContainer = this.querySelector('#taxonomy-sidebar-container');
+    if (!taxContainer) return;
+
+    const getTagCount = (tag: string) => {
+      const lower = tag.toLowerCase().trim();
+      return this.assets.filter(a => a.metadata.tags.some(t => t.toLowerCase().trim() === lower)).length;
+    };
+
+    const renderCategoryLinks = (label: string, items: string[], textClass: string, bgClass: string, borderClass: string) => {
+      const links = items.map(item => {
+        const count = getTagCount(item);
+        if (count === 0) return '';
+
+        const isCurrentFilter = this.searchQuery.toLowerCase().trim() === item.toLowerCase().trim();
+        const activeStyle = isCurrentFilter 
+          ? `${textClass} ${bgClass} border-l-2 ${borderClass} font-bold scale-[1.01]`
+          : 'text-slate-400 hover:text-white hover:bg-white/[0.015] border-l-2 border-transparent';
+
+        return `
+          <div data-tax-tag="${item}" class="taxonomy-link flex items-center justify-between text-[11px] py-1.5 pl-3 pr-2.5 rounded-r cursor-pointer transition-all duration-200 ${activeStyle}">
+            <span class="truncate font-mono">${item}</span>
+            <span class="text-[8.5px] font-mono opacity-55 bg-black/40 px-1.5 py-0.5 rounded border border-white/5">${count}</span>
+          </div>
+        `;
+      }).join('');
+
+      if (!links) return '';
+
+      return `
+        <div class="space-y-1">
+          <span class="text-[9px] font-bold uppercase tracking-widest pl-2 block ${textClass}">${label}</span>
+          <div class="space-y-0.5">${links}</div>
+        </div>
+      `;
+    };
+
+    const mediumsHtml = renderCategoryLinks('🖼️ Mediums', TAXONOMY_PRESETS.medium, 'text-blue-400', 'bg-blue-500/10', 'border-blue-500');
+    const erasHtml = renderCategoryLinks('🎨 Style Eras', TAXONOMY_PRESETS.eraStyle, 'text-purple-400', 'bg-purple-500/10', 'border-purple-500');
+    const sourcesHtml = renderCategoryLinks('🌐 Sources', TAXONOMY_PRESETS.source, 'text-amber-400', 'bg-amber-500/10', 'border-amber-500');
+
+    if (!mediumsHtml && !erasHtml && !sourcesHtml) {
+      taxContainer.innerHTML = '';
+      return;
+    }
+
+    taxContainer.innerHTML = `
+      <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 pl-2 cursor-default">Taxonomy Index</h3>
+      <div class="space-y-3">
+        ${mediumsHtml}
+        ${erasHtml}
+        ${sourcesHtml}
+      </div>
+    `;
+
+    // Bind click events
+    const taxLinks = this.querySelectorAll('.taxonomy-link');
+    taxLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        const tag = (e.currentTarget as HTMLElement).dataset.taxTag || '';
+        this.applyTagFilter(tag);
+        this.renderTaxonomyNavigation();
+      });
+    });
+  }
+
   // ----------------------------------------------------
   // Dynamic Web Rendering Engine
   // ----------------------------------------------------
@@ -3341,6 +3654,9 @@ class VaultApp extends HTMLElement {
                 </div>
 
                 <div id="vault-hierarchy-info-container" class="mt-2"></div>
+                
+                <!-- Taxonomy Explorer -->
+                <div id="taxonomy-sidebar-container" class="space-y-2 pt-3 border-t border-white/5 mt-3 select-none"></div>
                 
               </div>
 
@@ -3832,6 +4148,12 @@ class VaultApp extends HTMLElement {
               </svg>
               <span>⚙️ General app settings</span>
             </button>
+            <button id="settings-tab-taxonomy" class="py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              </svg>
+              <span>🏷️ Taxonomy settings</span>
+            </button>
           </div>
 
           <!-- Settings Scrollable Body -->
@@ -4154,6 +4476,25 @@ class VaultApp extends HTMLElement {
               </div>
             </div>
 
+            <!-- TAB 3: TAXONOMY SETTINGS -->
+            <div id="settings-content-taxonomy" class="space-y-6 hidden">
+              <div class="space-y-3">
+                <div class="flex justify-between items-center select-none">
+                  <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default font-mono">Taxonomy Configurator</label>
+                  <button id="settings-taxonomy-reset" class="px-2.5 py-1 text-[9.5px] uppercase font-bold tracking-wider font-mono text-amber-500 hover:bg-amber-500/10 border border-amber-500/20 rounded transition duration-200 cursor-pointer">
+                    Reset Defaults
+                  </button>
+                </div>
+                <p class="text-xs text-slate-500 leading-relaxed font-sans">
+                  Configure preset tags for each of the core taxonomies. Added preset tags will appear immediately as quick-picks in the inspector panel and will populate the side indexing catalog.
+                </p>
+              </div>
+
+              <div class="grid grid-cols-1 gap-4" id="taxonomy-settings-editor">
+                <!-- Dynamically populated in populateTaxonomySettings() -->
+              </div>
+            </div>
+
           </div>
 
           <!-- Settings Footer -->
@@ -4252,6 +4593,7 @@ class VaultApp extends HTMLElement {
 
     this.renderSidebarVaults();
     this.renderBoardNavigation();
+    this.renderTaxonomyNavigation();
     this.renderSections();
     this.renderCatalog();
     this.renderInspector();
@@ -5001,12 +5343,30 @@ class VaultApp extends HTMLElement {
     }
 
     // Interactive custom tags
-    const tagsInHtml = asset.metadata.tags.map(tag => `
-      <span class="meta-tag-badge bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded px-2 py-0.5 text-[10.5px] tracking-tight inline-flex items-center gap-1">
-        ${tag}
-        <span class="meta-tag-remove cursor-pointer hover:text-white transition font-bold" data-tag="${tag}">×</span>
-      </span>
-    `).join('');
+    const tagsInHtml = asset.metadata.tags.map(tag => {
+      const category = classifyTag(tag);
+      let badgeClass = '';
+      let categoryPrefix = '';
+      if (category === 'medium') {
+        badgeClass = 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20';
+        categoryPrefix = '🖼️ ';
+      } else if (category === 'eraStyle') {
+        badgeClass = 'bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20';
+        categoryPrefix = '🎨 ';
+      } else if (category === 'source') {
+        badgeClass = 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20';
+        categoryPrefix = '🌐 ';
+      } else {
+        badgeClass = 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20';
+        categoryPrefix = '🏷️ ';
+      }
+      return `
+        <span class="meta-tag-badge ${badgeClass} border rounded px-2 py-0.5 text-[10.5px] tracking-tight inline-flex items-center gap-1 cursor-pointer transition select-none" data-tag="${tag}" title="Click to filter catalog by this tag">
+          <span>${categoryPrefix}${tag}</span>
+          <span class="meta-tag-remove cursor-pointer hover:text-white transition font-bold" data-tag="${tag}">×</span>
+        </span>
+      `;
+    }).join('');
 
     // Swatches HEX
     const paletteInHtml = asset.colors.map(color => `
@@ -5056,8 +5416,14 @@ class VaultApp extends HTMLElement {
             <div class="absolute bottom-1 right-2 text-[8px] mono text-slate-600 group-focus-within:text-emerald-400 pointer-events-none transition-colors">Obsidian Link</div>
           </div>
 
-          <button id="action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider">
+          <button id="action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider mb-2">
             Open Companion in Obsidian
+          </button>
+          <button id="action-show-folder" class="w-full py-2 bg-white/5 hover:bg-emerald-500/10 border border-white/5 hover:border-emerald-500/20 active:scale-95 text-slate-300 hover:text-emerald-400 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider flex justify-center items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+            </svg>
+            Show in Folder
           </button>
         </div>
 
@@ -5156,6 +5522,7 @@ class VaultApp extends HTMLElement {
               class="bg-transparent text-xs text-white placeholder-slate-600 outline-none w-full" />
             <button id="add-tag-btn" class="p-1 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded font-bold uppercase text-[9px] transition shrink-0 hidden">add</button>
           </div>
+          ${renderPresetsHtml(asset.metadata.tags, false)}
         </div>
 
       </div>
@@ -5449,6 +5816,24 @@ class VaultApp extends HTMLElement {
     // Grid selection triggers
     const masonryDiv = this.querySelector('#catalog-masonry');
     if (masonryDiv) {
+      masonryDiv.addEventListener('contextmenu', (e: any) => {
+        const card = e.target.closest('.asset-card') as HTMLElement;
+        if (card) {
+          e.preventDefault();
+          const id = card.dataset.id || '';
+          const asset = this.assets.find(a => a.id === id);
+          const electronAPI = (window as any).electronAPI;
+          if (asset && electronAPI) {
+            const vaultPath = storage.getVaultPath();
+            const boardPath = asset.board === '/' ? '' : asset.board;
+            const fullPath = vaultPath + '/' + boardPath + (boardPath ? '/' : '') + asset.name;
+            electronAPI.showInFolder(fullPath.replace(/\/\//g, '/'));
+            this.toast('Opening File Browser', `Locating ${asset.name} on disk...`);
+            this.addLog('info', `Action triggered: Show item in folder natively for ${asset.name}`);
+          }
+        }
+      });
+
       masonryDiv.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
 
@@ -5582,6 +5967,7 @@ class VaultApp extends HTMLElement {
           }
         }
         this.renderCatalog();
+        this.renderTaxonomyNavigation();
       });
     }
 
@@ -5591,6 +5977,7 @@ class VaultApp extends HTMLElement {
         this.searchQuery = '';
         clearBtn.classList.add('hidden');
         this.renderCatalog();
+        this.renderTaxonomyNavigation();
       });
     }
 
@@ -5774,6 +6161,13 @@ class VaultApp extends HTMLElement {
     if (tabGeneral) {
       tabGeneral.addEventListener('click', () => {
         this.switchSettingsTab('general');
+      });
+    }
+
+    const tabTaxonomy = this.querySelector('#settings-tab-taxonomy');
+    if (tabTaxonomy) {
+      tabTaxonomy.addEventListener('click', () => {
+        this.switchSettingsTab('taxonomy');
       });
     }
 
@@ -6435,6 +6829,43 @@ class VaultApp extends HTMLElement {
       });
     });
 
+    // Companion Preset Tag Toggles
+    const presetBtns = this.querySelectorAll('.preset-tag-btn');
+    presetBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const node = e.currentTarget as HTMLElement;
+        const tag = node.dataset.tag || '';
+        
+        const idx = asset.metadata.tags.findIndex(t => t.toLowerCase().trim() === tag.toLowerCase().trim());
+        if (idx !== -1) {
+          // Remove it!
+          asset.metadata.tags.splice(idx, 1);
+          storage.updateAsset(asset.id, { metadata: asset.metadata });
+          this.addLog('warn', `Unlinked preset tag #${tag}`);
+          this.toast('Tag Removed', `#${tag} removed from asset.`);
+        } else {
+          // Add it!
+          asset.metadata.tags.push(tag);
+          storage.updateAsset(asset.id, { metadata: asset.metadata });
+          this.addLog('success', `Linked preset tag #${tag}`);
+          this.toast('Tag Added', `#${tag} linked to asset.`);
+        }
+        this.renderInspector();
+      });
+    });
+
+    // Companion Tag Badges click-to-filter
+    const badges = this.querySelectorAll('.meta-tag-badge');
+    badges.forEach(badge => {
+      badge.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.classList.contains('meta-tag-remove')) return;
+        
+        const tag = (e.currentTarget as HTMLElement).dataset.tag || '';
+        this.applyTagFilter(tag);
+      });
+    });
+
     // Add Tag triggers
     const addTagIn = this.querySelector('#add-tag-input') as HTMLInputElement;
     const addTagBtn = this.querySelector('#add-tag-btn') as HTMLButtonElement;
@@ -6502,6 +6933,21 @@ class VaultApp extends HTMLElement {
           window.location.href = obsidianUri;
         } catch (err) {
           console.error('Failed to trigger Obsidian protocol handler', err);
+        }
+      });
+    }
+
+    const actionShowFolder = this.querySelector('#action-show-folder');
+    if (actionShowFolder) {
+      actionShowFolder.addEventListener('click', () => {
+        const electronAPI = (window as any).electronAPI;
+        if (asset && electronAPI) {
+          const vaultPath = storage.getVaultPath();
+          const boardPath = asset.board === '/' ? '' : asset.board;
+          const fullPath = vaultPath + '/' + boardPath + (boardPath ? '/' : '') + asset.name;
+          electronAPI.showInFolder(fullPath.replace(/\/\//g, '/'));
+          this.toast('Opening File Browser', `Locating ${asset.name} on disk...`);
+          this.addLog('info', `Action triggered: Show item in folder natively for ${asset.name}`);
         }
       });
     }
@@ -6903,12 +7349,30 @@ class VaultApp extends HTMLElement {
     }
 
     // Interactive custom tags List
-    const lbTagsInHtml = asset.metadata.tags.map(tag => `
-      <span class="lb-meta-tag-badge bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded px-2 py-0.5 text-[10px] tracking-tight inline-flex items-center gap-1">
-        ${tag}
-        <span class="lb-meta-tag-remove cursor-pointer hover:text-white transition font-bold text-[10px]" data-tag="${tag}">×</span>
-      </span>
-    `).join('');
+    const lbTagsInHtml = asset.metadata.tags.map(tag => {
+      const category = classifyTag(tag);
+      let badgeClass = '';
+      let categoryPrefix = '';
+      if (category === 'medium') {
+        badgeClass = 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20';
+        categoryPrefix = '🖼️ ';
+      } else if (category === 'eraStyle') {
+        badgeClass = 'bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20';
+        categoryPrefix = '🎨 ';
+      } else if (category === 'source') {
+        badgeClass = 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20';
+        categoryPrefix = '🌐 ';
+      } else {
+        badgeClass = 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20';
+        categoryPrefix = '🏷️ ';
+      }
+      return `
+        <span class="lb-meta-tag-badge ${badgeClass} border rounded px-2 py-0.5 text-[10px] tracking-tight inline-flex items-center gap-1 cursor-pointer transition select-none" data-tag="${tag}" title="Click to filter catalog by this tag">
+          <span>${categoryPrefix}${tag}</span>
+          <span class="lb-meta-tag-remove cursor-pointer hover:text-white transition font-bold text-[10px]" data-tag="${tag}">×</span>
+        </span>
+      `;
+    }).join('');
 
     // Color palette hex labels copying swatches
     const lbPaletteInHtml = asset.colors.map(color => `
@@ -6955,8 +7419,14 @@ class VaultApp extends HTMLElement {
               <div class="absolute bottom-1 right-2 text-[8px] mono text-slate-600 group-focus-within:text-emerald-400 pointer-events-none transition-colors">Obsidian Link</div>
             </div>
 
-            <button id="lb-action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider">
+            <button id="lb-action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider mb-2">
               Open Companion in Obsidian
+            </button>
+            <button id="lb-action-show-folder" class="w-full py-2 bg-white/5 hover:bg-emerald-500/10 border border-white/5 hover:border-emerald-500/20 active:scale-95 text-slate-300 hover:text-emerald-400 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider flex justify-center items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+              </svg>
+              Show in Folder
             </button>
           </div>
 
@@ -7028,6 +7498,7 @@ class VaultApp extends HTMLElement {
                 class="bg-transparent text-xs text-white placeholder-slate-600 outline-none w-full" />
               <button id="lb-add-tag-btn" class="p-1 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded font-bold uppercase text-[9px] transition shrink-0 hidden">add</button>
             </div>
+            ${renderPresetsHtml(asset.metadata.tags, true)}
           </div>
 
         </div>
@@ -7206,6 +7677,50 @@ class VaultApp extends HTMLElement {
       });
     });
 
+    // Companion Preset Tag Toggles for lightbox
+    const lbPresetBtns = this.querySelectorAll('.lb-preset-tag-btn');
+    lbPresetBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const node = e.currentTarget as HTMLElement;
+        const tag = node.dataset.tag || '';
+        
+        const idx = asset.metadata.tags.findIndex(t => t.toLowerCase().trim() === tag.toLowerCase().trim());
+        if (idx !== -1) {
+          // Remove it!
+          asset.metadata.tags.splice(idx, 1);
+          storage.updateAsset(asset.id, { metadata: asset.metadata });
+          this.addLog('warn', `Unlinked preset tag #${tag}`);
+          this.toast('Tag Removed', `#${tag} removed from asset.`);
+        } else {
+          // Add it!
+          asset.metadata.tags.push(tag);
+          storage.updateAsset(asset.id, { metadata: asset.metadata });
+          this.addLog('success', `Linked preset tag #${tag}`);
+          this.toast('Tag Added', `#${tag} linked to asset.`);
+        }
+        this.populateLightboxData();
+        this.renderInspector();
+      });
+    });
+
+    // Companion Tag Badges click-to-filter for lightbox
+    const lbBadges = this.querySelectorAll('.lb-meta-tag-badge');
+    lbBadges.forEach(badge => {
+      badge.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.classList.contains('lb-meta-tag-remove')) return;
+        
+        const tag = (e.currentTarget as HTMLElement).dataset.tag || '';
+        
+        // Close lightbox and apply filter
+        const backdrop = this.querySelector('#lightbox-backdrop');
+        if (backdrop) backdrop.classList.add('hidden');
+        this.isLightboxOpen = false;
+        
+        this.applyTagFilter(tag);
+      });
+    });
+
     // Add Tag triggers for lightbox
     const lbAddTagIn = this.querySelector('#lb-add-tag-input') as HTMLInputElement;
     const lbAddTagBtn = this.querySelector('#lb-add-tag-btn') as HTMLButtonElement;
@@ -7275,6 +7790,21 @@ class VaultApp extends HTMLElement {
           window.location.href = obsidianUri;
         } catch (err) {
           console.error('Failed to trigger Obsidian protocol handler', err);
+        }
+      });
+    }
+
+    const lbActionShowFolder = this.querySelector('#lb-action-show-folder');
+    if (lbActionShowFolder) {
+      lbActionShowFolder.addEventListener('click', () => {
+        const electronAPI = (window as any).electronAPI;
+        if (asset && electronAPI) {
+          const vaultPath = storage.getVaultPath();
+          const boardPath = asset.board === '/' ? '' : asset.board;
+          const fullPath = vaultPath + '/' + boardPath + (boardPath ? '/' : '') + asset.name;
+          electronAPI.showInFolder(fullPath.replace(/\/\//g, '/'));
+          this.toast('Opening File Browser', `Locating ${asset.name} on disk...`);
+          this.addLog('info', `Action triggered: Show item in folder natively for ${asset.name}`);
         }
       });
     }
