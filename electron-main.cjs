@@ -134,15 +134,6 @@ function createWindow() {
   });
 
   const isDev = process.argv.includes('--dev') || process.env.ELECTRON_DEV === 'true';
-  
-  // Automatically grant permission & sync folders
-  win.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-    return true;
-  });
-  win.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    callback(true);
-  });
-
   const indexPath = path.join(__dirname, 'dist', 'index.html');
 
   if (isDev) {
@@ -416,25 +407,5 @@ ipcMain.handle('delete-board-directory', async (event, vaultPath, boardPath, kee
   } catch (err) {
     console.error('Failed to delete board natively:', err);
     return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle('show-in-folder', async (event, fullPath) => {
-  const { shell } = require('electron');
-  try {
-    shell.showItemInFolder(fullPath);
-    return { success: true };
-  } catch (err) {
-    console.error('Failed to show item in folder natively:', err);
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle('grant-permission-and-sync-folders', async (event, vaultPath) => {
-  try {
-    return scanFolder(vaultPath, '/', vaultPath);
-  } catch (err) {
-    console.error('Failed to auto-grant and sync folders:', err);
-    return [];
   }
 });

@@ -26,6 +26,8 @@ To help you get started quickly or inspect the internal architecture, we have cr
 
 ## Running From a Remote Web Server with Local Folders
 
+In response to: *"is it possible to run this from a remote web server but load local folders?"*
+
 **Yes!** It is fully possible, though standard browser sandboxing prevents a remote website from directly and silently reading raw absolute filesystem paths (like `/Users/design/...` or `C:\Users\...`). 
 
 To achieve this in a remote environment, you can use one of these three elegant approaches:

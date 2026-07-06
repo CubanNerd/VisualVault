@@ -5416,14 +5416,8 @@ class VaultApp extends HTMLElement {
             <div class="absolute bottom-1 right-2 text-[8px] mono text-slate-600 group-focus-within:text-emerald-400 pointer-events-none transition-colors">Obsidian Link</div>
           </div>
 
-          <button id="action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider mb-2">
+          <button id="action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider">
             Open Companion in Obsidian
-          </button>
-          <button id="action-show-folder" class="w-full py-2 bg-white/5 hover:bg-emerald-500/10 border border-white/5 hover:border-emerald-500/20 active:scale-95 text-slate-300 hover:text-emerald-400 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider flex justify-center items-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-            </svg>
-            Show in Folder
           </button>
         </div>
 
@@ -5816,24 +5810,6 @@ class VaultApp extends HTMLElement {
     // Grid selection triggers
     const masonryDiv = this.querySelector('#catalog-masonry');
     if (masonryDiv) {
-      masonryDiv.addEventListener('contextmenu', (e: any) => {
-        const card = e.target.closest('.asset-card') as HTMLElement;
-        if (card) {
-          e.preventDefault();
-          const id = card.dataset.id || '';
-          const asset = this.assets.find(a => a.id === id);
-          const electronAPI = (window as any).electronAPI;
-          if (asset && electronAPI) {
-            const vaultPath = storage.getVaultPath();
-            const boardPath = asset.board === '/' ? '' : asset.board;
-            const fullPath = vaultPath + '/' + boardPath + (boardPath ? '/' : '') + asset.name;
-            electronAPI.showInFolder(fullPath.replace(/\/\//g, '/'));
-            this.toast('Opening File Browser', `Locating ${asset.name} on disk...`);
-            this.addLog('info', `Action triggered: Show item in folder natively for ${asset.name}`);
-          }
-        }
-      });
-
       masonryDiv.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
 
@@ -6936,21 +6912,6 @@ class VaultApp extends HTMLElement {
         }
       });
     }
-
-    const actionShowFolder = this.querySelector('#action-show-folder');
-    if (actionShowFolder) {
-      actionShowFolder.addEventListener('click', () => {
-        const electronAPI = (window as any).electronAPI;
-        if (asset && electronAPI) {
-          const vaultPath = storage.getVaultPath();
-          const boardPath = asset.board === '/' ? '' : asset.board;
-          const fullPath = vaultPath + '/' + boardPath + (boardPath ? '/' : '') + asset.name;
-          electronAPI.showInFolder(fullPath.replace(/\/\//g, '/'));
-          this.toast('Opening File Browser', `Locating ${asset.name} on disk...`);
-          this.addLog('info', `Action triggered: Show item in folder natively for ${asset.name}`);
-        }
-      });
-    }
   }
 
   // Visual helper update card texts in masonry footer directly
@@ -7419,14 +7380,8 @@ class VaultApp extends HTMLElement {
               <div class="absolute bottom-1 right-2 text-[8px] mono text-slate-600 group-focus-within:text-emerald-400 pointer-events-none transition-colors">Obsidian Link</div>
             </div>
 
-            <button id="lb-action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider mb-2">
+            <button id="lb-action-obsidian" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 active:scale-95 text-slate-300 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider">
               Open Companion in Obsidian
-            </button>
-            <button id="lb-action-show-folder" class="w-full py-2 bg-white/5 hover:bg-emerald-500/10 border border-white/5 hover:border-emerald-500/20 active:scale-95 text-slate-300 hover:text-emerald-400 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider flex justify-center items-center gap-1.5">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-              </svg>
-              Show in Folder
             </button>
           </div>
 
@@ -7790,21 +7745,6 @@ class VaultApp extends HTMLElement {
           window.location.href = obsidianUri;
         } catch (err) {
           console.error('Failed to trigger Obsidian protocol handler', err);
-        }
-      });
-    }
-
-    const lbActionShowFolder = this.querySelector('#lb-action-show-folder');
-    if (lbActionShowFolder) {
-      lbActionShowFolder.addEventListener('click', () => {
-        const electronAPI = (window as any).electronAPI;
-        if (asset && electronAPI) {
-          const vaultPath = storage.getVaultPath();
-          const boardPath = asset.board === '/' ? '' : asset.board;
-          const fullPath = vaultPath + '/' + boardPath + (boardPath ? '/' : '') + asset.name;
-          electronAPI.showInFolder(fullPath.replace(/\/\//g, '/'));
-          this.toast('Opening File Browser', `Locating ${asset.name} on disk...`);
-          this.addLog('info', `Action triggered: Show item in folder natively for ${asset.name}`);
         }
       });
     }

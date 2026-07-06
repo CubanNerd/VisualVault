@@ -1,26 +1,49 @@
-# VisualVault Developer Maintenance & Architecture Guide
-*Last Updated: June 20, 2026*
+# VisualVault Developer Architecture & Maintenance Guide
 
-Welcome to the **VisualVault Developer Maintenance Guide**. This document outlines the application's design, architectural patterns, state managers, tech stack, and build pipelines. It is designed to help maintain, expand, or refactor the codebase.
-
----
-
-### Essential Documentation
-- **[User Operation Manual](./docs/USER_GUIDE.md)**: Describes end-user features, search mechanics, localized user profile view-modes, and subdirectory preservation loops during folder deletion chores.
+Welcome to the comprehensive **VisualVault Developer Architecture & Maintenance Guide**. This document outlines the application's design, architectural patterns, state managers, tech stack, build pipelines, and integrations. It is written to aid developers with future maintenance, updates, or native platform ports.
 
 ---
 
 ## Architectural Overview
 
-VisualVault is a high-performance, local-first design asset catalog styled like an Obsidian workstation. 
+VisualVault is a high-performance, local-first design asset catalog styled like an Obsidian workstation.
 
 ### Custom Elements (Web Components) Paradigm
-Rather than relying on virtual DOM overhead, VisualVault is engineered as a standard native **TypeScript Web Component** class (`VaultApp`) that inherits from `HTMLElement` and is registered via `customElements.define('vault-app', VaultApp)`. 
+Rather than relying on virtual DOM overhead, VisualVault is engineered as a standard native **TypeScript Web Component** class (`VaultApp`) that inherits from `HTMLElement` and is registered via `customElements.define('vault-app', VaultApp)`.
 
 This approach provides several core benefits:
-- **Sub-millisecond DOM updates**: Dynamic insertions and DOM selections execute directly via native document queries, offering unparalleled UI responsiveness.
+- **Sub-millisecond DOM updates**: Dynamic insertions and DOM selections execute directly via native document queries, offering UI responsiveness.
 - **Self-contained Logic**: Event bindings, layout systems, overlays, theme injections, and storage bridges are cleanly coupled inside a single core class.
 - **Frictionless Portability**: It bootstraps immediately inside a standard browser environment or nested inside native hybrid desktop web wrappers (Electron).
+
+### The Web Component Lifecycle (`VaultApp`)
+The primary controller is the `VaultApp` class defined in `src/main.tsx`, which extends `HTMLElement` and is registered via `customElements.define('vault-app', VaultApp)`.
+
+```
+                    [ Constructor ]
+              Seeds default state structures
+                           │
+                           ▼
+                  [ connectedCallback ]
+              Loads settings & initiates storage observer
+                           │
+                           ▼
+                     [ renderShell ]
+              Builds skeletal DOM layout structures
+                           │
+                           ▼
+                 [ attachEventListeners ]
+              Wires static events & handlers
+                           │
+                           ▼
+                     [ updateLayout ]
+    Gathers assets ➔ Filters list ➔ Renders Masonry & Cards
+```
+
+1. **`connectedCallback()`**: Initializes options, maps workspace settings, binds global window events, and loads the storage system.
+2. **`renderShell()`**: Translates raw HTML strings directly into the DOM container. It establishes the workspace layout, including the sidebar and the main viewport.
+3. **`attachEventListeners()`**: Hooks up handlers like search listeners, lightbox close buttons, board inputs, and category tab actions.
+4. **`updateLayout()`**: The main render pipeline. It reads filters, runs real-time search match calculations, and populates both the directory lists and the masonry portfolio.
 
 ---
 
@@ -29,7 +52,7 @@ This approach provides several core benefits:
 | Technology / Library | Version | Purpose |
 | :--- | :--- | :--- |
 | **TypeScript** | `~5.8.2` | Strong type definitions, compilation checks, and strict interface schemas. |
-| **Vite** | `^6.2.3` | Ultra-fast development server, asset packager, and ES module builder. |
+| **Vite** | `^6.2.3` | Development server, asset packager, and ES module builder. |
 | **Tailwind CSS (v4)** | `^4.1.14` | Localized utility-first styling with native CSS variables and `@theme` extension hooks. |
 | **Electron** | `^42.2.0` | Local desktop runtime wrapper to bypass browser security sandboxes. |
 | **electron-packager** | `^17.1.2` | Executable compressor that bundles files for Win32 (x64) desktop targets. |
@@ -54,201 +77,9 @@ This approach provides several core benefits:
 
 ---
 
-## State & Storage Sync Engine
-
-The application manages assets, boards, active vaults, and companion settings purely on the client side, using unique, namespaced local caching channels. This mirrors the behavior of Obsidian's offline-first vault catalog.
-
-### 1. The Directory Vault Key-Map
-To support isolated files across multiple project references, the application registers vaults using a root workspace tracker:
-
-- **Registry Key**: `visual_vaults_list_v1`
-  - Stores list array of registered folders: `{ name: string, path: string, lastOpened: number }[]`
-- **Active Path Identifier**: `visual_vault_active_path_v1`
-  - Stores string path reference of the active directory vault (e.g., `/Users/projects/Cyberpunk_Grid`).
-
-### 2. Isolated Workspace Databases
-Individual asset lists (including metadata stars, custom notes, color palettes, and tag meshes) are isolated by vault-path to prevent crosstalk.
-Each vault has its own database key constructed dynamically in `src/main.tsx` via `StorageManager`:
-
-```ts
-getVaultKey(): string {
-  const path = this.getVaultPath();
-  return `visual_catalog_db_v3_${path.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-}
-```
-
-This dynamic mapping separates your data, ensuring that when a developer switches from the *Neo-Tokyo Concept Art* library to the *Mechanic Parts & Blueprint* catalog, only the assets mapped to that specific filesystem folder are loaded.
-
----
-
-## Layout Modifiers, Custom Themes & Google Web Fonts
-
-VisualVault includes distinctive user interface states, accent colors, and custom typefaces handled via injected CSS stylesheets configured dynamically.
-
-### System Typography Options
-We support interactive, high-fidelity Google Fonts and System Typefaces:
-- **Default Sans**: Inter Sans
-- **Tech / Futuristic Display**: Space Grotesk, Tektur Futuristic
-- **Legibility**: Outfit (Geometric), Lexend Sans
-- **Editorial / Serif**: Playfair Display, Georgia Serif
-- **Developer / Monospace**: JetBrains Mono, Space Mono, IBM Plex Mono, Courier Classic
-
-The selected font is persisted via local storage element `visual_vault_system_font` and applied globally on change using dynamic runtime CSS template strings in `injectThemeStyles()`.
-
-### Injected Style Blocks
-The layout themes are managed by injecting styling variables dynamically:
-1. **Obsidian Dark (Default)**: Deep carbon canvas (`#0F0F11`), slate borders, emerald inputs, and glowing high-contrast outline states.
-2. **Notion Minimalist (Light)**: Cool gray borders, pristine off-white frames, and classic typography.
-3. **Y2K CRT Matrix**: Glowing lime greens, stark black backgrounds, scanline CSS overlays, and monospace console fonts.
-
----
-
-## Customizable Schema & Status Sync
-
-VisualVault provides an advanced **Custom Schema & Status Configurator** to align the application metadata with specific database design taxonomies or studio workflows.
-
-### Structure & Layout Schema Interfacing
-Developers and users can custom-label field variables, change placeholder descriptions, or alter dropdown selection status values. The configuration uses the `CustomSchemaConfig` interface:
-```ts
-interface PropertyConfig {
-  label: string;
-  placeholder?: string;
-}
-
-interface CustomSchemaConfig {
-  statuses: { value: string; label: string }[];
-  properties: {
-    title: PropertyConfig;
-    notes: PropertyConfig;
-    artist: PropertyConfig;
-    rating: PropertyConfig;
-    status: PropertyConfig;
-  };
-}
-```
-
-### Persistence & Portability
-- **Storage Target**: Local Storage key `visual_vault_schema_config_v1`.
-- **JSON Import/Export Hooks**: The Settings panel features quick click action triggers to save down custom configurations as `visual_vault_config.json`, or upload and apply schemas instantly.
-- **Form Mapping Sync**: All changed property labels immediately rewrite input fields across both the main inspector panel and active lightbox overlays.
-
----
-
-## Companion Obsidian Front-Matter Engine
-
-A critical core feature of VisualVault is its inline metadata sync. Reference images inside the grid contain custom companion `.md` files containing YAML front-matter metadata blocks.
-
-### Parse & Stringify Routines
-Inside `src/main.tsx`, text data edited inside the sidebar is compiled using regex-based utility parsers:
-
-- **`stringifyYAMLFrontmatter(metadata: AssetMetadata): string`**  
-  Transforms JavaScript options (arrays, strings, ratings) into standard Obsidian-compatible blocks:
-  ```yaml
-  ---
-  artist: Chen-K design team
-  rating: 5
-  status: completed
-  tags:
-    - environment_ref
-    - concept_art
-  ---
-  ```
-- **`parseYAMLFrontmatter(text: string, current: AssetMetadata): AssetMetadata`**  
-  Reads direct developer edits inside the code textarea, parses values on-the-fly, and mirrors options back to visual switches instantly.
-
----
-
-## Desktop Compilations & Core Build Steps
-
-Vite compiles code to static ES files. Electron picks these up directly from the `/dist` directory.
-
-### Relative Import Configuration (`vite.config.ts`)
-To allow Electron's file loader (`win.loadFile()`) to successfully find built assets relative to the local directories rather than expecting an absolute server root, the `config` has `base` redirected:
-```ts
-export default defineConfig({
-  base: './', // Crucial: Ensures dist/index.html reads scripts as ./assets/ instead of /assets/
-  plugins: [react(), tailwindcss()],
-});
-```
-
-### Script Execution Commands
-
-During project updates, use these actions inside your package manager shell:
-
-- **Standard Local Hot Dev** (bypasses Electron wrappers for fast web iterations):
-  ```bash
-  npm run dev
-  ```
-- **Local Application Lint Verification**:
-  ```bash
-  npm run lint
-  ```
-- **Electron Container Sandbox Run**:
-  ```bash
-  npm run electron:start
-  ```
-- **Build & Package Windows Executable (`.exe` in `dist-win/`)**:
-  ```bash
-  npm run electron:build
-  ```
-- **Build & Package macOS App Bundle (`.app` in `dist-mac/` for Intel & Apple Silicon)**:
-  ```bash
-  npm run electron:build:mac
-  ```
-- **Build & Package All Platforms Simultaneously (`dist-all/`)**:
-  ```bash
-  npm run electron:build:all
-  ```
-
----
-
-## Maintenance Checklist for Future Developers
-
-1. **Keep Web Components Native**: If integrating libraries like Recharts or D3 in future updates, ensure they mount inside the native element's DOM nodes or within shadow contexts without disrupting event flows.
-2. **Ensure File Path Safety**: When writing absolute file paths via custom scripts, sanitize paths with URL encoding to prevent system crashes across different operating systems.
-3. **Optimize Procedural Mocking**: Ensure changes to standard visual asset blueprints are registered in `defaultMockAssets()` in `src/main.tsx` to preserve default values for first-time builders.
-
-
----
-
-## Core architectural Paradigm
-
-Instead of using virtual DOM abstraction layers or reactive compilation cycles that add microsecond execution delays, VisualVault leverages a **Native Custom element Component model** styled entirely via Tailwind CSS (v4).
-
-### The Web Component Lifecycle (`VaultApp`)
-The primary controller is the `VaultApp` class defined in `src/main.tsx`, which extends `HTMLElement` and is registered via `customElements.define('vault-app', VaultApp)`.
-
-```
-                    [ Constructor ]
-              Seeds default state structures
-                           │
-                           ▼
-                  [ connectedCallback ]
-              Loads settings & initiates storage observer
-                           │
-                           ▼
-                     [ renderShell ]
-              Builds skeletal DOM layout structures
-                           │
-                           ▼
-                [ attachEventListeners ]
-              Wires static events & handlers
-                           │
-                           ▼
-                    [ updateLayout ]
-    Gathers assets ➔ Filters list ➔ Renders Masonry & Cards
-```
-
-1. **`connectedCallback()`**: Initializes options, maps workspace settings, binds global window events, and loads the storage system.
-2. **`renderShell()`**: Translates raw HTML strings directly into the DOM container. It establishes the workspace layout, including the sidebar and the main viewport.
-3. **`attachEventListeners()`**: Hooks up handlers like search listeners, lightbox close buttons, board inputs, and category tab actions.
-4. **`updateLayout()`**: The main render pipeline. It reads filters, runs real-time search match calculations, and populates both the directory lists and the masonry portfolio.
-
----
-
 ## State Partitioning & Storage System
 
-VisualVault functions as an offline-first catalog wrapper. It segregates asset records, YAML notes, and boards according to **Vault Paths** to prevent data bleeding.
+VisualVault functions as an offline-first catalog wrapper. It manages assets, boards, active vaults, and companion settings purely on the client side, using unique, namespaced local caching channels. This mirrors the behavior of Obsidian's offline-first vault catalog.
 
 ```
 ┌───────────────────────────────── StorageService ─────────────────────────────────┐
@@ -268,7 +99,27 @@ VisualVault functions as an offline-first catalog wrapper. It segregates asset r
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1. Unified Arena vs. Focused Solitude Views
+### 1. The Directory Vault Key-Map
+To support isolated files across multiple project references, the application registers vaults using a root workspace tracker:
+- **Registry Key**: `visual_vaults_list_v1`
+  - Stores list array of registered folders: `{ name: string, path: string, lastOpened: number }[]`
+- **Active Path Identifier**: `visual_vault_active_path_v1`
+  - Stores string path reference of the active directory vault (e.g., `/Users/projects/Cyberpunk_Grid`).
+
+### 2. Isolated Workspace Databases
+Individual asset lists (including metadata stars, custom notes, color palettes, and tag meshes) are isolated by vault-path to prevent crosstalk.
+Each vault has its own database key constructed dynamically in `src/main.tsx` via `StorageManager`:
+
+```ts
+getVaultKey(): string {
+  const path = this.getVaultPath();
+  return `visual_catalog_db_v3_${path.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+}
+```
+
+This dynamic mapping separates your data, ensuring that when a developer switches from the *Neo-Tokyo Concept Art* library to the *Mechanic Parts & Blueprint* catalog, only the assets mapped to that specific filesystem folder are loaded.
+
+### 3. Unified Arena vs. Focused Solitude Views
 The **Workspace View Mode** switch changes how files are indexed and rendered in memory:
 
 ```ts
@@ -319,7 +170,7 @@ private loadAssets() {
 - **In Focused Mode**: Read operations target the active key mapped strictly to `storage.getVaultPath()`. Only local directory assets load.
 - **In Unified Mode**: The engine reads records from **all** registered vaults in the catalog, appends an originating `.vaultPath` track token, deduplicates references, and merges them into a collective array.
 
-### 2. Multi-Vault Partition Saving
+### 4. Multi-Vault Partition Saving
 When saving modified metadata properties, the `StorageService` partitions and maps assets back to their respective origin filesystems. This ensures that assets keep their correct vault paths even in **Unified** viewing mode:
 
 ```ts
@@ -345,7 +196,6 @@ saveAllAssets(assets: Asset[]) {
   }
 }
 ```
-
 
 ---
 
@@ -449,6 +299,59 @@ Since dashboard elements map dynamically on layout updates, static DOM hooks to 
 
 ---
 
+## Layout Modifiers, Custom Themes & Google Web Fonts
+
+VisualVault includes distinctive user interface states, accent colors, and custom typefaces handled via injected CSS stylesheets configured dynamically.
+
+### System Typography Options
+We support interactive, high-fidelity Google Fonts and System Typefaces:
+- **Default Sans**: Inter Sans
+- **Tech / Futuristic Display**: Space Grotesk, Tektur Futuristic
+- **Legibility**: Outfit (Geometric), Lexend Sans
+- **Editorial / Serif**: Playfair Display, Georgia Serif
+- **Developer / Monospace**: JetBrains Mono, Space Mono, IBM Plex Mono, Courier Classic
+
+The selected font is persisted via local storage element `visual_vault_system_font` and applied globally on change using dynamic runtime CSS template strings in `injectThemeStyles()`.
+
+### Injected Style Blocks
+The layout themes are managed by injecting styling variables dynamically:
+1. **Obsidian Dark (Default)**: Deep carbon canvas (`#0F0F11`), slate borders, emerald inputs, and glowing high-contrast outline states.
+2. **Notion Minimalist (Light)**: Cool gray borders, pristine off-white frames, and classic typography.
+3. **Y2K CRT Matrix**: Glowing lime greens, stark black backgrounds, scanline CSS overlays, and monospace console fonts.
+
+---
+
+## Customizable Schema & Status Sync
+
+VisualVault provides an advanced **Custom Schema & Status Configurator** to align the application metadata with specific database design taxonomies or studio workflows.
+
+### Structure & Layout Schema Interfacing
+Developers and users can custom-label field variables, change placeholder descriptions, or alter dropdown selection status values. The configuration uses the `CustomSchemaConfig` interface:
+```ts
+interface PropertyConfig {
+  label: string;
+  placeholder?: string;
+}
+
+interface CustomSchemaConfig {
+  statuses: { value: string; label: string }[];
+  properties: {
+    title: PropertyConfig;
+    notes: PropertyConfig;
+    artist: PropertyConfig;
+    rating: PropertyConfig;
+    status: PropertyConfig;
+  };
+}
+```
+
+### Persistence & Portability
+- **Storage Target**: Local Storage key `visual_vault_schema_config_v1`.
+- **JSON Import/Export Hooks**: The Settings panel features quick click action triggers to save down custom configurations as `visual_vault_config.json`, or upload and apply schemas instantly.
+- **Form Mapping Sync**: All changed property labels immediately rewrite input fields across both the main inspector panel and active lightbox overlays.
+
+---
+
 ## Parsing & RegEx Engines for Obsidian Notes
 
 To provide cross-app compatibility with Obsidian, VisualVault parses and writes metadata inside standard Markdown frontmatter blocks:
@@ -514,3 +417,55 @@ To match the seamless experience of Obsidian, the `VaultApp` initializes an auto
 2.  **Native Handshake**: If `window.electronAPI` is active, it calls the `scanVault` handler with the active path.
 3.  **Silent File Indexing**: Electron recursively reads the physical directories, registers subfolders as Visual Boards, matches visual assets to companion `.md` files, and returns the compiled list of records.
 4.  **Instant UI Rendering**: Updates the masonry view, renders visual board metrics, and resolves the local file URLs using the privileged `visual-vault://` protocol safely. The user has their entire workspace instantly restored without seeing a single permission dialog or file selection prompt!
+
+---
+
+## Desktop Compilations & Core Build Steps
+
+Vite compiles code to static ES files. Electron picks these up directly from the `/dist` directory.
+
+### Relative Import Configuration (`vite.config.ts`)
+To allow Electron's file loader (`win.loadFile()`) to successfully find built assets relative to the local directories rather than expecting an absolute server root, the `config` has `base` redirected:
+```ts
+export default defineConfig({
+  base: './', // Crucial: Ensures dist/index.html reads scripts as ./assets/ instead of /assets/
+  plugins: [react(), tailwindcss()],
+});
+```
+
+### Script Execution Commands
+
+During project updates, use these actions inside your package manager shell:
+
+- **Standard Local Hot Dev** (bypasses Electron wrappers for fast web iterations):
+  ```bash
+  npm run dev
+  ```
+- **Local Application Lint Verification**:
+  ```bash
+  npm run lint
+  ```
+- **Electron Container Sandbox Run**:
+  ```bash
+  npm run electron:start
+  ```
+- **Build & Package Windows Executable (`.exe` in `dist-win/`)**:
+  ```bash
+  npm run electron:build
+  ```
+- **Build & Package macOS App Bundle (`.app` in `dist-mac/` for Intel & Apple Silicon)**:
+  ```bash
+  npm run electron:build:mac
+  ```
+- **Build & Package All Platforms Simultaneously (`dist-all/`)**:
+  ```bash
+  npm run electron:build:all
+  ```
+
+---
+
+## Maintenance Checklist for Future Developers
+
+1. **Keep Web Components Native**: If integrating libraries like Recharts or D3 in future updates, ensure they mount inside the native element's DOM nodes or within shadow contexts without disrupting event flows.
+2. **Ensure File Path Safety**: When writing absolute file paths via custom scripts, sanitize paths with URL encoding to prevent system crashes across different operating systems.
+3. **Optimize Procedural Mocking**: Ensure changes to standard visual asset blueprints are registered in `defaultMockAssets()` in `src/main.tsx` to preserve default values for first-time builders.
