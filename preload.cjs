@@ -15,5 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteBoardDirectory: (vaultPath, boardPath, keepFiles) => 
     ipcRenderer.invoke('delete-board-directory', vaultPath, boardPath, keepFiles),
   showInFolder: (fullPath) =>
-    ipcRenderer.invoke('show-in-folder', fullPath)
+    ipcRenderer.invoke('show-in-folder', fullPath),
+  grantPermissionAndSyncFolders: (vaultPath) =>
+    ipcRenderer.invoke('grant-permission-and-sync-folders', vaultPath)
 });

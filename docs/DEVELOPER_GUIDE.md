@@ -507,8 +507,17 @@ The native layer uses secure, standardized IPC channels to carry out system-leve
 5.  **`delete-asset-file`**: Safely deletes both the physical image file and its companion markdown metadata file from the native filesystem on command.
 6.  **`create-board-directory`**: Dynamically creates real folders on the native storage using `fs.mkdirSync(..., { recursive: true })`.
 7.  **`delete-board-directory`**: Prunes physical folders. When configured to preserve files, it dynamically moves contained files to the vault root first using `fs.renameSync` before removing the board folder.
+8.  **`grant-permission-and-sync-folders`**: Automatically bypasses directory access checks by invoking direct filesystem scans and instantly returning populated asset list updates to the custom Web Component context.
 
-### 2. Silent Vault Auto-Restoration Lifecycle
+### 2. Automatic Directory Permission & Sync Handlers
+To guarantee an uninterrupted, zero-prompt experience during native execution, the main process overrides Chromium's permission request pipelines. This is handled by registering custom hook callbacks on the active window session:
+
+- **`setPermissionCheckHandler`**: Intercepts active security status requests from the browser context (e.g., File System Access API checks) and returns `true` automatically.
+- **`setPermissionRequestHandler`**: Intercepts on-the-fly requests for system-level directory and folder synchronization and returns `true` automatically via callback.
+
+This dual-layer automation completely eliminates permission security prompts, allowing the application to immediately sync files and folders upon launch.
+
+### 3. Silent Vault Auto-Restoration Lifecycle
 To match the seamless experience of Obsidian, the `VaultApp` initializes an automated restoration cycle:
 1.  **Read Local Storage**: Reads the active vault's absolute path from the local catalog configuration cache (`storage.getVaultPath()`).
 2.  **Native Handshake**: If `window.electronAPI` is active, it calls the `scanVault` handler with the active path.
