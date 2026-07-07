@@ -833,6 +833,80 @@ function extractColorsFromImage(imgUrl: string): Promise<string[]> {
 }
 
 // ----------------------------------------------------
+// Color Palette Similarity Calculus Engine
+// ----------------------------------------------------
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const cleanHex = hex.replace(/^\s*#|\s*$/g, '');
+  let expandedHex = cleanHex;
+  if (cleanHex.length === 3) {
+    expandedHex = cleanHex.replace(/(.)/g, '$1$1');
+  }
+  const r = parseInt(expandedHex.substring(0, 2), 16) / 255;
+  const g = parseInt(expandedHex.substring(2, 4), 16) / 255;
+  const b = parseInt(expandedHex.substring(4, 6), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+
+  return {
+    h: h * 360,
+    s: s * 100,
+    l: l * 100
+  };
+}
+
+function getAverageHsl(colors: string[]): { h: number; s: number; l: number } {
+  if (!colors || colors.length === 0) {
+    return { h: 0, s: 0, l: 0 };
+  }
+  let sumSin = 0;
+  let sumCos = 0;
+  let sumS = 0;
+  let sumL = 0;
+  let count = 0;
+
+  for (const hex of colors) {
+    const hsl = hexToHsl(hex);
+    const rad = (hsl.h * Math.PI) / 180;
+    sumSin += Math.sin(rad);
+    sumCos += Math.cos(rad);
+    sumS += hsl.s;
+    sumL += hsl.l;
+    count++;
+  }
+
+  let avgH = Math.atan2(sumSin / count, sumCos / count) * (180 / Math.PI);
+  if (avgH < 0) {
+    avgH += 360;
+  }
+
+  return {
+    h: avgH,
+    s: sumS / count,
+    l: sumL / count
+  };
+}
+
+function getHueDistance(h1: number, h2: number): number {
+  const diff = Math.abs(h1 - h2) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
+// ----------------------------------------------------
 // VisualVault Web Component Definition
 // ----------------------------------------------------
 class VaultApp extends HTMLElement {
@@ -841,6 +915,8 @@ class VaultApp extends HTMLElement {
   private selectedBoard = 'ALL';
   private selectedAssetId = 'as_1';
   private searchQuery = '';
+  private colorPaletteSearchQuery: string[] | null = null;
+  private colorPaletteTolerance = 45; // in degrees (0 - 180)
   private gridSize: 'sm' | 'md' | 'lg' = 'md';
   private activeLogs: { time: string; type: string; msg: string }[] = [];
   private cpuUsage = 1.2;
@@ -3402,7 +3478,7 @@ class VaultApp extends HTMLElement {
 
   private getFilteredAssets(): Asset[] {
     const query = this.searchQuery.toLowerCase().trim();
-    return this.assets.filter(asset => {
+    let filtered = this.assets.filter(asset => {
       // Board selection filtering (Support clicking All Assets and parent/root boards matching their subfolder assets)
       if (this.selectedBoard !== 'ALL') {
         const isMatch = asset.board === this.selectedBoard;
@@ -3421,6 +3497,29 @@ class VaultApp extends HTMLElement {
       }
       return true;
     });
+
+    if (this.colorPaletteSearchQuery && this.colorPaletteSearchQuery.length > 0) {
+      const queryHsl = getAverageHsl(this.colorPaletteSearchQuery);
+      
+      // Filter assets that are within the hue tolerance threshold
+      filtered = filtered.filter(asset => {
+        if (!asset.colors || asset.colors.length === 0) return false;
+        const assetHsl = getAverageHsl(asset.colors);
+        const dist = getHueDistance(queryHsl.h, assetHsl.h);
+        return dist <= this.colorPaletteTolerance;
+      });
+
+      // Sort assets by proximity of average hue
+      filtered.sort((a, b) => {
+        const hslA = getAverageHsl(a.colors);
+        const hslB = getAverageHsl(b.colors);
+        const distA = getHueDistance(queryHsl.h, hslA.h);
+        const distB = getHueDistance(queryHsl.h, hslB.h);
+        return distA - distB;
+      });
+    }
+
+    return filtered;
   }
 
   private applyTagFilter(tag: string) {
@@ -3581,9 +3680,9 @@ class VaultApp extends HTMLElement {
             <div id="sidebar-lists" class="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-5">
               
               <!-- Workspace Perspective Mode -->
-              <div class="space-y-2 pb-3 border-b border-white/5">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-[10px] uppercase tracking-widest text-emerald-400 font-extrabold cursor-default font-mono">Workspace View Mode</h3>
+              <div class="space-y-2 pb-3 border-b border-white/5 relative group">
+                <div class="flex items-center justify-between cursor-help" title="Hover for more information">
+                  <h3 class="text-[10px] uppercase tracking-widest text-emerald-400 font-extrabold font-mono">Workspace View Mode</h3>
                   <span class="text-[9px] px-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-bold font-mono">CORE</span>
                 </div>
                 <div class="grid grid-cols-2 gap-1 bg-black/40 p-0.5 rounded border border-white/5 vault-rounded">
@@ -3594,7 +3693,7 @@ class VaultApp extends HTMLElement {
                     Unified
                   </button>
                 </div>
-                <p id="workspace-mode-desc" class="text-[10px] text-slate-500 italic leading-relaxed pt-0.5 select-none font-mono tracking-tight">
+                <p id="workspace-mode-desc" class="absolute z-50 left-0 top-full mt-2 w-full bg-slate-900 border border-white/10 text-slate-300 p-2.5 rounded shadow-xl text-[10px] italic leading-relaxed select-none font-mono tracking-tight opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none">
                   ${this.workspaceMode === 'focused' 
                     ? '● Focused Solitude: Isolating project reference directories.' 
                     : '● Unified Arena: Intercepting and merging all Visual Vaults.'}
@@ -3627,13 +3726,17 @@ class VaultApp extends HTMLElement {
 
               <!-- Boards collection tree navigation -->
               <div class="space-y-1">
-                <div class="flex items-center justify-between mb-2">
-                  <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default">Boards Directory</h3>
+                <div class="flex items-center justify-between mb-2 relative group">
+                  <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-help flex items-center gap-1" title="Hover for hierarchy rule">
+                    Boards Directory
+                    <svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  </h3>
                   <button id="sidebar-add-board-trigger" class="p-1 hover:bg-emerald-500/10 text-emerald-400 hover:text-emerald-300 rounded cursor-pointer transition flex items-center justify-center shrink-0" title="Create New Board">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
                     </svg>
                   </button>
+                  <div id="vault-hierarchy-info-container" class="absolute z-50 left-0 top-full mt-2 w-[220px]"></div>
                 </div>
                 
                 <div id="boards-list-container" class="space-y-1">
@@ -3652,8 +3755,6 @@ class VaultApp extends HTMLElement {
                     </button>
                   </div>
                 </div>
-
-                <div id="vault-hierarchy-info-container" class="mt-2"></div>
                 
                 <!-- Taxonomy Explorer -->
                 <div id="taxonomy-sidebar-container" class="space-y-2 pt-3 border-t border-white/5 mt-3 select-none"></div>
@@ -3682,21 +3783,6 @@ class VaultApp extends HTMLElement {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                   </svg>
                   <span class="font-medium">Vault Settings</span>
-                </div>
-              </div>
-
-              <!-- Performance metadata meter matching elegant dark theme styling -->
-              <div class="bg-black/40 rounded p-3 text-[10px] mono text-slate-500 space-y-1.5 vault-rounded">
-                <div class="flex justify-between font-mono">
-                  <span>DB Indexer</span>
-                  <span id="cpu-val-text" class="text-emerald-500">1.2%</span>
-                </div>
-                <div class="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
-                  <div id="cpu-bar-fill" class="bg-emerald-500 h-full transition-all duration-1000" style="width: 12%"></div>
-                </div>
-                <div class="flex justify-between text-[9px] text-slate-600 pt-1">
-                  <span>SQLite pool: Idle</span>
-                  <span>60 FPS Active</span>
                 </div>
               </div>
             </div>
@@ -3775,6 +3861,29 @@ class VaultApp extends HTMLElement {
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                     </svg>
                     Import Files
+                  </button>
+                </div>
+              </div>
+
+              <!-- Active Color Palette Search Banner -->
+              <div id="color-palette-search-banner" class="hidden mb-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3.5 flex items-center justify-between gap-4 text-emerald-200 shrink-0">
+                <div class="flex items-center gap-3 text-xs text-left">
+                  <div class="flex gap-1 bg-black/40 border border-white/10 p-1 rounded" id="color-palette-banner-colors">
+                    <!-- Dynamic swatches -->
+                  </div>
+                  <div>
+                    <span class="font-bold">Palette Matcher Active:</span> 
+                    Showing images with an average palette color similar to the selected sample.
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="flex items-center gap-1.5 bg-black/40 border border-white/5 px-2.5 py-1 rounded text-[11px] font-mono">
+                    <span class="opacity-60">Tolerance:</span>
+                    <input type="range" id="color-palette-tolerance-slider" min="15" max="120" step="5" value="${this.colorPaletteTolerance}" class="w-16 accent-emerald-500 cursor-pointer h-1" />
+                    <span id="color-palette-tolerance-text" class="text-emerald-400 font-bold">${this.colorPaletteTolerance}°</span>
+                  </div>
+                  <button id="color-palette-clear-btn" class="px-3 py-1 bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-xs rounded transition active:scale-95 cursor-pointer border border-white/5">
+                    Clear Filter
                   </button>
                 </div>
               </div>
@@ -4154,6 +4263,21 @@ class VaultApp extends HTMLElement {
                     <span class="text-white" id="settings-files-indexed">0 files indexed</span>
                   </div>
                 </div>
+
+                <!-- Performance metadata meter matching elegant dark theme styling -->
+                <div class="bg-black/40 rounded p-3 text-[10px] font-mono text-slate-500 space-y-1.5 vault-rounded border border-white/5 mt-4">
+                  <div class="flex justify-between font-mono">
+                    <span>DB Indexer</span>
+                    <span id="cpu-val-text" class="text-emerald-500 font-bold">1.2%</span>
+                  </div>
+                  <div class="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                    <div id="cpu-bar-fill" class="bg-emerald-500 h-full transition-all duration-1000 shadow-[0_0_8px_rgba(16,185,129,0.5)]" style="width: 12%"></div>
+                  </div>
+                  <div class="flex justify-between text-[9px] text-slate-600 pt-1 uppercase tracking-wider font-bold">
+                    <span>SQLite pool: Idle</span>
+                    <span>60 FPS Active</span>
+                  </div>
+                </div>
               </div>
 
               <!-- Clean / Wipe active catalog -->
@@ -4214,7 +4338,7 @@ class VaultApp extends HTMLElement {
                   <button id="theme-btn-minimalist" class="theme-select-btn relative flex flex-col text-left p-3.5 rounded-lg border bg-[#F7F7F5] border-neutral-300 font-semibold cursor-pointer transition hover:scale-[1.02] overflow-hidden">
                     <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#2383E2] hidden" id="theme-bullet-minimalist"></div>
                     <span class="text-xs text-[#37352F] font-sans">Minimalist</span>
-                    <span class="text-[10px] text-[#787774] font-normal font-mono mt-1">Notion Off-White</span>
+                    <span class="text-[10px] text-[#787774] font-normal font-mono mt-1">Off-White</span>
                   </button>
 
                   <!-- Theme Button 3: Matrix CRT -->
@@ -4569,12 +4693,42 @@ class VaultApp extends HTMLElement {
     this.renderSections();
     this.renderCatalog();
     this.renderInspector();
+    this.updateActiveColorPaletteUI();
     
     // Update counter
     const allCount = this.querySelector('#all-assets-count');
     const footerCount = this.querySelector('#vault-total-count');
     if (allCount) allCount.textContent = `${this.assets.length}`;
     if (footerCount) footerCount.textContent = `Vault Index: ${14203 + this.assets.length - 12} files`;
+  }
+
+  private updateActiveColorPaletteUI() {
+    const banner = this.querySelector('#color-palette-search-banner') as HTMLElement | null;
+    if (!banner) return;
+
+    if (this.colorPaletteSearchQuery && this.colorPaletteSearchQuery.length > 0) {
+      banner.classList.remove('hidden');
+      banner.classList.add('flex');
+
+      const swatchesContainer = this.querySelector('#color-palette-banner-colors');
+      if (swatchesContainer) {
+        swatchesContainer.innerHTML = this.colorPaletteSearchQuery.map(c => `
+          <div class="w-4 h-4 rounded-sm border border-white/10" style="background-color: ${c}" title="${c}"></div>
+        `).join('');
+      }
+
+      const toleranceSlider = this.querySelector('#color-palette-tolerance-slider') as HTMLInputElement | null;
+      if (toleranceSlider) {
+        toleranceSlider.value = String(this.colorPaletteTolerance);
+      }
+      const toleranceText = this.querySelector('#color-palette-tolerance-text');
+      if (toleranceText) {
+        toleranceText.textContent = `${this.colorPaletteTolerance}°`;
+      }
+    } else {
+      banner.classList.add('hidden');
+      banner.classList.remove('flex');
+    }
   }
 
   private renderSections() {
@@ -4998,7 +5152,7 @@ class VaultApp extends HTMLElement {
     let structureInfoHtml = '';
     if (containsDeeperFolders) {
       structureInfoHtml = `
-        <div class="text-[10px] text-slate-500 bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 rounded p-2.5 mt-2.5 transition duration-200 space-y-1 select-none font-mono tracking-tight text-left">
+        <div class="text-[10px] text-slate-300 bg-slate-900 border border-cyan-500/30 rounded p-2.5 shadow-xl transition-all duration-200 space-y-1 select-none font-mono tracking-tight text-left opacity-0 invisible group-hover:opacity-100 group-hover:visible pointer-events-none">
           <div class="flex items-center gap-1 text-cyan-400 font-extrabold uppercase text-[9px]">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             Hierarchy Traversal
@@ -5010,7 +5164,7 @@ class VaultApp extends HTMLElement {
       `;
     } else {
       structureInfoHtml = `
-        <div class="text-[9.5px] text-slate-500 bg-black/20 border border-white/5 rounded p-2.5 mt-2.5 select-none font-mono tracking-tight text-left">
+        <div class="text-[9.5px] text-slate-300 bg-slate-900 border border-white/10 rounded shadow-xl p-2.5 select-none font-mono tracking-tight text-left opacity-0 invisible group-hover:opacity-100 group-hover:visible pointer-events-none">
           <div class="text-slate-400 font-bold uppercase text-[8.5px] mb-1">
             📁 Vault Hierarchy Rule
           </div>
@@ -5474,6 +5628,12 @@ class VaultApp extends HTMLElement {
           <div class="flex gap-2">
             ${paletteInHtml}
           </div>
+          <button id="search-similar-palette-btn" class="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 hover:text-emerald-300 border border-emerald-500/15 active:scale-95 text-emerald-400 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider flex items-center justify-center gap-1.5 mt-1 cursor-pointer" title="Find reference images with matching average color palettes">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+            </svg>
+            <span>Search Similar Palettes</span>
+          </button>
         </div>
 
         <!-- Custom tags parameters -->
@@ -5542,6 +5702,30 @@ class VaultApp extends HTMLElement {
     if (btnRelinkFallback) {
       btnRelinkFallback.addEventListener('click', () => {
         this.handleWebDirectoryFallback();
+      });
+    }
+
+    // Color Palette Search Banner elements
+    const colorPaletteClearBtn = this.querySelector('#color-palette-clear-btn');
+    if (colorPaletteClearBtn) {
+      colorPaletteClearBtn.addEventListener('click', () => {
+        this.colorPaletteSearchQuery = null;
+        this.addLog('info', `Active Filter: Cleared color similarity query.`);
+        this.renderCatalog();
+        this.updateActiveColorPaletteUI();
+      });
+    }
+
+    const colorPaletteToleranceSlider = this.querySelector('#color-palette-tolerance-slider') as HTMLInputElement | null;
+    if (colorPaletteToleranceSlider) {
+      colorPaletteToleranceSlider.addEventListener('input', () => {
+        const val = parseInt(colorPaletteToleranceSlider.value, 10);
+        this.colorPaletteTolerance = val;
+        const textNode = this.querySelector('#color-palette-tolerance-text');
+        if (textNode) {
+          textNode.textContent = `${val}°`;
+        }
+        this.renderCatalog();
       });
     }
 
@@ -6884,6 +7068,18 @@ class VaultApp extends HTMLElement {
         }
       });
     }
+
+    // Color palette similarity search button
+    const searchSimilarBtn = this.querySelector('#search-similar-palette-btn');
+    if (searchSimilarBtn) {
+      searchSimilarBtn.addEventListener('click', () => {
+        this.colorPaletteSearchQuery = asset.colors;
+        this.addLog('info', `Active Filter: Searching for images with similar average color palette.`);
+        this.toast('Palette Search Active', `Searching for assets with a similar average color palette to '${asset.name}'.`);
+        this.renderCatalog();
+        this.updateActiveColorPaletteUI();
+      });
+    }
   }
 
   // Visual helper update card texts in masonry footer directly
@@ -7411,6 +7607,12 @@ class VaultApp extends HTMLElement {
             <div class="flex gap-2">
               ${lbPaletteInHtml}
             </div>
+            <button id="lb-search-similar-palette-btn" class="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 hover:text-emerald-300 border border-emerald-500/15 active:scale-95 text-emerald-400 text-[10px] font-bold uppercase rounded transition font-mono tracking-wider flex items-center justify-center gap-1.5 mt-1 cursor-pointer" title="Find reference images with matching average color palettes">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+              </svg>
+              <span>Search Similar Palettes</span>
+            </button>
           </div>
 
           <!-- Custom tags parameters -->
@@ -7718,6 +7920,24 @@ class VaultApp extends HTMLElement {
         } catch (err) {
           console.error('Failed to trigger Obsidian protocol handler', err);
         }
+      });
+    }
+
+    // Color palette similarity search button for lightbox
+    const lbSearchSimilarBtn = this.querySelector('#lb-search-similar-palette-btn');
+    if (lbSearchSimilarBtn) {
+      lbSearchSimilarBtn.addEventListener('click', () => {
+        this.colorPaletteSearchQuery = asset.colors;
+        this.addLog('info', `Active Filter: Searching for images with similar average color palette.`);
+        this.toast('Palette Search Active', `Searching for assets with a similar average color palette to '${asset.name}'.`);
+        
+        // Close lightbox so user can see search results
+        const backdrop = this.querySelector('#lightbox-backdrop');
+        if (backdrop) backdrop.classList.add('hidden');
+        this.isLightboxOpen = false;
+
+        this.renderCatalog();
+        this.updateActiveColorPaletteUI();
       });
     }
   }
