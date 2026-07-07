@@ -1,4 +1,5 @@
 import './index.css';
+import { createIcons, icons } from 'lucide';
 import { 
   AssetMetadata, 
   Asset, 
@@ -3137,26 +3138,8 @@ class VaultApp extends HTMLElement {
                 </div>
               </div>
 
-              <!-- Smart Folders navigation -->
-              <div class="space-y-1 pt-3 border-t border-white/5">
-                <div class="flex items-center justify-between mb-2">
-                  <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default flex items-center gap-1">
-                    Smart Folders
-                  </h3>
-                  <button id="sidebar-add-smart-folder-trigger" class="p-1 hover:bg-emerald-500/10 text-emerald-400 hover:text-emerald-300 rounded cursor-pointer transition flex items-center justify-center shrink-0" title="Create New Smart Folder">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
-                    </svg>
-                  </button>
-                </div>
-                
-                <div id="smart-folders-list-container" class="space-y-1">
-                  <!-- Generated smart folder node links are injected here -->
-                </div>
-              </div>
-
               <!-- Boards collection tree navigation -->
-              <div class="space-y-1">
+              <div class="space-y-1 pt-3 border-t border-white/5">
                 <div class="flex items-center justify-between mb-2">
                   <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default flex items-center gap-1">
                     Boards Directory
@@ -3177,6 +3160,24 @@ class VaultApp extends HTMLElement {
                 <!-- Taxonomy Explorer -->
                 <div id="taxonomy-sidebar-container" class="space-y-2 pt-3 border-t border-white/5 mt-3 select-none"></div>
                 
+              </div>
+
+              <!-- Smart Folders navigation -->
+              <div class="space-y-1 pt-3 border-t border-white/5">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default flex items-center gap-1">
+                    Smart Folders
+                  </h3>
+                  <button id="sidebar-add-smart-folder-trigger" class="p-1 hover:bg-emerald-500/10 text-emerald-400 hover:text-emerald-300 rounded cursor-pointer transition flex items-center justify-center shrink-0" title="Create New Smart Folder">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                  </button>
+                </div>
+                
+                <div id="smart-folders-list-container" class="space-y-1">
+                  <!-- Generated smart folder node links are injected here -->
+                </div>
               </div>
 
 
@@ -3503,15 +3504,13 @@ class VaultApp extends HTMLElement {
           
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-2">
-              <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Icon</label>
-              <select id="modal-smart-folder-icon" class="w-full bg-black/30 border border-white/10 rounded-lg px-2 py-2 text-xs font-mono text-white outline-none cursor-pointer">
-                <option value="folder">📁 Folder</option>
-                <option value="star">⭐ Star</option>
-                <option value="zap">⚡ Zap</option>
-                <option value="heart">❤️ Heart</option>
-                <option value="eye">👁️ Eye</option>
-                <option value="image">🖼️ Image</option>
-              </select>
+              <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Icon (Lucide name)</label>
+              <div class="flex gap-1.5">
+                <input type="text" id="modal-smart-folder-icon" placeholder="e.g. sparkles" class="w-full bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white outline-none focus:border-emerald-500/40 transition placeholder-slate-700" value="folder" />
+                <div id="modal-smart-folder-icon-preview" class="w-8.5 h-8.5 flex items-center justify-center bg-white/5 border border-white/10 rounded-lg text-slate-400 shrink-0">
+                  <i data-lucide="folder" class="w-4 h-4"></i>
+                </div>
+              </div>
             </div>
             <div class="space-y-2">
               <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Color</label>
@@ -3526,6 +3525,13 @@ class VaultApp extends HTMLElement {
                 <option value="text-purple-400">Purple</option>
                 <option value="text-pink-400">Pink</option>
               </select>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Quick Preset Lucide Icons</label>
+            <div class="grid grid-cols-6 gap-1 bg-black/20 p-2 border border-white/5 rounded-lg max-h-24 overflow-y-auto" id="modal-smart-folder-presets">
+              <!-- Presets injected dynamically -->
             </div>
           </div>
           
@@ -4192,6 +4198,19 @@ class VaultApp extends HTMLElement {
       if (this.selectedBoard === 'ALL') {
         heading.textContent = 'All Vault Reference Archives';
         if (desc) desc.textContent = 'Pinterest-style Vault Board Directories • Select any Category Board below to view and edit references';
+      } else if (this.selectedBoard.startsWith('SMART_FOLDER_')) {
+        const sfId = this.selectedBoard.replace('SMART_FOLDER_', '');
+        const sf = this.smartFolders.find(x => x.id === sfId);
+        if (sf) {
+          heading.textContent = `Smart Folder: ${sf.name}`;
+          if (desc) {
+            const rulesText = sf.rules.map(r => r.value).join(', ');
+            desc.textContent = `Smart folder dynamically matching tag constraints: ${rulesText || 'Any'}`;
+          }
+        } else {
+          heading.textContent = 'Smart Folder';
+          if (desc) desc.textContent = 'Matches tags dynamically';
+        }
       } else {
         heading.textContent = this.selectedBoard;
         if (desc) desc.textContent = 'Local subdirectory scan synced inside catalog.db cache';
@@ -4201,14 +4220,15 @@ class VaultApp extends HTMLElement {
     const btnRename = this.querySelector('#btn-rename-board') as HTMLElement | null;
     const btnDeleteActive = this.querySelector('#btn-delete-active-board') as HTMLElement | null;
     if (btnRename) {
-      btnRename.style.display = this.selectedBoard === 'ALL' ? 'none' : 'inline-flex';
+      btnRename.style.display = (this.selectedBoard === 'ALL' || this.selectedBoard.startsWith('SMART_FOLDER_')) ? 'none' : 'inline-flex';
     }
     if (btnDeleteActive) {
-      btnDeleteActive.style.display = this.selectedBoard === 'ALL' ? 'none' : 'inline-flex';
+      btnDeleteActive.style.display = (this.selectedBoard === 'ALL' || this.selectedBoard.startsWith('SMART_FOLDER_')) ? 'none' : 'inline-flex';
     }
 
     this.renderSidebarVaults();
     this.renderBoardNavigation();
+    this.renderSmartFolderNavigation();
     this.renderTaxonomyNavigation();
     this.renderSections();
     this.renderCatalog();
@@ -4646,18 +4666,13 @@ class VaultApp extends HTMLElement {
         ? `<svg class="w-3.5 h-3.5 opacity-50 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>`
         : ``;
 
-      let iconHtml = '📁';
-      if (folder.icon === 'star') iconHtml = '⭐';
-      if (folder.icon === 'zap') iconHtml = '⚡';
-      if (folder.icon === 'heart') iconHtml = '❤️';
-      if (folder.icon === 'eye') iconHtml = '👁️';
-      if (folder.icon === 'image') iconHtml = '🖼️';
+      let iconHtml = `<i data-lucide="${folder.icon || 'folder'}" class="w-3.5 h-3.5"></i>`;
       
       const count = this.getSmartFolderAssets(folder).length;
 
       html += `
         <div class="flex items-center gap-2 p-1.5 rounded text-sm cursor-pointer transition relative group ${activeClass} ${textColorClass}" data-smart-folder-id="${folder.id}">
-          <span class="${folder.color} mr-1 text-base leading-none">${iconHtml}</span>
+          <div class="${folder.color} mr-1 flex items-center justify-center shrink-0 w-4 h-4">${iconHtml}</div>
           <span class="truncate text-xs font-medium tracking-tight select-none">${folder.name}</span>
           ${chevron}
           <div class="ml-auto flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -4674,6 +4689,12 @@ class VaultApp extends HTMLElement {
        html = `<div class="text-[10px] text-slate-600 font-mono italic px-2 py-1 select-none">No smart folders.</div>`;
     }
     listDiv.innerHTML = html;
+
+    try {
+      createIcons({ icons });
+    } catch (e) {
+      console.warn("Failed to create icons", e);
+    }
 
     listDiv.querySelectorAll('div[data-smart-folder-id]').forEach(item => {
       item.addEventListener('click', (e) => {
@@ -6306,6 +6327,80 @@ class VaultApp extends HTMLElement {
       });
     }
 
+    // Modal Smart Folder Creation Events
+    const sidebarAddSmartTrigger = this.querySelector('#sidebar-add-smart-folder-trigger');
+    if (sidebarAddSmartTrigger) {
+      sidebarAddSmartTrigger.addEventListener('click', () => {
+        this.toggleSmartFolderCreateModal(true);
+      });
+    }
+
+    const modalSmartClose = this.querySelector('#smart-folder-create-close');
+    if (modalSmartClose) {
+      modalSmartClose.addEventListener('click', () => {
+        this.toggleSmartFolderCreateModal(false);
+      });
+    }
+
+    const modalSmartCancelBtn = this.querySelector('#modal-smart-folder-cancel');
+    if (modalSmartCancelBtn) {
+      modalSmartCancelBtn.addEventListener('click', () => {
+        this.toggleSmartFolderCreateModal(false);
+      });
+    }
+
+    const smartCreateBackdrop = this.querySelector('#smart-folder-create-backdrop');
+    if (smartCreateBackdrop) {
+      smartCreateBackdrop.addEventListener('click', (e) => {
+        if (e.target === smartCreateBackdrop) {
+          this.toggleSmartFolderCreateModal(false);
+        }
+      });
+    }
+
+    const modalSmartNameIn = this.querySelector('#modal-smart-folder-name') as HTMLInputElement | null;
+    const modalSmartTagsIn = this.querySelector('#modal-smart-folder-tags') as HTMLInputElement | null;
+    const modalSmartIconIn = this.querySelector('#modal-smart-folder-icon') as HTMLInputElement | null;
+    const modalSmartColorIn = this.querySelector('#modal-smart-folder-color') as HTMLSelectElement | null;
+    const modalSmartSubmitBtn = this.querySelector('#modal-smart-folder-submit');
+
+    if (modalSmartSubmitBtn && modalSmartNameIn) {
+      const submitSmartAction = () => {
+        const name = modalSmartNameIn.value.trim();
+        const tags = modalSmartTagsIn ? modalSmartTagsIn.value.trim() : '';
+        const icon = modalSmartIconIn ? modalSmartIconIn.value : 'folder';
+        const color = modalSmartColorIn ? modalSmartColorIn.value : 'text-slate-400';
+
+        if (name) {
+          this.createNewSmartFolder(name, tags, icon, color);
+          this.toggleSmartFolderCreateModal(false);
+          // clear values
+          modalSmartNameIn.value = '';
+          if (modalSmartTagsIn) modalSmartTagsIn.value = '';
+        } else {
+          this.toast('Invalid Name', 'Please enter a valid smart folder name.');
+        }
+      };
+
+      modalSmartSubmitBtn.addEventListener('click', submitSmartAction);
+      modalSmartNameIn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          submitSmartAction();
+        } else if (e.key === 'Escape') {
+          this.toggleSmartFolderCreateModal(false);
+        }
+      });
+      if (modalSmartTagsIn) {
+        modalSmartTagsIn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            submitSmartAction();
+          } else if (e.key === 'Escape') {
+            this.toggleSmartFolderCreateModal(false);
+          }
+        });
+      }
+    }
+
     // Clipboard Paste Listener for copy/pasting files into the active board
     window.addEventListener('paste', (e: ClipboardEvent) => {
       const activeEl = document.activeElement;
@@ -6734,6 +6829,70 @@ class VaultApp extends HTMLElement {
     const shouldOpen = open !== undefined ? open : !isCurrentlyOpen;
     if (shouldOpen) {
       backdrop.classList.remove("hidden");
+
+      // Initialize preset icons grid
+      const presetsContainer = this.querySelector("#modal-smart-folder-presets");
+      const iconInput = this.querySelector("#modal-smart-folder-icon") as HTMLInputElement | null;
+      const previewContainer = this.querySelector("#modal-smart-folder-icon-preview");
+
+      if (presetsContainer) {
+        const PRESET_LUCIDE_ICONS = [
+          'folder', 'folder-heart', 'star', 'zap', 'heart', 'eye', 
+          'image', 'sparkles', 'shield', 'flag', 'bookmark', 'tag', 
+          'compass', 'activity', 'archive', 'clock', 'globe', 'briefcase', 
+          'lightbulb', 'lock', 'user', 'database', 'terminal', 'code',
+          'music', 'film', 'book', 'layers', 'cpu', 'feather', 
+          'gift', 'hash', 'key', 'map', 'moon', 'sun'
+        ];
+        
+        presetsContainer.innerHTML = PRESET_LUCIDE_ICONS.map(icon => `
+          <button type="button" class="preset-icon-btn p-1.5 hover:bg-white/10 hover:text-white text-slate-400 border border-white/5 hover:border-white/10 rounded flex items-center justify-center cursor-pointer transition active:scale-95" data-icon="${icon}" title="${icon}">
+            <i data-lucide="${icon}" class="w-3.5 h-3.5 pointer-events-none"></i>
+          </button>
+        `).join('');
+        
+        // Add click listeners to presets
+        presetsContainer.querySelectorAll(".preset-icon-btn").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            const chosenIcon = (btn as HTMLElement).dataset.icon;
+            if (chosenIcon && iconInput) {
+              iconInput.value = chosenIcon;
+              if (previewContainer) {
+                previewContainer.innerHTML = `<i data-lucide="${chosenIcon}" class="w-4 h-4"></i>`;
+              }
+              try {
+                createIcons({ icons });
+              } catch (e) {}
+            }
+          });
+        });
+      }
+
+      // Live change on icon input typing
+      if (iconInput) {
+        // Set initial icon
+        iconInput.value = "folder";
+        if (previewContainer) {
+          previewContainer.innerHTML = `<i data-lucide="folder" class="w-4 h-4"></i>`;
+        }
+        
+        const handleIconInput = () => {
+          const val = iconInput.value.trim().toLowerCase();
+          if (val && previewContainer) {
+            previewContainer.innerHTML = `<i data-lucide="${val}" class="w-4 h-4"></i>`;
+            try {
+              createIcons({ icons });
+            } catch (e) {}
+          }
+        };
+        iconInput.addEventListener("input", handleIconInput);
+      }
+
+      try {
+        createIcons({ icons });
+      } catch (e) {}
+
       const input = this.querySelector("#modal-smart-folder-name") as HTMLInputElement | null;
       if (input) {
         input.value = "";
