@@ -1,179 +1,30 @@
 import './index.css';
-
-// ----------------------------------------------------
-// Type Definitions
-// ----------------------------------------------------
-interface AssetMetadata {
-  tags: string[];
-  artist: string;
-  rating: string; // "1" to "5"
-  status: string; // e.g. "completed", "in-progress", "review", etc.
-  title?: string;
-  notes?: string;
-}
-
-interface Asset {
-  id: string;
-  name: string;
-  board: string; // folder path, e.g. "/ Environment_Ref/Neo_Tokyo"
-  resolution: string;
-  size: string;
-  colors: string[]; // 5 Hex color strings
-  tags: string[]; // system categories
-  metadata: AssetMetadata;
-  imageUrl: string; // Data URL or object URL
-  lastModified: string; // string timestamp
-  vaultPath?: string; // Originating folder vault path
-}
-
-// ----------------------------------------------------
-// Customizable Schema & Status Interfaces
-// ----------------------------------------------------
-interface PropertyConfig {
-  label: string;
-  placeholder?: string;
-}
-
-interface CustomSchemaConfig {
-  statuses: { value: string; label: string }[];
-  properties: {
-    title: PropertyConfig;
-    notes: PropertyConfig;
-    artist: PropertyConfig;
-    rating: PropertyConfig;
-    status: PropertyConfig;
-  };
-}
-
-const defaultSchemaConfig: CustomSchemaConfig = {
-  statuses: [
-    { value: 'completed', label: 'Completed Reference' },
-    { value: 'in-progress', label: 'Work-in-Progress (WIP)' },
-    { value: 'review', label: 'Awaiting Design Review' },
-    { value: 'draft', label: 'Draft Sketch studies' }
-  ],
-  properties: {
-    title: { label: 'Pin Name / Title', placeholder: 'E.g., Neo Tokyo Temple Alleyway Sunset...' },
-    notes: { label: 'Pin notes / Description', placeholder: 'Add custom notes, design prompts, research observations...' },
-    artist: { label: 'Artist / Creator', placeholder: 'Chen-K design team...' },
-    rating: { label: 'Visual Vault Grade' },
-    status: { label: 'Asset Status' }
-  }
-};
-
-
-// ----------------------------------------------------
-// Default Visual Assets Mock DB
-// ----------------------------------------------------
-const defaultColors = {
-  neoTokyo: ['#0D1117', '#1A2B3C', '#FF5500', '#E1E4E8', '#0969DA'],
-  cyberSkyline: ['#0A0915', '#1E1B4B', '#312E81', '#A21CAF', '#F0ABFC'],
-  cyberProps: ['#1C1917', '#44403C', '#78716C', '#D6D3D1', '#F5F5F4'],
-  foggyAlley: ['#0F172A', '#1E293B', '#334155', '#E2E8F0', '#F1F5F9'],
-  interiorConcept: ['#0C0A09', '#292524', '#57534E', '#F59E0B', '#78350F'],
-  lightingStudy: ['#020617', '#0F172A', '#EF4444', '#F59E0B', '#10B981'],
-  cyberspace: ['#030712', '#111827', '#06B6D4', '#0891B2', '#0E7490'],
-  neonRain: ['#090514', '#1D0B38', '#9D174D', '#DB2777', '#F472B6'],
-  mechSkel: ['#111827', '#374151', '#F59E0B', '#EF4444', '#9CA3AF'],
-  thruster: ['#0E1726', '#F97316', '#FACC15', '#1E293B', '#64748B'],
-  samurai: ['#0F172A', '#DC2626', '#F1F5F9', '#1E293B', '#7F1D1D'],
-  exosuit: ['#1E1F22', '#2B2D31', '#808080', '#4ADE80', '#14532D']
-};
-
-/**
- * Creates dynamic SVG vector elements with aesthetic grids, glows, wireframes 
- * conforming to active color palettes to represent world building visuals.
- */
-function generateProceduralSVG(filename: string, colors: string[]): string {
-  const c1 = colors[0] || '#0A0A0B';
-  const c2 = colors[1] || '#1E1B4B';
-  const c3 = colors[2] || '#312E81';
-  const c4 = colors[3] || '#A21CAF';
-  const c5 = colors[4] || '#F0ABFC';
-  
-  let pattern = '';
-  if (filename.includes('temple') || filename.includes('alley')) {
-    pattern = `
-      <rect width="100%" height="100%" fill="url(#bg-grad)"/>
-      <g opacity="0.15">
-        <line x1="0" y1="20" x2="400" y2="20" stroke="white" stroke-width="0.5"/>
-        <line x1="0" y1="50" x2="400" y2="50" stroke="white" stroke-width="0.5"/>
-        <line x1="0" y1="100" x2="400" y2="100" stroke="white" stroke-width="0.5"/>
-        <line x1="0" y1="200" x2="400" y2="200" stroke="white" stroke-width="0.5"/>
-        <line x1="40" y1="0" x2="40" y2="300" stroke="white" stroke-width="0.5"/>
-        <line x1="100" y1="0" x2="100" y2="300" stroke="white" stroke-width="0.5"/>
-        <line x1="200" y1="0" x2="200" y2="300" stroke="white" stroke-width="0.5"/>
-        <line x1="300" y1="0" x2="300" y2="300" stroke="white" stroke-width="0.5"/>
-      </g>
-      <circle cx="200" cy="110" r="45" fill="none" stroke="${c4}" stroke-width="2" filter="blur(1px)"/>
-      <circle cx="200" cy="110" r="35" fill="none" stroke="${c5}" stroke-width="1.5"/>
-      <path d="M 50,300 L 150,180 L 170,180 L 200,120 L 230,120 L 250,180 L 350,300 Z" fill="${c1}" stroke="${c3}" stroke-width="1.5" opacity="0.95" />
-      <path d="M 0,300 L 120,220 L 130,220 L 160,180 L 190,180 L 280,300 Z" fill="${c2}" stroke="${c4}" stroke-width="1" opacity="0.6"/>
-      <circle cx="200" cy="110" r="3" fill="${c5}"/>
-    `;
-  } else if (filename.includes('character') || filename.includes('exo') || filename.includes('samurai')) {
-    pattern = `
-      <rect width="100%" height="100%" fill="url(#bg-grad)"/>
-      <g opacity="0.1">
-        <circle cx="200" cy="150" r="140" fill="none" stroke="white" stroke-width="0.5"/>
-        <circle cx="200" cy="150" r="100" fill="none" stroke="white" stroke-width="0.5"/>
-        <line x1="0" y1="150" x2="400" y2="150" stroke="white" stroke-width="0.5"/>
-        <line x1="200" y1="0" x2="200" y2="300" stroke="white" stroke-width="0.5"/>
-      </g>
-      <path d="M 200,60 L 250,105 L 235,185 L 200,230 L 165,185 L 150,105 Z" fill="${c1}" stroke="${c3}" stroke-width="2"/>
-      <path d="M 200,85 L 240,115 L 230,175 L 200,210 L 170,175 L 160,115 Z" fill="${c2}" stroke="${c4}" stroke-width="1"/>
-      <path d="M 175,120 L 225,120 L 220,132 L 180,132 Z" fill="${c5}" />
-      <circle cx="200" cy="165" r="8" fill="none" stroke="${c4}" stroke-width="1.5"/>
-      <circle cx="200" cy="165" r="4" fill="${c5}"/>
-      <path d="M 150,105 L 120,90 M 250,105 L 280,90 M 200,230 L 200,270" stroke="${c4}" stroke-width="1.5" stroke-dasharray="2,2"/>
-    `;
-  } else if (filename.includes('mech') || filename.includes('diagram') || filename.includes('thruster')) {
-    pattern = `
-      <rect width="100%" height="100%" fill="url(#bg-grad)"/>
-      <g stroke="${c3}" stroke-width="0.5" opacity="0.25">
-        <pattern id="grid_ptn" width="20" height="20" patternUnits="userSpaceOnUse">
-          <path d="M 20 0 L 0 0 0 20" fill="none"/>
-        </pattern>
-        <rect width="100%" height="100%" fill="url(#grid_ptn)" />
-      </g>
-      <circle cx="200" cy="150" r="90" fill="none" stroke="${c3}" stroke-dasharray="5,5" stroke-width="1"/>
-      <circle cx="200" cy="150" r="10" fill="none" stroke="${c4}"/>
-      <line x1="50" y1="150" x2="350" y2="150" stroke="${c4}" stroke-width="0.75" stroke-dasharray="10,5"/>
-      <line x1="200" y1="30" x2="200" y2="270" stroke="${c4}" stroke-width="0.75" stroke-dasharray="10,5"/>
-      <path d="M 120,100 L 150,100 L 190,140 L 280,140" fill="none" stroke="${c5}" stroke-width="2"/>
-      <path d="M 130,200 L 160,200 L 210,150 L 270,150" fill="none" stroke="${c4}" stroke-width="1"/>
-      <rect x="230" y="80" width="55" height="32" fill="none" stroke="${c4}" stroke-width="1" />
-      <text x="235" y="93" fill="${c5}" font-family="monospace" font-size="6">SYS_ON</text>
-      <text x="235" y="104" fill="${c3}" font-family="monospace" font-size="5">REV v2.04</text>
-    `;
-  } else {
-    pattern = `
-      <rect width="100%" height="100%" fill="url(#bg-grad)"/>
-      <path d="M 0,150 Q 100,100 200,180 T 400,150 L 400,300 L 0,300 Z" fill="${c2}" stroke="${c3}" stroke-width="1.5" opacity="0.4"/>
-      <path d="M 0,200 Q 120,250 250,180 T 400,240 L 400,300 L 0,300 Z" fill="${c1}" stroke="${c4}" stroke-width="1.5" opacity="0.8"/>
-      <g transform="translate(200, 100) rotate(45)">
-        <rect x="-15" y="-15" width="25" height="25" fill="${c1}" stroke="${c5}" stroke-width="1.5"/>
-        <line x1="-15" y1="-15" x2="10" y2="10" stroke="${c4}" stroke-width="0.5"/>
-      </g>
-      <circle cx="80" cy="65" r="1.5" fill="${c5}"/>
-      <circle cx="150" cy="45" r="1" fill="${c4}"/>
-      <circle cx="280" cy="75" r="2" fill="${c5}"/>
-    </g>
-    `;
-  }
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="100%" height="100%">
-    <defs>
-      <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="${c2}"/>
-        <stop offset="100%" stop-color="${c1}"/>
-      </linearGradient>
-    </defs>
-    ${pattern}
-  </svg>`;
-  
-  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-}
+import { 
+  AssetMetadata, 
+  Asset, 
+  SmartFolderRule, 
+  SmartFolder, 
+  PropertyConfig, 
+  CustomSchemaConfig,
+  defaultSchemaConfig
+} from './lib/types';
+import { generateProceduralSVG } from './lib/procedural';
+import { defaultColors, defaultMockAssets } from './lib/seeds';
+import { 
+  hexToHsl, 
+  getAverageHsl, 
+  getHueDistance, 
+  extractColorsFromImage 
+} from './lib/color';
+import { 
+  TAXONOMY_PRESETS, 
+  setTaxonomyPresets, 
+  loadTaxonomyFromStorage, 
+  saveTaxonomyToStorage, 
+  classifyTag, 
+  renderPresetsHtml 
+} from './lib/taxonomy';
+import { stringifyYAMLFrontmatter, parseYAMLFrontmatter } from './lib/frontmatter';
 
 (window as any).handleImageError = (img: HTMLImageElement, name: string, colorsCsv: string) => {
   img.onerror = null;
@@ -181,216 +32,6 @@ function generateProceduralSVG(filename: string, colors: string[]): string {
   img.src = generateProceduralSVG(name, colors);
 };
 
-// Prepare initial seeds
-const defaultMockAssets = (): Asset[] => [
-  {
-    id: 'as_1',
-    name: 'hero_temple_view.png',
-    board: '/ Environment_Ref/Neo_Tokyo',
-    resolution: '4096x2160',
-    size: '2.4 MB',
-    colors: defaultColors.neoTokyo,
-    tags: ['Architecture', 'Cyberpunk', 'Night', 'Cinematic'],
-    metadata: {
-      tags: ['exterior', 'neon', 'z-axis'],
-      artist: 'Chen-X',
-      rating: '5',
-      status: 'completed'
-    },
-    imageUrl: '',
-    lastModified: '14 mins ago'
-  },
-  {
-    id: 'as_2',
-    name: 'city_skyline_01.png',
-    board: '/ Environment_Ref/Neo_Tokyo',
-    resolution: '3840x2160',
-    size: '1.9 MB',
-    colors: defaultColors.cyberSkyline,
-    tags: ['Cityscape', 'Future', 'Atmospheric'],
-    metadata: {
-      tags: ['skyline', 'hologram', 'dense'],
-      artist: 'Studio-K',
-      rating: '4',
-      status: 'in-progress'
-    },
-    imageUrl: '',
-    lastModified: '2 hours ago'
-  },
-  {
-    id: 'as_3',
-    name: 'street_props_kit.png',
-    board: '/ Environment_Ref/Neo_Tokyo',
-    resolution: '2048x2048',
-    size: '4.1 MB',
-    colors: defaultColors.cyberProps,
-    tags: ['Props', 'Industrial', 'Reference'],
-    metadata: {
-      tags: ['hardsurface', 'assets', 'unwrapped'],
-      artist: 'Assets-Team',
-      rating: '3',
-      status: 'review'
-    },
-    imageUrl: '',
-    lastModified: 'Yesterday'
-  },
-  {
-    id: 'as_4',
-    name: 'foggy_alley_ref.jpg',
-    board: '/ Environment_Ref/Neo_Tokyo',
-    resolution: '1920x1080',
-    size: '850 KB',
-    colors: defaultColors.foggyAlley,
-    tags: ['Atmosphere', 'Lighting', 'Reference'],
-    metadata: {
-      tags: ['fog', 'alleyway', 'moody'],
-      artist: 'Walker-01',
-      rating: '5',
-      status: 'completed'
-    },
-    imageUrl: '',
-    lastModified: '3 days ago'
-  },
-  {
-    id: 'as_5',
-    name: 'interior_concept_B.png',
-    board: '/ Environment_Ref/Neo_Tokyo',
-    resolution: '3000x1800',
-    size: '3.2 MB',
-    colors: defaultColors.interiorConcept,
-    tags: ['Interior', 'Cozy', 'Concept'],
-    metadata: {
-      tags: ['room', 'prop-heavy', 'warm'],
-      artist: 'Chen-X',
-      rating: '4',
-      status: 'completed'
-    },
-    imageUrl: '',
-    lastModified: '4 days ago'
-  },
-  {
-    id: 'as_6',
-    name: 'lighting_study.png',
-    board: '/ Environment_Ref/Neo_Tokyo',
-    resolution: '2560x1440',
-    size: '1.4 MB',
-    colors: defaultColors.lightingStudy,
-    tags: ['Lighting', 'Study', 'Color-Script'],
-    metadata: {
-      tags: ['neon-glow', 'rain-wet', 'value-sketch'],
-      artist: 'Studio-K',
-      rating: '2',
-      status: 'draft'
-    },
-    imageUrl: '',
-    lastModified: '1 week ago'
-  },
-  {
-    id: 'as_7',
-    name: 'cyberspace_node.png',
-    board: '/ Cyberpunk_City',
-    resolution: '4096x2160',
-    size: '1.2 MB',
-    colors: defaultColors.cyberspace,
-    tags: ['Cyber', 'UI', 'Abstract'],
-    metadata: {
-      tags: ['system', 'netrunner', 'grid'],
-      artist: 'Matrix-Core',
-      rating: '5',
-      status: 'completed'
-    },
-    imageUrl: '',
-    lastModified: '2 mins ago'
-  },
-  {
-    id: 'as_8',
-    name: 'neon_rain.jpg',
-    board: '/ Cyberpunk_City',
-    resolution: '1920x1200',
-    size: '980 KB',
-    colors: defaultColors.neonRain,
-    tags: ['Atmosphere', 'Rain', 'Cinematic'],
-    metadata: {
-      tags: ['weather', 'reflections', 'streets'],
-      artist: 'Walker-01',
-      rating: '4',
-      status: 'completed'
-    },
-    imageUrl: '',
-    lastModified: '5 hours ago'
-  },
-  {
-    id: 'as_9',
-    name: 'mech_concept_v4.png',
-    board: '/ Mech_Technical',
-    resolution: '3500x2000',
-    size: '5.2 MB',
-    colors: defaultColors.mechSkel,
-    tags: ['Mech', 'Hard-Surface', 'Industrial'],
-    metadata: {
-      tags: ['exoskeleton', 'military', 'gantry'],
-      artist: 'Iron-Work',
-      rating: '5',
-      status: 'completed'
-    },
-    imageUrl: '',
-    lastModified: 'Just now'
-  },
-  {
-    id: 'as_10',
-    name: 'thruster_diagram.png',
-    board: '/ Mech_Technical',
-    resolution: '2800x1600',
-    size: '2.9 MB',
-    colors: defaultColors.thruster,
-    tags: ['Blueprint', 'Technical', 'Props'],
-    metadata: {
-      tags: ['propulsion', 'vector-wires', 'functional'],
-      artist: 'Jet-Set',
-      rating: '3',
-      status: 'in-progress'
-    },
-    imageUrl: '',
-    lastModified: '4 hours ago'
-  },
-  {
-    id: 'as_11',
-    name: 'cyber_samurai.jpg',
-    board: '/ Character_Design',
-    resolution: '2000x2500',
-    size: '1.8 MB',
-    colors: defaultColors.samurai,
-    tags: ['Character', 'Cyberpunk', 'Armor'],
-    metadata: {
-      tags: ['helmet', 'cloth-tech', 'katana'],
-      artist: 'Shinobi-Art',
-      rating: '5',
-      status: 'completed'
-    },
-    imageUrl: '',
-    lastModified: '1 day ago'
-  },
-  {
-    id: 'as_12',
-    name: 'exo_suit_draft.png',
-    board: '/ Character_Design',
-    resolution: '2400x3200',
-    size: '2.5 MB',
-    colors: defaultColors.exosuit,
-    tags: ['Character', 'Exosuit', 'Organic'],
-    metadata: {
-      tags: ['anatomy', 'bio-mechanical', 'underlay'],
-      artist: 'Bio-Form',
-      rating: '4',
-      status: 'WIP'
-    },
-    imageUrl: '',
-    lastModified: 'A week ago'
-  }
-].map(item => {
-  item.imageUrl = generateProceduralSVG(item.name, item.colors);
-  return item;
-});
 
 // ----------------------------------------------------
 // Storage & Synchronization Manager (StorageService)
@@ -648,263 +289,9 @@ class StorageService {
   }
 }
 
-// ----------------------------------------------------
-// Custom Taxonomy Definitions & Helpers
-// ----------------------------------------------------
-let TAXONOMY_PRESETS = {
-  medium: ['illustration', 'photo', 'poster', 'signage', 'packaging', 'ad', 'film still'],
-  eraStyle: ['Bauhaus', 'Swiss/International', '90s grunge', 'contemporary', 'Minimalist', 'Vaporwave', 'Cyberpunk', 'Retro-Futurism'],
-  source: ['Pinterest', 'Are.na', 'Behance', 'Dribbble', 'Instagram', 'Tumblr', 'Web']
-};
-
-function loadTaxonomyFromStorage() {
-  try {
-    const saved = localStorage.getItem('visual_taxonomy_presets_v1');
-    if (saved) {
-      TAXONOMY_PRESETS = JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load taxonomy presets', e);
-  }
-}
-
-function saveTaxonomyToStorage() {
-  try {
-    localStorage.setItem('visual_taxonomy_presets_v1', JSON.stringify(TAXONOMY_PRESETS));
-  } catch (e) {
-    console.error('Failed to save taxonomy presets', e);
-  }
-}
-
-// Initialize dynamic taxonomy
-loadTaxonomyFromStorage();
-
-function classifyTag(tag: string): 'medium' | 'eraStyle' | 'source' | 'custom' {
-  const t = tag.toLowerCase().trim();
-  if (TAXONOMY_PRESETS.medium.map(v => v.toLowerCase()).includes(t)) return 'medium';
-  if (TAXONOMY_PRESETS.eraStyle.map(v => v.toLowerCase()).includes(t)) return 'eraStyle';
-  if (TAXONOMY_PRESETS.source.map(v => v.toLowerCase()).includes(t)) return 'source';
-  return 'custom';
-}
-
-function renderPresetsHtml(tags: string[], isLightbox: boolean): string {
-  const activeTags = tags.map(t => t.toLowerCase().trim());
-  const classPrefix = isLightbox ? 'lb-' : '';
-  
-  const renderGroup = (label: string, items: string[], colorClass: string, activeColorClass: string) => {
-    const buttons = items.map(item => {
-      const isActive = activeTags.includes(item.toLowerCase().trim());
-      const btnClass = isActive 
-        ? `${activeColorClass} border-current font-semibold` 
-        : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border-transparent';
-      return `
-        <button class="${classPrefix}preset-tag-btn px-2 py-0.5 rounded-[4px] text-[9.5px] border font-mono transition duration-200 cursor-pointer select-none ${btnClass}" data-tag="${item}">
-          ${isActive ? '✓ ' : ''}${item}
-        </button>
-      `;
-    }).join('');
-    
-    return `
-      <div class="space-y-1 text-left">
-        <span class="text-[9px] font-bold uppercase tracking-wider block ${colorClass}">${label}</span>
-        <div class="flex flex-wrap gap-1">${buttons}</div>
-      </div>
-    `;
-  };
-
-  return `
-    <div class="mt-3.5 bg-black/40 border border-white/5 rounded p-3.5 space-y-3.5">
-      <div class="text-[9.5px] uppercase font-mono tracking-wider text-slate-400 font-extrabold flex justify-between select-none">
-        <span>Taxonomy Quick-Pick</span>
-        <span class="text-emerald-400 text-[9px] font-normal font-sans">Toggle tags</span>
-      </div>
-      <div class="space-y-3">
-        ${renderGroup('🖼️ Medium', TAXONOMY_PRESETS.medium, 'text-blue-400', 'bg-blue-500/20 text-blue-300 border-blue-500/40')}
-        ${renderGroup('🎨 Era or Style Movement', TAXONOMY_PRESETS.eraStyle, 'text-purple-400', 'bg-purple-500/20 text-purple-300 border-purple-500/40')}
-        ${renderGroup('🌐 Source (Attribution)', TAXONOMY_PRESETS.source, 'text-amber-400', 'bg-amber-500/20 text-amber-300 border-amber-500/40')}
-      </div>
-    </div>
-  `;
-}
 
 const storage = new StorageService();
 
-// ----------------------------------------------------
-// Markdown Formatter Utility (.md Obsidian)
-// ----------------------------------------------------
-function stringifyYAMLFrontmatter(metadata: AssetMetadata): string {
-  const lines = [
-    '---',
-    `title: ${metadata.title || ''}`,
-    `tags: [${metadata.tags.join(', ')}]`,
-    `artist: ${metadata.artist || 'Unknown'}`,
-    `rating: ${metadata.rating || '5'}`,
-    `status: ${metadata.status || 'review'}`,
-    `notes: ${metadata.notes || ''}`,
-    '---'
-  ];
-  return lines.join('\n');
-}
-
-function parseYAMLFrontmatter(yaml: string, originalMeta: AssetMetadata): AssetMetadata {
-  const meta: AssetMetadata = { ...originalMeta };
-  try {
-    const cleanYaml = yaml.replace(/^---/, '').replace(/---$/, '').trim();
-    const rows = cleanYaml.split('\n');
-    for (const row of rows) {
-      const colIdx = row.indexOf(':');
-      if (colIdx === -1) continue;
-      const key = row.substring(0, colIdx).trim().toLowerCase();
-      const val = row.substring(colIdx + 1).trim();
-
-      if (key === 'tags') {
-        const bracketMatch = val.match(/\[(.*)\]/);
-        if (bracketMatch) {
-          meta.tags = bracketMatch[1].split(',').map(s => s.trim()).filter(Boolean);
-        } else {
-          meta.tags = val.split(',').map(s => s.trim()).filter(Boolean);
-        }
-      } else if (key === 'artist') {
-        meta.artist = val;
-      } else if (key === 'rating') {
-        meta.rating = val;
-      } else if (key === 'status') {
-         meta.status = val;
-      } else if (key === 'title') {
-         meta.title = val;
-      } else if (key === 'notes') {
-         meta.notes = val;
-      }
-    }
-  } catch (err) {
-    console.error('YAML frontmatter parsing failed. Using original', err);
-  }
-  return meta;
-}
-
-// ----------------------------------------------------
-// Fast Canvas Color Palette Extractor
-// ----------------------------------------------------
-function extractColorsFromImage(imgUrl: string): Promise<string[]> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 16;
-        canvas.height = 16;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(['#0F172A', '#334155', '#475569', '#64748B', '#94A3B8']);
-          return;
-        }
-        ctx.drawImage(img, 0, 0, 16, 16);
-        const data = ctx.getImageData(0, 0, 16, 16).data;
-        
-        // Sampling locations across the grid to extract distinct primary shades
-        const pixelIndices = [10, 45, 120, 180, 240];
-        const colors: string[] = [];
-        
-        for (const idx of pixelIndices) {
-          const offset = idx * 4;
-          const r = data[offset];
-          const g = data[offset + 1];
-          const b = data[offset + 2];
-          
-          const hex = '#' + [r, g, b].map(v => {
-            const h = v.toString(16);
-            return h.length === 1 ? '0' + h : h;
-          }).join('');
-          
-          colors.push(hex.toUpperCase());
-        }
-        resolve(colors);
-      } catch (e) {
-        console.error('Color extraction failed, using defaults.', e);
-        resolve(['#10B981', '#3B82F6', '#EF4444', '#F59E0B', '#8B5CF6']);
-      }
-    };
-    img.onerror = () => {
-      resolve(['#1E293B', '#334155', '#475569', '#64748B', '#B45309']);
-    };
-    img.src = imgUrl;
-  });
-}
-
-// ----------------------------------------------------
-// Color Palette Similarity Calculus Engine
-// ----------------------------------------------------
-function hexToHsl(hex: string): { h: number; s: number; l: number } {
-  const cleanHex = hex.replace(/^\s*#|\s*$/g, '');
-  let expandedHex = cleanHex;
-  if (cleanHex.length === 3) {
-    expandedHex = cleanHex.replace(/(.)/g, '$1$1');
-  }
-  const r = parseInt(expandedHex.substring(0, 2), 16) / 255;
-  const g = parseInt(expandedHex.substring(2, 4), 16) / 255;
-  const b = parseInt(expandedHex.substring(4, 6), 16) / 255;
-
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h = 0;
-  let s = 0;
-  const l = (max + min) / 2;
-
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
-  }
-
-  return {
-    h: h * 360,
-    s: s * 100,
-    l: l * 100
-  };
-}
-
-function getAverageHsl(colors: string[]): { h: number; s: number; l: number } {
-  if (!colors || colors.length === 0) {
-    return { h: 0, s: 0, l: 0 };
-  }
-  let sumSin = 0;
-  let sumCos = 0;
-  let sumS = 0;
-  let sumL = 0;
-  let count = 0;
-
-  for (const hex of colors) {
-    const hsl = hexToHsl(hex);
-    const rad = (hsl.h * Math.PI) / 180;
-    sumSin += Math.sin(rad);
-    sumCos += Math.cos(rad);
-    sumS += hsl.s;
-    sumL += hsl.l;
-    count++;
-  }
-
-  let avgH = Math.atan2(sumSin / count, sumCos / count) * (180 / Math.PI);
-  if (avgH < 0) {
-    avgH += 360;
-  }
-
-  return {
-    h: avgH,
-    s: sumS / count,
-    l: sumL / count
-  };
-}
-
-function getHueDistance(h1: number, h2: number): number {
-  const diff = Math.abs(h1 - h2) % 360;
-  return diff > 180 ? 360 - diff : diff;
-}
 
 // ----------------------------------------------------
 // VisualVault Web Component Definition
@@ -912,6 +299,8 @@ function getHueDistance(h1: number, h2: number): number {
 class VaultApp extends HTMLElement {
   // Global React-like states managed transparently for high 100vh app integrity
   private assets: Asset[] = [];
+  private smartFolders: SmartFolder[] = [];
+
   private selectedBoard = 'ALL';
   private selectedAssetId = 'as_1';
   private searchQuery = '';
@@ -926,7 +315,7 @@ class VaultApp extends HTMLElement {
   private customAccentHex = '';
   private activeFont = 'funnel-display';
   private isSettingsOpen = false;
-  private activeSettingsTab: 'vault' | 'general' | 'taxonomy' = 'vault';
+  private activeSettingsTab: 'vault' | 'general' | 'taxonomy' | 'help' = 'vault';
   private workspaceMode: 'unified' | 'focused' = 'unified';
   private isCreatingSection = false;
   private isSidebarClosed = localStorage.getItem('visual_vault_sidebar_closed') === 'true';
@@ -3066,16 +2455,18 @@ class VaultApp extends HTMLElement {
     this.toggleSettings(false); // Close settings panel
   }
 
-  private switchSettingsTab(tab: 'vault' | 'general' | 'taxonomy') {
+  private switchSettingsTab(tab: 'vault' | 'general' | 'taxonomy' | 'help') {
     this.activeSettingsTab = tab;
     const tabVault = this.querySelector('#settings-tab-vault');
     const tabGeneral = this.querySelector('#settings-tab-general');
     const tabTaxonomy = this.querySelector('#settings-tab-taxonomy');
+    const tabHelp = this.querySelector('#settings-tab-help');
     const contentVault = this.querySelector('#settings-content-vault');
     const contentGeneral = this.querySelector('#settings-content-general');
     const contentTaxonomy = this.querySelector('#settings-content-taxonomy');
+    const contentHelp = this.querySelector('#settings-content-help');
 
-    if (!tabVault || !tabGeneral || !tabTaxonomy || !contentVault || !contentGeneral || !contentTaxonomy) return;
+    if (!tabVault || !tabGeneral || !tabTaxonomy || !tabHelp || !contentVault || !contentGeneral || !contentTaxonomy || !contentHelp) return;
 
     const activeClass = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-emerald-400 border-emerald-500 bg-white/[0.02]";
     const inactiveClass = "py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300";
@@ -3083,9 +2474,11 @@ class VaultApp extends HTMLElement {
     tabVault.className = inactiveClass;
     tabGeneral.className = inactiveClass;
     tabTaxonomy.className = inactiveClass;
+    tabHelp.className = inactiveClass;
     contentVault.classList.add('hidden');
     contentGeneral.classList.add('hidden');
     contentTaxonomy.classList.add('hidden');
+    contentHelp.classList.add('hidden');
 
     if (tab === 'vault') {
       tabVault.className = activeClass;
@@ -3098,6 +2491,9 @@ class VaultApp extends HTMLElement {
       tabTaxonomy.className = activeClass;
       contentTaxonomy.classList.remove('hidden');
       this.populateTaxonomySettings();
+    } else if (tab === 'help') {
+      tabHelp.className = activeClass;
+      contentHelp.classList.remove('hidden');
     }
   }
 
@@ -3221,11 +2617,11 @@ class VaultApp extends HTMLElement {
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
         if (confirm('Reset taxonomy presets to factory defaults? This will restore standard Medium, Era/Style, and Source lists.')) {
-          TAXONOMY_PRESETS = {
+          setTaxonomyPresets({
             medium: ['illustration', 'photo', 'poster', 'signage', 'packaging', 'ad', 'film still'],
             eraStyle: ['Bauhaus', 'Swiss/International', '90s grunge', 'contemporary', 'Minimalist', 'Vaporwave', 'Cyberpunk', 'Retro-Futurism'],
             source: ['Pinterest', 'Are.na', 'Behance', 'Dribbble', 'Instagram', 'Tumblr', 'Web']
-          };
+          });
           saveTaxonomyToStorage();
           this.populateTaxonomySettings();
           this.renderTaxonomyNavigation();
@@ -3478,38 +2874,55 @@ class VaultApp extends HTMLElement {
 
   private getFilteredAssets(): Asset[] {
     const query = this.searchQuery.toLowerCase().trim();
+    if (this.selectedBoard.startsWith("SMART_FOLDER_")) {
+      const sfId = this.selectedBoard.replace("SMART_FOLDER_", "");
+      const smartFolder = this.smartFolders.find(sf => sf.id === sfId);
+      if (smartFolder) {
+        let sfAssets = this.getSmartFolderAssets(smartFolder);
+        if (query) {
+          sfAssets = sfAssets.filter(asset => {
+            const matchTitle = asset.name.toLowerCase().includes(query);
+            const matchArtist = (asset.metadata.artist || "").toLowerCase().includes(query);
+            const matchSystemTags = asset.tags.some(t => t.toLowerCase().includes(query));
+            const matchMetaTags = asset.metadata.tags.some(t => t.toLowerCase().includes(query));
+            return matchTitle || matchArtist || matchSystemTags || matchMetaTags;
+          });
+        }
+        if (this.colorPaletteSearchQuery && this.colorPaletteSearchQuery.length > 0) {
+          const queryHsl = getAverageHsl(this.colorPaletteSearchQuery);
+          sfAssets = sfAssets.filter(asset => {
+            if (!asset.colors || asset.colors.length === 0) return false;
+            const assetHsl = getAverageHsl(asset.colors);
+            return getHueDistance(assetHsl.h, queryHsl.h) <= this.colorPaletteTolerance;
+          });
+        }
+        return sfAssets;
+      }
+    }
     let filtered = this.assets.filter(asset => {
-      // Board selection filtering (Support clicking All Assets and parent/root boards matching their subfolder assets)
-      if (this.selectedBoard !== 'ALL') {
+      if (this.selectedBoard !== "ALL") {
         const isMatch = asset.board === this.selectedBoard;
         if (!isMatch) {
           return false;
         }
       }
-      
-      // Keywords full-text scanning
       if (query) {
         const matchTitle = asset.name.toLowerCase().includes(query);
-        const matchArtist = (asset.metadata.artist || '').toLowerCase().includes(query);
+        const matchArtist = (asset.metadata.artist || "").toLowerCase().includes(query);
         const matchSystemTags = asset.tags.some(t => t.toLowerCase().includes(query));
         const matchMetaTags = asset.metadata.tags.some(t => t.toLowerCase().includes(query));
         return matchTitle || matchArtist || matchSystemTags || matchMetaTags;
       }
       return true;
     });
-
     if (this.colorPaletteSearchQuery && this.colorPaletteSearchQuery.length > 0) {
       const queryHsl = getAverageHsl(this.colorPaletteSearchQuery);
-      
-      // Filter assets that are within the hue tolerance threshold
       filtered = filtered.filter(asset => {
         if (!asset.colors || asset.colors.length === 0) return false;
         const assetHsl = getAverageHsl(asset.colors);
         const dist = getHueDistance(queryHsl.h, assetHsl.h);
         return dist <= this.colorPaletteTolerance;
       });
-
-      // Sort assets by proximity of average hue
       filtered.sort((a, b) => {
         const hslA = getAverageHsl(a.colors);
         const hslB = getAverageHsl(b.colors);
@@ -3724,37 +3137,42 @@ class VaultApp extends HTMLElement {
                 </div>
               </div>
 
+              <!-- Smart Folders navigation -->
+              <div class="space-y-1 pt-3 border-t border-white/5">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default flex items-center gap-1">
+                    Smart Folders
+                  </h3>
+                  <button id="sidebar-add-smart-folder-trigger" class="p-1 hover:bg-emerald-500/10 text-emerald-400 hover:text-emerald-300 rounded cursor-pointer transition flex items-center justify-center shrink-0" title="Create New Smart Folder">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                  </button>
+                </div>
+                
+                <div id="smart-folders-list-container" class="space-y-1">
+                  <!-- Generated smart folder node links are injected here -->
+                </div>
+              </div>
+
               <!-- Boards collection tree navigation -->
               <div class="space-y-1">
-                <div class="flex items-center justify-between mb-2 relative group">
-                  <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-help flex items-center gap-1" title="Hover for hierarchy rule">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-[10px] uppercase tracking-widest text-slate-500 font-bold cursor-default flex items-center gap-1">
                     Boards Directory
-                    <svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                   </h3>
                   <button id="sidebar-add-board-trigger" class="p-1 hover:bg-emerald-500/10 text-emerald-400 hover:text-emerald-300 rounded cursor-pointer transition flex items-center justify-center shrink-0" title="Create New Board">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
                     </svg>
                   </button>
-                  <div id="vault-hierarchy-info-container" class="absolute z-50 left-0 top-full mt-2 w-[220px]"></div>
                 </div>
                 
                 <div id="boards-list-container" class="space-y-1">
                   <!-- Generated board node links are injected here -->
                 </div>
 
-                <!-- Create new board section -->
-                <div class="pt-3 border-t border-white/5 mt-2">
-                  <div class="flex items-center gap-1.5 p-1 bg-black/20 rounded border border-white/5 vault-rounded">
-                    <input type="text" id="new-board-name" placeholder="/New_Collection" 
-                      class="bg-transparent text-xs text-white placeholder-slate-600 outline-none px-1.5 py-1 w-full font-mono" />
-                    <button id="add-board-btn" class="p-1 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded transition" title="Add empty sub-board">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+
                 
                 <!-- Taxonomy Explorer -->
                 <div id="taxonomy-sidebar-container" class="space-y-2 pt-3 border-t border-white/5 mt-3 select-none"></div>
@@ -4053,6 +3471,75 @@ class VaultApp extends HTMLElement {
         </div>
       </div>
 
+      <!-- SMART FOLDER CREATION MODAL OVERLAY -->
+      <div id="smart-folder-create-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[55] flex items-center justify-center p-4 hidden select-none transition-all duration-300">
+        <!-- Dialog Card -->
+        <div class="vault-card bg-[#0F0F11] border border-white/10 rounded-2xl max-w-sm w-full p-6 flex flex-col gap-4 shadow-2xl relative pointer-events-auto text-left">
+          <button id="smart-folder-create-close" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-black/40 hover:bg-black/80 w-6 h-6 rounded-full flex items-center justify-center transition border border-white/5 cursor-pointer">
+            <svg class="w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+          
+          <div class="space-y-1">
+            <h3 class="text-sm font-semibold text-white tracking-tight flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path>
+              </svg>
+              <span>Create Smart Folder</span>
+            </h3>
+            <p class="text-[10px] text-slate-500 font-mono">Filter assets dynamically by tags.</p>
+          </div>
+          
+          <div class="space-y-2">
+            <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Folder Name</label>
+            <input type="text" id="modal-smart-folder-name" placeholder="e.g. Concept Art" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none focus:border-emerald-500/40 transition placeholder-slate-700" />
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Match Tags (comma separated)</label>
+            <input type="text" id="modal-smart-folder-tags" placeholder="e.g. character, futuristic" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none focus:border-emerald-500/40 transition placeholder-slate-700" />
+          </div>
+          
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Icon</label>
+              <select id="modal-smart-folder-icon" class="w-full bg-black/30 border border-white/10 rounded-lg px-2 py-2 text-xs font-mono text-white outline-none cursor-pointer">
+                <option value="folder">📁 Folder</option>
+                <option value="star">⭐ Star</option>
+                <option value="zap">⚡ Zap</option>
+                <option value="heart">❤️ Heart</option>
+                <option value="eye">👁️ Eye</option>
+                <option value="image">🖼️ Image</option>
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Color</label>
+              <select id="modal-smart-folder-color" class="w-full bg-black/30 border border-white/10 rounded-lg px-2 py-2 text-xs font-mono text-white outline-none cursor-pointer">
+                <option value="text-slate-400">Gray</option>
+                <option value="text-red-400">Red</option>
+                <option value="text-orange-400">Orange</option>
+                <option value="text-yellow-400">Yellow</option>
+                <option value="text-emerald-400">Green</option>
+                <option value="text-cyan-400">Cyan</option>
+                <option value="text-blue-400">Blue</option>
+                <option value="text-purple-400">Purple</option>
+                <option value="text-pink-400">Pink</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="flex gap-2 justify-end pt-2">
+            <button id="modal-smart-folder-cancel" class="px-3 py-1.5 hover:bg-white/5 text-slate-400 text-xs rounded transition font-medium cursor-pointer">
+              Cancel
+            </button>
+            <button id="modal-smart-folder-submit" class="vault-btn px-4.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold rounded transition active:scale-95 cursor-pointer">
+              Create Smart Folder
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- BOARD CREATION MODAL OVERLAY -->
       <div id="board-create-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[55] flex items-center justify-center p-4 hidden select-none transition-all duration-300">
         <!-- Dialog Card -->
@@ -4234,6 +3721,12 @@ class VaultApp extends HTMLElement {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
               </svg>
               <span>🏷️ Taxonomy settings</span>
+            </button>
+            <button id="settings-tab-help" class="py-3 px-4 border-b-2 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 focus:outline-none text-slate-500 border-transparent hover:text-slate-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>ℹ️ How to Use</span>
             </button>
           </div>
 
@@ -4598,6 +4091,33 @@ class VaultApp extends HTMLElement {
             <div class="text-[11px] text-slate-400 font-mono" id="settings-developer-credits">
               ${new Date().getFullYear()} Developed by <a href="https://90m.io" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:text-emerald-300 font-semibold underline transition">90m Studio</a>
             </div>
+            
+            <!-- TAB 4: HOW TO USE -->
+            <div id="settings-content-help" class="space-y-6 hidden">
+              <div>
+                <h4 class="text-white text-xs font-bold uppercase tracking-widest mb-1">Visual Vault Instructions</h4>
+                <p class="text-[11px] text-slate-400 font-mono mb-4">Learn how to organize your references.</p>
+                
+                <div class="space-y-4">
+                  <div class="bg-black/20 border border-white/5 rounded p-4">
+                    <div class="text-slate-300 font-bold uppercase text-[10px] mb-2 flex items-center gap-1.5">
+                      <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                      Vault Hierarchy Rules
+                    </div>
+                    <p class="text-[11px] text-slate-500 font-mono leading-relaxed mb-2">
+                      Reflected architecture: <span class="text-slate-300 font-bold">Vault [root]</span> ➔ <span class="text-slate-300 font-bold">1st Lvl [Boards]</span> ➔ <span class="text-slate-300 font-bold">2nd Lvl [Sections]</span> ➔ <span class="text-slate-300 font-bold">3rd Lvl [Images]</span>
+                    </p>
+                    <p class="text-[11px] text-slate-500 font-mono leading-relaxed mb-2">
+                      Folders nested inside 2nd Level [Sections] are promoted & displayed on the 2nd level list (marked with <span class="text-cyan-300 font-medium">↳</span>) for seamless cross-board navigation.
+                    </p>
+                    <p class="text-[11px] text-slate-500 font-mono leading-relaxed">
+                      Vaults support recursive multi-level directory scanning. All images found in any sub-folder of the loaded root directories will be aggregated and displayed. If you add folders containing images inside your loaded vault directories, they will automatically be parsed recursively.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <button id="settings-close-action" class="vault-btn px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-slate-300 rounded text-xs font-semibold uppercase transition tracking-wider cursor-pointer">
               Apply &amp; Close
             </button>
@@ -5089,6 +4609,104 @@ class VaultApp extends HTMLElement {
     });
   }
 
+  private getSmartFolderAssets(folder: SmartFolder): Asset[] {
+    if ((!folder.rules || folder.rules.length === 0) && (!folder.assetIds || folder.assetIds.length === 0)) {
+      return [];
+    }
+    
+    return this.assets.filter(asset => {
+      if (folder.assetIds && folder.assetIds.includes(asset.id)) return true;
+      
+      if (folder.rules && folder.rules.length > 0) {
+        const matchesTags = folder.rules.some(rule => { // Use some or every? let's use some for tags if they are comma separated
+          if (rule.type === 'tag' && rule.operator === 'includes') {
+            const val = rule.value.toLowerCase().trim();
+            if (!val) return false;
+            return asset.tags.some(t => t.toLowerCase().includes(val)) || (asset.metadata && asset.metadata.tags && asset.metadata.tags.some(t => t.toLowerCase().includes(val)));
+          }
+          return false;
+        });
+        if (matchesTags) return true;
+      }
+      
+      return false;
+    });
+  }
+
+  private renderSmartFolderNavigation() {
+    const listDiv = this.querySelector('#smart-folders-list-container');
+    if (!listDiv) return;
+
+    let html = '';
+    this.smartFolders.forEach(folder => {
+      const isSelected = this.selectedBoard === `SMART_FOLDER_${folder.id}`;
+      const activeClass = isSelected ? 'bg-white/5 border border-white/10 vault-rounded' : 'hover:bg-white/5 border border-transparent';
+      const textColorClass = isSelected ? 'text-white' : 'text-slate-400';
+      const chevron = isSelected 
+        ? `<svg class="w-3.5 h-3.5 opacity-50 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>`
+        : ``;
+
+      let iconHtml = '📁';
+      if (folder.icon === 'star') iconHtml = '⭐';
+      if (folder.icon === 'zap') iconHtml = '⚡';
+      if (folder.icon === 'heart') iconHtml = '❤️';
+      if (folder.icon === 'eye') iconHtml = '👁️';
+      if (folder.icon === 'image') iconHtml = '🖼️';
+      
+      const count = this.getSmartFolderAssets(folder).length;
+
+      html += `
+        <div class="flex items-center gap-2 p-1.5 rounded text-sm cursor-pointer transition relative group ${activeClass} ${textColorClass}" data-smart-folder-id="${folder.id}">
+          <span class="${folder.color} mr-1 text-base leading-none">${iconHtml}</span>
+          <span class="truncate text-xs font-medium tracking-tight select-none">${folder.name}</span>
+          ${chevron}
+          <div class="ml-auto flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <button class="delete-smart-folder-btn p-1 hover:text-red-400 text-slate-500 rounded" title="Delete" data-smart-folder-id="${folder.id}">
+              <svg class="w-3 h-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+          <span class="ml-2 text-[9px] font-mono opacity-50 bg-black/40 px-1.5 py-0.5 rounded-full border border-white/5 group-hover:hidden">${count}</span>
+        </div>
+      `;
+    });
+
+    if (this.smartFolders.length === 0) {
+       html = `<div class="text-[10px] text-slate-600 font-mono italic px-2 py-1 select-none">No smart folders.</div>`;
+    }
+    listDiv.innerHTML = html;
+
+    listDiv.querySelectorAll('div[data-smart-folder-id]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('.delete-smart-folder-btn')) return; // ignore delete clicks
+        
+        const sfId = (item as HTMLElement).dataset.smartFolderId;
+        if (sfId) {
+          this.selectedBoard = `SMART_FOLDER_${sfId}`;
+          this.searchQuery = '';
+          const searchIn = this.querySelector('#nav-search-in') as HTMLInputElement;
+          if (searchIn) searchIn.value = '';
+          this.updateLayout();
+        }
+      });
+    });
+
+    listDiv.querySelectorAll('.delete-smart-folder-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sfId = (btn as HTMLElement).dataset.smartFolderId;
+        if (sfId) {
+          this.smartFolders = this.smartFolders.filter(sf => sf.id !== sfId);
+          if (this.selectedBoard === `SMART_FOLDER_${sfId}`) {
+            this.selectedBoard = 'ALL';
+          }
+          this.updateLayout();
+          this.toast('Smart Folder Deleted', 'The smart folder has been removed.');
+        }
+      });
+    });
+  }
+
   private renderBoardNavigation() {
     const listDiv = this.querySelector('#boards-list-container');
     if (!listDiv) return;
@@ -5148,42 +4766,7 @@ class VaultApp extends HTMLElement {
       `;
     }).join('');
 
-    // Active folder structure/hierarchy guide info banner
-    let structureInfoHtml = '';
-    if (containsDeeperFolders) {
-      structureInfoHtml = `
-        <div class="text-[10px] text-slate-300 bg-slate-900 border border-cyan-500/30 rounded p-2.5 shadow-xl transition-all duration-200 space-y-1 select-none font-mono tracking-tight text-left opacity-0 invisible group-hover:opacity-100 group-hover:visible pointer-events-none">
-          <div class="flex items-center gap-1 text-cyan-400 font-extrabold uppercase text-[9px]">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            Hierarchy Traversal
-          </div>
-          <p class="leading-relaxed">
-            Folders nested inside 2nd Level [Sections] are promoted & displayed here on the 2nd level list (marked with <span class="text-cyan-300 font-medium">↳</span>) for seamless cross-board navigation.
-          </p>
-        </div>
-      `;
-    } else {
-      structureInfoHtml = `
-        <div class="text-[9.5px] text-slate-300 bg-slate-900 border border-white/10 rounded shadow-xl p-2.5 select-none font-mono tracking-tight text-left opacity-0 invisible group-hover:opacity-100 group-hover:visible pointer-events-none">
-          <div class="text-slate-400 font-bold uppercase text-[8.5px] mb-1">
-            📁 Vault Hierarchy Rule
-          </div>
-          <p class="leading-relaxed">
-            Reflected architecture:<br/>
-            <span class="text-slate-300">Vault [root]</span> ➔ 
-            <span class="text-slate-300">1st Lvl [Boards]</span> ➔ 
-            <span class="text-slate-300">2nd Lvl [Sections]</span> ➔ 
-            <span class="text-slate-300">3rd Lvl [Images]</span>
-          </p>
-        </div>
-      `;
-    }
-
     listDiv.innerHTML = boardsHtml;
-    const hierarchyContainer = this.querySelector('#vault-hierarchy-info-container') as HTMLElement | null;
-    if (hierarchyContainer) {
-      hierarchyContainer.innerHTML = structureInfoHtml;
-    }
 
     // Highlight Library link (All references)
     const navAll = this.querySelector('#nav-all-assets');
@@ -5574,6 +5157,22 @@ class VaultApp extends HTMLElement {
           </div>
         </div>
 
+          <!-- Smart Folder Assignment -->
+          <div class="space-y-3 pt-4 border-t border-white/[0.04]">
+            <label class="text-[9px] uppercase tracking-widest text-[#10B981] font-mono font-bold cursor-default">Smart Folders</label>
+            <div class="flex flex-wrap gap-2">
+              ${this.smartFolders.map(sf => {
+                const inFolder = sf.assetIds.includes(asset.id);
+                return `
+                  <button class="smart-folder-toggle-btn px-2 py-1 rounded text-[10px] font-mono transition border ${inFolder ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "bg-black/40 text-slate-400 border-white/5 hover:border-white/20"}" data-sf-id="${sf.id}">
+                    ${inFolder ? "✓ " : "+ "} ${sf.name}
+                  </button>
+                `;
+              }).join("")}
+              ${this.smartFolders.length === 0 ? `<span class="text-[10px] text-slate-600 font-mono italic">No smart folders exist.</span>` : ""}
+            </div>
+          </div>
+
         <!-- Forms metadata config parameters -->
         <div class="space-y-3.5 pt-4 border-t border-white/[0.04]">
           <label class="text-[10px] uppercase tracking-widest text-[#10B981] font-mono font-bold cursor-default">Database Sync Parameters</label>
@@ -5770,28 +5369,6 @@ class VaultApp extends HTMLElement {
       btnDeleteActive.addEventListener('click', () => {
         if (this.selectedBoard && this.selectedBoard !== 'ALL') {
           this.deleteBoard(this.selectedBoard);
-        }
-      });
-    }
-
-    // Board creation input trigger
-    const addBoardBtn = this.querySelector('#add-board-btn');
-    const newBoardIn = this.querySelector('#new-board-name') as HTMLInputElement;
-    if (addBoardBtn && newBoardIn) {
-      addBoardBtn.addEventListener('click', () => {
-        const val = newBoardIn.value.trim();
-        if (val) {
-          this.createNewBoard(val);
-          newBoardIn.value = '';
-        }
-      });
-      newBoardIn.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          const val = newBoardIn.value.trim();
-          if (val) {
-            this.createNewBoard(val);
-            newBoardIn.value = '';
-          }
         }
       });
     }
@@ -6300,6 +5877,13 @@ class VaultApp extends HTMLElement {
     if (tabTaxonomy) {
       tabTaxonomy.addEventListener('click', () => {
         this.switchSettingsTab('taxonomy');
+      });
+    }
+
+    const tabHelp = this.querySelector('#settings-tab-help');
+    if (tabHelp) {
+      tabHelp.addEventListener('click', () => {
+        this.switchSettingsTab('help');
       });
     }
 
@@ -7143,6 +6727,41 @@ class VaultApp extends HTMLElement {
   // ----------------------------------------------------
   // Core Business Logics Helpers
   // ----------------------------------------------------
+  private toggleSmartFolderCreateModal(open?: boolean) {
+    const backdrop = this.querySelector("#smart-folder-create-backdrop") as HTMLElement | null;
+    if (!backdrop) return;
+    const isCurrentlyOpen = !backdrop.classList.contains("hidden");
+    const shouldOpen = open !== undefined ? open : !isCurrentlyOpen;
+    if (shouldOpen) {
+      backdrop.classList.remove("hidden");
+      const input = this.querySelector("#modal-smart-folder-name") as HTMLInputElement | null;
+      if (input) {
+        input.value = "";
+        setTimeout(() => input.focus(), 85);
+      }
+    } else {
+      backdrop.classList.add("hidden");
+    }
+  }
+
+  private createNewSmartFolder(name: string, tagsInput: string, icon: string, color: string) {
+    const tags = tagsInput.split(",").map(t => t.trim()).filter(Boolean);
+    const rules: SmartFolderRule[] = tags.map(t => ({ type: "tag", operator: "includes", value: t }));
+    const sf: SmartFolder = {
+      id: "sf_" + Math.random().toString(36).substring(2, 9),
+      name,
+      icon,
+      color,
+      rules,
+      assetIds: []
+    };
+    this.smartFolders.push(sf);
+    this.selectedBoard = "SMART_FOLDER_" + sf.id;
+    this.updateLayout();
+    this.toast("Smart Folder Created", `Created smart folder: ${name}`);
+    localStorage.setItem("visual_vault_smart_folders_v1", JSON.stringify(this.smartFolders));
+  }
+
   private createNewBoard(name: string) {
     // Sanitize path separators
     let formattedPath = name.trim();
@@ -7553,6 +7172,22 @@ class VaultApp extends HTMLElement {
             </button>
           </div>
 
+          <!-- Smart Folder Assignment -->
+          <div class="space-y-3 pt-4 border-t border-white/[0.04]">
+            <label class="text-[9px] uppercase tracking-widest text-[#10B981] font-mono font-bold cursor-default">Smart Folders</label>
+            <div class="flex flex-wrap gap-2">
+              ${this.smartFolders.map(sf => {
+                const inFolder = sf.assetIds.includes(asset.id);
+                return `
+                  <button class="smart-folder-toggle-btn px-2 py-1 rounded text-[10px] font-mono transition border ${inFolder ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "bg-black/40 text-slate-400 border-white/5 hover:border-white/20"}" data-sf-id="${sf.id}">
+                    ${inFolder ? "✓ " : "+ "} ${sf.name}
+                  </button>
+                `;
+              }).join("")}
+              ${this.smartFolders.length === 0 ? `<span class="text-[10px] text-slate-600 font-mono italic">No smart folders exist.</span>` : ""}
+            </div>
+          </div>
+
           <!-- Forms metadata config parameters -->
           <div class="space-y-3 pt-4 border-t border-white/[0.04]">
             <label class="text-[9px] uppercase tracking-widest text-[#10B981] font-mono font-bold cursor-default">Database Sync Parameters</label>
@@ -7924,6 +7559,26 @@ class VaultApp extends HTMLElement {
     }
 
     // Color palette similarity search button for lightbox
+    const sfToggleBtns = this.querySelectorAll(".smart-folder-toggle-btn");
+    sfToggleBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const sfId = (btn as HTMLElement).dataset.sfId;
+        const smartFolder = this.smartFolders.find(sf => sf.id === sfId);
+        if (smartFolder) {
+          const index = smartFolder.assetIds.indexOf(asset.id);
+          if (index === -1) {
+            smartFolder.assetIds.push(asset.id);
+            this.toast("Smart Folder", `Added ${asset.name} to ${smartFolder.name}`);
+          } else {
+            smartFolder.assetIds.splice(index, 1);
+            this.toast("Smart Folder", `Removed ${asset.name} from ${smartFolder.name}`);
+          }
+          this.populateLightboxData();
+          this.updateLayout();
+        }
+      });
+    });
+
     const lbSearchSimilarBtn = this.querySelector('#lb-search-similar-palette-btn');
     if (lbSearchSimilarBtn) {
       lbSearchSimilarBtn.addEventListener('click', () => {

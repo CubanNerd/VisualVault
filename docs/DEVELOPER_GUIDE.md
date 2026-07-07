@@ -68,10 +68,16 @@ The primary controller is the `VaultApp` class defined in `src/main.tsx`, which 
 ├── vite.config.ts             # Bundler settings configured with relative base output
 ├── electron-main.cjs          # Electron application bootstrap, window controller, and sandbox locks
 ├── src/
-│   ├── main.tsx               # The Core Application Core Module (State, UI, Events inside VaultApp)
-│   ├── types.ts               # Shared TypeScript schemas (Asset, AssetMetadata, Vault)
+│   ├── main.tsx               # Main Application Controller (Custom Element Web Component 'VaultApp')
 │   ├── index.css              # Global custom styling sheet, scrollbars, and Tailwind v4 themes
-│   └── App.tsx                # Client-Side SPA entry stub
+│   ├── App.tsx                # Client-Side SPA entry stub
+│   └── lib/                   # Modular Helper Libraries
+│       ├── types.ts           # Unified TypeScript schemas & default custom configurations
+│       ├── procedural.ts      # Vector SVG graphic procedural rendering engine
+│       ├── color.ts           # Advanced canvas color palette extractors and similarity calculus
+│       ├── taxonomy.ts        # Tag categorization presets, storage synchronization, and UI controllers
+│       ├── frontmatter.ts     # Obsidian markdown YAML frontmatter parser & writer engine
+│       └── seeds.ts           # Dynamic default catalog databases & seed mock assets
 └── README.md                  # High-level end-user user documentation
 ```
 
@@ -354,7 +360,7 @@ interface CustomSchemaConfig {
 
 ## Parsing & RegEx Engines for Obsidian Notes
 
-To provide cross-app compatibility with Obsidian, VisualVault parses and writes metadata inside standard Markdown frontmatter blocks:
+To provide cross-app compatibility with Obsidian, VisualVault parses and writes metadata inside standard Markdown frontmatter blocks. This logic resides in the standalone `/src/lib/frontmatter.ts` utility library:
 
 - **YAML Reader (`parseYAMLFrontmatter`)**:
   Separates the standard Markdown body from triple-dash YAML headings using a strict regex parser:
