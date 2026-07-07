@@ -365,6 +365,19 @@ class VaultApp extends HTMLElement {
     }
 
     this.workspaceMode = (localStorage.getItem('visual_vault_workspace_mode') as 'unified' | 'focused') || 'unified';
+    
+    // Load smart folders from localStorage on startup
+    const savedSmartFolders = localStorage.getItem('visual_vault_smart_folders_v1');
+    if (savedSmartFolders) {
+      try {
+        this.smartFolders = JSON.parse(savedSmartFolders);
+      } catch (e) {
+        this.smartFolders = [];
+      }
+    } else {
+      this.smartFolders = [];
+    }
+
     this.loadAssets();
     
     // Wire up storage updates tracking observer interface to sync metadata files to disk
@@ -3500,6 +3513,12 @@ class VaultApp extends HTMLElement {
           <div class="space-y-2">
             <label class="text-[9px] uppercase tracking-wider text-slate-500 font-mono">Match Tags (comma separated)</label>
             <input type="text" id="modal-smart-folder-tags" placeholder="e.g. character, futuristic" class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none focus:border-emerald-500/40 transition placeholder-slate-700" />
+            <div class="space-y-1">
+              <label class="text-[8px] uppercase tracking-wider text-slate-600 font-mono">Existing Tags Autocomplete</label>
+              <div id="modal-smart-folder-tags-autocomplete" class="flex flex-wrap gap-1 max-h-24 overflow-y-auto bg-black/20 p-2 border border-white/5 rounded-lg">
+                <!-- Loaded dynamically -->
+              </div>
+            </div>
           </div>
           
           <div class="grid grid-cols-2 gap-4">
@@ -6889,6 +6908,62 @@ class VaultApp extends HTMLElement {
         iconInput.addEventListener("input", handleIconInput);
       }
 
+      // Initialize tags autocomplete
+      const tagsContainer = this.querySelector("#modal-smart-folder-tags-autocomplete");
+      const tagsInput = this.querySelector("#modal-smart-folder-tags") as HTMLInputElement | null;
+      if (tagsContainer && tagsInput) {
+        const uniqueTags = this.getAllUniqueTags();
+        if (uniqueTags.length === 0) {
+          tagsContainer.innerHTML = `<span class="text-[10px] text-slate-600 font-mono italic p-1">No tags found in current vault assets.</span>`;
+        } else {
+          tagsContainer.innerHTML = uniqueTags.map(tag => `
+            <button type="button" class="autocomplete-tag-btn px-2 py-0.5 text-[9px] font-mono bg-white/5 hover:bg-emerald-500/10 text-slate-400 hover:text-emerald-400 border border-white/5 hover:border-emerald-500/20 rounded transition cursor-pointer active:scale-95 flex items-center gap-1 shrink-0" data-tag="${tag}">
+              #${tag}
+            </button>
+          `).join('');
+
+          const syncTagButtonsSelection = () => {
+            const currentVal = tagsInput.value.trim();
+            const currentTags = currentVal ? currentVal.split(',').map(t => t.trim().toLowerCase()).filter(Boolean) : [];
+            tagsContainer.querySelectorAll('.autocomplete-tag-btn').forEach(btn => {
+              const tag = (btn as HTMLElement).dataset.tag?.toLowerCase() || '';
+              if (currentTags.includes(tag)) {
+                btn.classList.add('bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/30');
+                btn.classList.remove('bg-white/5', 'text-slate-400', 'border-white/5');
+              } else {
+                btn.classList.remove('bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/30');
+                btn.classList.add('bg-white/5', 'text-slate-400', 'border-white/5');
+              }
+            });
+          };
+
+          tagsContainer.querySelectorAll('.autocomplete-tag-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.preventDefault();
+              const tag = (btn as HTMLElement).dataset.tag;
+              if (tag) {
+                let currentVal = tagsInput.value.trim();
+                let currentTags = currentVal ? currentVal.split(',').map(t => t.trim()).filter(Boolean) : [];
+                const tagIndex = currentTags.findIndex(t => t.toLowerCase() === tag.toLowerCase());
+                
+                if (tagIndex > -1) {
+                  currentTags.splice(tagIndex, 1);
+                } else {
+                  currentTags.push(tag);
+                }
+                
+                tagsInput.value = currentTags.join(', ');
+                syncTagButtonsSelection();
+              }
+            });
+          });
+
+          // Sync initial buttons status
+          syncTagButtonsSelection();
+          tagsInput.addEventListener('input', syncTagButtonsSelection);
+        }
+      }
+
       try {
         createIcons({ icons });
       } catch (e) {}
@@ -6898,9 +6973,45 @@ class VaultApp extends HTMLElement {
         input.value = "";
         setTimeout(() => input.focus(), 85);
       }
+      if (tagsInput) {
+        tagsInput.value = "";
+      }
     } else {
       backdrop.classList.add("hidden");
     }
+  }
+
+  private getAllUniqueTags(): string[] {
+    const tagsSet = new Set<string>();
+    
+    // Add preset taxonomy tags
+    if (typeof TAXONOMY_PRESETS !== 'undefined') {
+      Object.values(TAXONOMY_PRESETS).flat().forEach(t => {
+        if (typeof t === 'string' && t.trim()) {
+          tagsSet.add(t.trim());
+        }
+      });
+    }
+
+    // Add tags from assets
+    this.assets.forEach(asset => {
+      if (asset.tags) {
+        asset.tags.forEach(t => {
+          if (t && t.trim()) {
+            tagsSet.add(t.trim());
+          }
+        });
+      }
+      if (asset.metadata && asset.metadata.tags) {
+        asset.metadata.tags.forEach(t => {
+          if (t && t.trim()) {
+            tagsSet.add(t.trim());
+          }
+        });
+      }
+    });
+
+    return Array.from(tagsSet).sort((a, b) => a.localeCompare(b));
   }
 
   private createNewSmartFolder(name: string, tagsInput: string, icon: string, color: string) {
