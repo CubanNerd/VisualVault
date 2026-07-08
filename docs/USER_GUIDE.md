@@ -1,18 +1,28 @@
 # VisualVault — User Guide & Knowledge Base
-*Last Updated: June 20, 2026*
+*Last Updated: July 8, 2026 (v1.1.0)*
 
 Welcome to the **VisualVault User Guide**. This document serves as a comprehensive knowledge base for creative professionals, curators, and researchers. VisualVault is a high-speed, local-first workspace designed to catalog, inspect, and organize reference inspiration, design boards, blueprints, and concept catalogs in harmony with your local directories and Obsidian vaults.
 
 ---
 
-## Understanding Vaults & Boards
+## Understanding Vaults, Boards & Smart Folders
 
-At the core of VisualVault is a simple local-first directory layout:
+At the core of VisualVault is a simple local-first directory layout coupled with smart organization layer:
 
 1. **The Vault [Root]**: A single root directory on your local device (e.g., `/Users/design/Desktop/Concept_Universe` or a local Obsidian Vault). A vault holds your visual assets and associated metadata.
 2. **1st Level Folders [Boards]**: Virtual subdirectories representing main conceptual boards (e.g., `Environment_Ref` or `Mech_Technical`).
 3. **2nd Level Folders [Sections]**: Direct subsets inside the major boards (e.g., `Environment_Ref/Neo_Tokyo` or `Mech_Technical/Chassis`).
 4. **3rd Level Files [Images & Companion Notes]**: Actual images and notes residing inside the second level folders.
+5. **Smart Folders [Virtual Containers] (New in v1.1.0)**: Dynamic virtual folders that let you filter and aggregate assets across your entire vault based on metadata tags. You can easily create, customize, and edit Smart Folders on the fly. Clicking the **Edit** button on any Smart Folder in the sidebar launches an intuitive editor where you can update its title, description, custom Lucide icon representation, accent color, and targeted search tags.
+
+---
+
+## Persistent Desktop Vault Sync (New in v1.1.0)
+
+When running inside the **Native Desktop Client (Electron)**, VisualVault guarantees zero-friction workspace restoration:
+- **Native Settings Store**: The desktop process tracks your workspace settings natively inside a dedicated `user-settings.json` file in the operating system's application data directory (`userData`).
+- **Seamless Startup**: On startup, the application reads the saved vault folder directly from this file and feeds it into the recursive directory scanner without requiring repetitive manual selects or permission prompts.
+- **Instant Connection**: Selecting a new vault directory via the **Sync Local Folder** dialog automatically syncs and persists the selected path back to the settings file in real-time, keeping your active project vault ready across reboots.
 
 ---
 

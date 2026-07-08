@@ -298,6 +298,42 @@ app.on('window-all-closed', () => {
 });
 
 // Native IPC handlers
+function loadSettings() {
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'user-settings.json');
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Failed to load settings:', err);
+  }
+  return {};
+}
+
+function saveSettings(settings) {
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'user-settings.json');
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error('Failed to save settings:', err);
+    return false;
+  }
+}
+
+ipcMain.handle('get-saved-folder', async () => {
+  const settings = loadSettings();
+  return settings.savedFolder || null;
+});
+
+ipcMain.handle('save-folder', async (event, folderPath) => {
+  const settings = loadSettings();
+  settings.savedFolder = folderPath;
+  return saveSettings(settings);
+});
+
 ipcMain.handle('select-directory', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']

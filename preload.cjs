@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
+  getSavedFolder: () => ipcRenderer.invoke('get-saved-folder'),
+  saveFolder: (folderPath) => ipcRenderer.invoke('save-folder', folderPath),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   scanVault: (vaultPath) => ipcRenderer.invoke('scan-vault', vaultPath),
   writeCompanionMD: (vaultPath, board, assetName, yamlContent) => 

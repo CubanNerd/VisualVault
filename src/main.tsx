@@ -301,6 +301,7 @@ class VaultApp extends HTMLElement {
   // Global React-like states managed transparently for high 100vh app integrity
   private assets: Asset[] = [];
   private smartFolders: SmartFolder[] = [];
+  private editingSmartFolderId: string | null = null;
 
   private selectedBoard = 'ALL';
   private selectedAssetId = 'as_1';
@@ -1883,9 +1884,19 @@ class VaultApp extends HTMLElement {
 
   private async checkAndRestoreLocalVaults() {
     const electronAPI = (window as any).electronAPI;
-    const activePath = storage.getVaultPath();
+    let activePath = storage.getVaultPath();
 
     if (electronAPI) {
+      try {
+        const savedFolder = await electronAPI.getSavedFolder();
+        if (savedFolder) {
+          activePath = savedFolder;
+          storage.setVaultPath(savedFolder);
+        }
+      } catch (err) {
+        console.warn('Error reading native settings saved folder:', err);
+      }
+
       if (activePath) {
         this.isSandboxedDirectory = true;
         this.addLog('info', `Electron API: Automatically restoring physical local vault at: ${activePath}`);
@@ -2004,6 +2015,13 @@ class VaultApp extends HTMLElement {
         if (!physicalPath) {
           this.addLog('info', 'Electron API: Folder selection cancelled by user.');
           return;
+        }
+
+        // Save selected folder natively inside user-settings.json
+        try {
+          await electronAPI.saveFolder(physicalPath);
+        } catch (err) {
+          console.warn('Error saving folder natively:', err);
         }
 
         const vaultName = physicalPath.split(/[/\\]/).pop() || 'Local Vault';
@@ -3500,9 +3518,9 @@ class VaultApp extends HTMLElement {
               <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path>
               </svg>
-              <span>Create Smart Folder</span>
+              <span id="modal-smart-folder-title-text">Create Smart Folder</span>
             </h3>
-            <p class="text-[10px] text-slate-500 font-mono">Filter assets dynamically by tags.</p>
+            <p class="text-[10px] text-slate-500 font-mono" id="modal-smart-folder-desc-text">Filter assets dynamically by tags.</p>
           </div>
           
           <div class="space-y-2">
@@ -4694,7 +4712,10 @@ class VaultApp extends HTMLElement {
           <div class="${folder.color} mr-1 flex items-center justify-center shrink-0 w-4 h-4">${iconHtml}</div>
           <span class="truncate text-xs font-medium tracking-tight select-none">${folder.name}</span>
           ${chevron}
-          <div class="ml-auto flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="ml-auto flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-0.5">
+            <button class="edit-smart-folder-btn p-1 hover:text-emerald-400 text-slate-500 rounded" title="Edit Settings" data-smart-folder-id="${folder.id}">
+              <svg class="w-3 h-3 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            </button>
             <button class="delete-smart-folder-btn p-1 hover:text-red-400 text-slate-500 rounded" title="Delete" data-smart-folder-id="${folder.id}">
               <svg class="w-3 h-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
@@ -4718,7 +4739,7 @@ class VaultApp extends HTMLElement {
     listDiv.querySelectorAll('div[data-smart-folder-id]').forEach(item => {
       item.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
-        if (target.closest('.delete-smart-folder-btn')) return; // ignore delete clicks
+        if (target.closest('.delete-smart-folder-btn') || target.closest('.edit-smart-folder-btn')) return; // ignore action button clicks
         
         const sfId = (item as HTMLElement).dataset.smartFolderId;
         if (sfId) {
@@ -4742,6 +4763,16 @@ class VaultApp extends HTMLElement {
           }
           this.updateLayout();
           this.toast('Smart Folder Deleted', 'The smart folder has been removed.');
+        }
+      });
+    });
+
+    listDiv.querySelectorAll('.edit-smart-folder-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sfId = (btn as HTMLElement).dataset.smartFolderId;
+        if (sfId) {
+          this.toggleSmartFolderCreateModal(true, sfId);
         }
       });
     });
@@ -6391,7 +6422,11 @@ class VaultApp extends HTMLElement {
         const color = modalSmartColorIn ? modalSmartColorIn.value : 'text-slate-400';
 
         if (name) {
-          this.createNewSmartFolder(name, tags, icon, color);
+          if (this.editingSmartFolderId) {
+            this.updateSmartFolder(this.editingSmartFolderId, name, tags, icon, color);
+          } else {
+            this.createNewSmartFolder(name, tags, icon, color);
+          }
           this.toggleSmartFolderCreateModal(false);
           // clear values
           modalSmartNameIn.value = '';
@@ -6841,18 +6876,32 @@ class VaultApp extends HTMLElement {
   // ----------------------------------------------------
   // Core Business Logics Helpers
   // ----------------------------------------------------
-  private toggleSmartFolderCreateModal(open?: boolean) {
+  private toggleSmartFolderCreateModal(open?: boolean, editId?: string | null) {
     const backdrop = this.querySelector("#smart-folder-create-backdrop") as HTMLElement | null;
     if (!backdrop) return;
     const isCurrentlyOpen = !backdrop.classList.contains("hidden");
     const shouldOpen = open !== undefined ? open : !isCurrentlyOpen;
     if (shouldOpen) {
+      this.editingSmartFolderId = editId || null;
       backdrop.classList.remove("hidden");
+
+      // Dynamic header texts & buttons
+      const titleText = this.querySelector("#modal-smart-folder-title-text");
+      const descText = this.querySelector("#modal-smart-folder-desc-text");
+      const submitBtn = this.querySelector("#modal-smart-folder-submit");
+
+      const isEdit = !!this.editingSmartFolderId;
+      const editingFolder = isEdit ? this.smartFolders.find(x => x.id === this.editingSmartFolderId) : null;
+
+      if (titleText) titleText.textContent = isEdit ? "Edit Smart Folder" : "Create Smart Folder";
+      if (descText) descText.textContent = isEdit ? "Update filters and settings for this virtual container." : "Filter assets dynamically by tags.";
+      if (submitBtn) submitBtn.textContent = isEdit ? "Save Changes" : "Create Smart Folder";
 
       // Initialize preset icons grid
       const presetsContainer = this.querySelector("#modal-smart-folder-presets");
       const iconInput = this.querySelector("#modal-smart-folder-icon") as HTMLInputElement | null;
       const previewContainer = this.querySelector("#modal-smart-folder-icon-preview");
+      const colorSelect = this.querySelector("#modal-smart-folder-color") as HTMLSelectElement | null;
 
       if (presetsContainer) {
         const PRESET_LUCIDE_ICONS = [
@@ -6888,14 +6937,34 @@ class VaultApp extends HTMLElement {
         });
       }
 
+      // Initialize fields
+      const input = this.querySelector("#modal-smart-folder-name") as HTMLInputElement | null;
+      const tagsInput = this.querySelector("#modal-smart-folder-tags") as HTMLInputElement | null;
+
+      const initialIcon = editingFolder ? (editingFolder.icon || "folder") : "folder";
+      const initialColor = editingFolder ? (editingFolder.color || "text-slate-400") : "text-slate-400";
+      const initialName = editingFolder ? editingFolder.name : "";
+      const initialTags = editingFolder ? (editingFolder.rules.filter(r => r.type === 'tag').map(r => r.value).join(', ')) : "";
+
+      if (input) {
+        input.value = initialName;
+        setTimeout(() => input.focus(), 85);
+      }
+      if (tagsInput) {
+        tagsInput.value = initialTags;
+      }
+      if (iconInput) {
+        iconInput.value = initialIcon;
+      }
+      if (colorSelect) {
+        colorSelect.value = initialColor;
+      }
+      if (previewContainer) {
+        previewContainer.innerHTML = `<i data-lucide="${initialIcon}" class="w-4 h-4"></i>`;
+      }
+
       // Live change on icon input typing
       if (iconInput) {
-        // Set initial icon
-        iconInput.value = "folder";
-        if (previewContainer) {
-          previewContainer.innerHTML = `<i data-lucide="folder" class="w-4 h-4"></i>`;
-        }
-        
         const handleIconInput = () => {
           const val = iconInput.value.trim().toLowerCase();
           if (val && previewContainer) {
@@ -6910,7 +6979,6 @@ class VaultApp extends HTMLElement {
 
       // Initialize tags autocomplete
       const tagsContainer = this.querySelector("#modal-smart-folder-tags-autocomplete");
-      const tagsInput = this.querySelector("#modal-smart-folder-tags") as HTMLInputElement | null;
       if (tagsContainer && tagsInput) {
         const uniqueTags = this.getAllUniqueTags();
         if (uniqueTags.length === 0) {
@@ -6968,14 +7036,6 @@ class VaultApp extends HTMLElement {
         createIcons({ icons });
       } catch (e) {}
 
-      const input = this.querySelector("#modal-smart-folder-name") as HTMLInputElement | null;
-      if (input) {
-        input.value = "";
-        setTimeout(() => input.focus(), 85);
-      }
-      if (tagsInput) {
-        tagsInput.value = "";
-      }
     } else {
       backdrop.classList.add("hidden");
     }
@@ -7030,6 +7090,21 @@ class VaultApp extends HTMLElement {
     this.updateLayout();
     this.toast("Smart Folder Created", `Created smart folder: ${name}`);
     localStorage.setItem("visual_vault_smart_folders_v1", JSON.stringify(this.smartFolders));
+  }
+
+  private updateSmartFolder(id: string, name: string, tagsInput: string, icon: string, color: string) {
+    const tags = tagsInput.split(",").map(t => t.trim()).filter(Boolean);
+    const rules: SmartFolderRule[] = tags.map(t => ({ type: "tag", operator: "includes", value: t }));
+    const sf = this.smartFolders.find(x => x.id === id);
+    if (sf) {
+      sf.name = name;
+      sf.icon = icon;
+      sf.color = color;
+      sf.rules = rules;
+      this.updateLayout();
+      this.toast("Smart Folder Updated", `Updated smart folder: ${name}`);
+      localStorage.setItem("visual_vault_smart_folders_v1", JSON.stringify(this.smartFolders));
+    }
   }
 
   private createNewBoard(name: string) {
