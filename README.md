@@ -15,8 +15,8 @@ To help you get started quickly or inspect the internal architecture, we have cr
 
 ## Key Features
 
-- **Obsidian-Style Vault Manager**: Switch smoothly between isolated physical directories (e.g., `/Users/design/...`), persist distinct databases in Indexed/Local Storage, and register new vaults dynamically.
-- **Persistent Vault Sync (Updated in v1.2.0)**: In Electron mode, the app automatically persists and restores your selected local vault path across desktop sessions by maintaining secure native configuration files (`user-settings.json` and `vault-settings.json`) inside the OS-level application data directory (`userData`).
+- **Focused Folder Sync**: Connect a local folder/vault directory seamlessly using the web-safe Directory Picker API, automatically mapping local boards and subdirectories into high-fidelity visual cards.
+- **Persistent Local Folder Sync (Updated in v1.2.0)**: In Electron or Web Sandbox mode, the app automatically persists and restores your selected local folder path across sessions. In desktop mode, it maintains secure native configuration files inside the OS-level application data directory (`userData`) for seamless, zero-friction workspace restoration.
 - **Custom Native Desktop Icon (New in v1.2.0)**: Supports dynamic native desktop packaging icons. By dropping a custom `icon.ico` in the `public/` folder, the icon generator process will automatically detect, optimize, and pack your branding into the final Electron executable.
 - **Editable Smart Folders (New in v1.1.0)**: Configure and live-update filters, names, custom icons, and tag rules for virtual containers on the fly via a dedicated modal editor.
 - **Custom Schema & Status Configurator**: Dynamically adjust metadata property names, placeholder values, and asset statuses. Supports importing and exporting configurations using structured `.json` files.

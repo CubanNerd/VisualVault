@@ -36,19 +36,11 @@ VisualVault maintains a clean workspace by projecting a structured folder layout
 
 ---
 
-## Tailoring Your Workspace: The User Profiles
+## Dedicated Workspace Isolation (Focused Solitude)
 
-VisualVault adapts dynamically to different styles of reference organization. In the left sidebar under the **Workspace View Mode** selector, you can toggle between two modes:
-
-### 1. Unified Arena (User Profile 1: The Curatorial Workspace)
-*For designers who prefer to inspect their entire concept library in one contiguous registry.*
-- **Overview**: Selecting **Unified** scans and aggregates all files, tags, and sub-boards across all your registered vaults.
-- **Workflow**: Ideal when cross-referencing ideas between different projects, search-filtering through thousands of pins, or matching color palettes globally.
-
-### 2. Focused Solitude (User Profile 2: The Project-Driven Space)
-*For curators who feel distracted or overwhelmed by seeing unrelated concept art when working on a single task.*
-- **Overview**: Selecting **Focused** isolates the workspace. It loads assets, boards, and search terms strictly relevant to the active directory vault.
-- **Workflow**: Hides background projects entirely so you can focus, review, and iterate on one isolated project at a time.
+VisualVault operates in a highly focused, project-driven workspace. 
+- **Isolated Assets & Boards**: Loading a folder structures the active boards, assets, and metadata tags strictly relevant to that active directory.
+- **Distraction-Free Workflow**: This keeps background projects completely separate, preventing clutter and cross-talk across different portfolios, ensuring you can focus and iterate on one collection at a time.
 
 ---
 
@@ -112,7 +104,7 @@ Click the **Launch in Obsidian** action inside an asset's sidebar details:
 If you run VisualVault from a remote web server (rather than your local machine), the browser's sandbox model naturally blocks direct, silent scans of absolute paths. You have **three seamless approaches** to load local assets:
 
 ### Approach A: File System Access API (Immediate & Direct)
-1. Inside the **Vault Settings**, click **Sync Local folder Directory**.
+1. Click the **Connect Folder** button (indicated with a clean folder sync sync badge) located directly on your left-hand sidebar or in the Vault Settings.
 2. Select your local asset folder via the native browser dialog.
 3. This indexes your local directory, parses YAML annotations, and extracts file representations fully client-side. **No files or metadata are uploaded to a remote server.**
 4. Changes write directly back to your local files on the fly.

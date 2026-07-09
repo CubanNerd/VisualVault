@@ -85,36 +85,30 @@ The primary controller is the `VaultApp` class defined in `src/main.tsx`, which 
 
 ## State Partitioning & Storage System
 
-VisualVault functions as an offline-first catalog wrapper. It manages assets, boards, active vaults, and companion settings purely on the client side, using unique, namespaced local caching channels. This mirrors the behavior of Obsidian's offline-first vault catalog.
+VisualVault functions as an offline-first catalog wrapper. It manages assets, boards, active vaults, and companion settings purely on the client side using unique, namespaced local caching channels. This mirrors the behavior of Obsidian's offline-first vault catalog.
 
 ```
 ┌───────────────────────────────── StorageService ─────────────────────────────────┐
 │                                                                                  │
-│   Active Path Target Tracker: "visual_vault_active_path_v1"                      │
-│   Directory Vault Registry Key: "visual_vaults_list_v1"                          │
+│   Active Path Target Tracker: "visual_catalog_vault_path_v2"                    │
 │                                                                                  │
-│   ┌────────────────────────────── Multi-Vault partition tables ──────────────┐   │
+│   ┌────────────────────────────── Connected Vault Partition ─────────────────┐   │
 │   │                                                                          │   │
 │   │   Vault Key: "visual_catalog_db_v3_Users_design_Desktop_Concept"          │   │
-│   │   ↳ [ Asset { id: 101, path: "cyberpunk_1.jpg", vaultPath: ... } ]       │   │
-│   │                                                                          │   │
-│   │   Vault Key: "visual_catalog_db_v3_Users_design_Documents_Mech"          │   │
-│   │   ↳ [ Asset { id: 201, path: "blueprint_5.png", vaultPath: ... } ]       │   │
+│   │   ↳ [ Asset { id: 101, path: "cyberpunk_1.jpg", board: ... } ]           │   │
 │   │                                                                          │   │
 │   └──────────────────────────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1. The Directory Vault Key-Map
-To support isolated files across multiple project references, the application registers vaults using a root workspace tracker:
-- **Registry Key**: `visual_vaults_list_v1`
-  - Stores list array of registered folders: `{ name: string, path: string, lastOpened: number }[]`
-- **Active Path Identifier**: `visual_vault_active_path_v1`
-  - Stores string path reference of the active directory vault (e.g., `/Users/projects/Cyberpunk_Grid`).
+### 1. Active Path Target Tracker
+The application tracks the connected local folder path using a persistent preference key:
+- **Active Path Key**: `visual_catalog_vault_path_v2`
+  - Stores string path reference of the active folder directory (e.g., `/Users/projects/Cyberpunk_Grid`).
 
-### 2. Isolated Workspace Databases
-Individual asset lists (including metadata stars, custom notes, color palettes, and tag meshes) are isolated by vault-path to prevent crosstalk.
-Each vault has its own database key constructed dynamically in `src/main.tsx` via `StorageManager`:
+### 2. Mapped Directory Databases
+To support isolated datasets for each workspace, individual asset records (including metadata stars, custom notes, color palettes, and tag meshes) are indexed separately based on the connected folder's path to prevent crosstalk.
+Each connected directory compiles assets inside its own database key constructed dynamically in `src/main.tsx` via `StorageService`:
 
 ```ts
 getVaultKey(): string {
@@ -123,83 +117,24 @@ getVaultKey(): string {
 }
 ```
 
-This dynamic mapping separates your data, ensuring that when a developer switches from the *Neo-Tokyo Concept Art* library to the *Mechanic Parts & Blueprint* catalog, only the assets mapped to that specific filesystem folder are loaded.
+This dynamic mapping separates your metadata, ensuring that when the application connects to a different workspace (e.g. from *Neo-Tokyo Concept Art* to *Mechanic Parts & Blueprint*), only the assets and annotations mapped to that specific directory folder are loaded.
 
-### 3. Unified Arena vs. Focused Solitude Views
-The **Workspace View Mode** switch changes how files are indexed and rendered in memory:
+### 3. Isolated Workspace Loading (Focused Solitude)
+To prevent cross-talk and metadata corruption, the engine operates in a dedicated single-vault Focused Solitude state. Read and write operations target the key mapped strictly to the connected path:
 
 ```ts
 // src/main.tsx
 private loadAssets() {
-  if (this.workspaceMode === 'unified') {
-    const vaults = storage.getVaults();
-    let combined: Asset[] = [];
-    const seenIds = new Set<string>();
-
-    const activePath = storage.getVaultPath();
-    const activeAssets = storage.getAllAssets();
-    activeAssets.forEach(a => {
-      if (!seenIds.has(a.id)) {
-        a.vaultPath = a.vaultPath || activePath;
-        seenIds.add(a.id);
-        combined.push(a);
-      }
-    });
-
-    vaults.forEach(v => {
-      if (v.path !== activePath) {
-        try {
-          const pathKey = `visual_catalog_db_v3_${v.path.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-          const data = localStorage.getItem(pathKey);
-          if (data) {
-            const loaded = JSON.parse(data) as Asset[];
-            loaded.forEach(a => {
-              if (!seenIds.has(a.id)) {
-                a.vaultPath = a.vaultPath || v.path;
-                seenIds.add(a.id);
-                combined.push(a);
-              }
-            });
-          }
-        } catch (e) {
-          console.error('Failed to parse assets for vault ' + v.name, e);
-        }
-      }
-    });
-    this.assets = combined;
-  } else {
-    this.assets = storage.getAllAssets();
-  }
+  this.assets = storage.getAllAssets();
 }
 ```
 
-- **In Focused Mode**: Read operations target the active key mapped strictly to `storage.getVaultPath()`. Only local directory assets load.
-- **In Unified Mode**: The engine reads records from **all** registered vaults in the catalog, appends an originating `.vaultPath` track token, deduplicates references, and merges them into a collective array.
-
-### 4. Multi-Vault Partition Saving
-When saving modified metadata properties, the `StorageService` partitions and maps assets back to their respective origin filesystems. This ensures that assets keep their correct vault paths even in **Unified** viewing mode:
+This ensures complete data integrity. When assets are updated or saved, they write directly to the active folder's key via:
 
 ```ts
 saveAllAssets(assets: Asset[]) {
-  const activePath = this.getVaultPath();
-  const partitions: Record<string, Asset[]> = {};
-
-  assets.forEach(a => {
-    const p = a.vaultPath || activePath;
-    if (!partitions[p]) {
-      partitions[p] = [];
-    }
-    partitions[p].push(a);
-  });
-
-  Object.keys(partitions).forEach(p => {
-    const vk = `visual_catalog_db_v3_${p.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-    localStorage.setItem(vk, JSON.stringify(partitions[p]));
-  });
-
-  if (!partitions[activePath]) {
-    localStorage.setItem(this.getVaultKey(), JSON.stringify([]));
-  }
+  const activeKey = this.getVaultKey();
+  localStorage.setItem(activeKey, JSON.stringify(assets));
 }
 ```
 
