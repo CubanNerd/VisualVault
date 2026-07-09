@@ -1097,6 +1097,216 @@ class VaultApp extends HTMLElement {
     }
   }
 
+  /**
+   * Toggles the visibility of the Obsidian-Style Vault Manager modal window.
+   * If the modal is opened, it triggers re-populating the UI catalog list.
+   * Automatically targets and focuses the name input field to streamline user creation experience.
+   * 
+   * @param open Optional direct toggle override boolean state.
+   */
+    const isCurrentlyOpen = !backdrop.classList.contains('hidden');
+    const shouldOpen = open !== undefined ? open : !isCurrentlyOpen;
+
+    if (shouldOpen) {
+      backdrop.classList.remove('hidden');
+      this.populateVaultManager();
+      
+      // Auto-focus the primary text input for seamless keyboard-only navigation
+      const input = this.querySelector('#create-vault-name') as HTMLInputElement | null;
+      if (input) {
+        setTimeout(() => input.focus(), 85);
+      }
+      this.addLog('info', 'Opened Obsidian-Style Vault Manager modal.');
+    } else {
+      backdrop.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Reads, sorts, and renders the list of registered user directory vaults from LocalStorage cache.
+   * Automatically updates workspace count indicators and mounts functional event handlers
+   * to corresponding mount buttons and deletion buttons.
+   */
+  private populateVaultManager() {
+    const listContainer = this.querySelector('#vault-manager-list-container');
+    if (!listContainer) return;
+
+    // Retrieve full catalog index and active path configurations from client-side state
+    const vaults = storage.getVaults();
+    const currentPath = storage.getVaultPath();
+
+    // Sort registered directories descending by lastOpened timestamp to maintain recent-first order
+    vaults.sort((a, b) => (b.lastOpened || 0) - (a.lastOpened || 0));
+
+    // Update vault search count label
+    const countLabel = this.querySelector('#vault-manager-count-label');
+    if (countLabel) {
+      countLabel.textContent = `${vaults.length} register${vaults.length === 1 ? 'y' : 'ies'} found`;
+    }
+
+    if (vaults.length === 0) {
+      listContainer.innerHTML = `
+        <div class="text-center py-8 bg-black/10 rounded-lg border border-white/5 p-4">
+          <p class="text-xs text-slate-500">No registered visual vaults in launcher catalog.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Dynamic HTML injection of vault elements with high-contrast active highlights, indicator dots, status badges and actions
+    listContainer.innerHTML = vaults.map((vault, i) => {
+      const isCurrent = vault.path === currentPath;
+      const isMounted = vault.mounted !== false;
+      
+      const accentBorder = isCurrent 
+        ? 'border-emerald-500/30 bg-emerald-500/[0.03]' 
+        : (!isMounted 
+          ? 'border-white/5 bg-black/10 opacity-60 hover:opacity-100 hover:border-white/10' 
+          : 'border-white/5 bg-black/20 hover:border-white/10');
+          
+      const indicatorDot = isCurrent ? '<span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shrink-0"></span>' : '';
+      
+      const mountStatusBadge = isMounted
+        ? `<span class="text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono font-bold tracking-wide uppercase shrink-0">Mounted</span>`
+        : `<span class="text-[8px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded font-mono font-bold tracking-wide uppercase shrink-0">Unloaded</span>`;
+
+      const actionText = isCurrent ? 'Active Vault' : 'Open Vault';
+      const actionClass = isCurrent 
+        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold cursor-default' 
+        : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 cursor-pointer font-medium active:scale-95 hover:text-emerald-400';
+
+      const mountActionBtn = isMounted
+        ? `<button data-idx="${i}" class="vault-toggle-mount-btn text-[10px] px-2.5 py-1 rounded transition border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-medium cursor-pointer active:scale-95" title="Unload/Unmount this vault from the active catalog" data-action="unmount">Unload</button>`
+        : `<button data-idx="${i}" class="vault-toggle-mount-btn text-[10px] px-2.5 py-1 rounded transition border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium cursor-pointer active:scale-95" title="Mount/Load this vault back into active catalog" data-action="mount">Mount</button>`;
+
+      return `
+        <div class="p-3 rounded-lg border ${accentBorder} flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition group">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-8 h-8 rounded-md bg-black/40 flex items-center justify-center border border-white/5 shrink-0">
+              <svg class="w-4 h-4 ${isCurrent ? 'text-emerald-400' : (isMounted ? 'text-slate-400 opacity-60' : 'text-slate-500 opacity-40')}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 pb-0.5">
+                <span class="text-xs font-bold text-white truncate">${vault.name}</span>
+                ${indicatorDot}
+                ${mountStatusBadge}
+              </div>
+              <span class="text-[10px] text-slate-500 font-mono block truncate" title="${vault.path}">${vault.path}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            ${mountActionBtn}
+            <button data-idx="${i}" class="vault-open-btn text-[10px] px-2.5 py-1 rounded transition ${actionClass}" ${isCurrent ? 'disabled' : ''}>${actionText}</button>
+            <button data-idx="${i}" class="vault-delete-btn text-slate-500 hover:text-red-400 p-1.5 rounded transition hover:bg-red-500/10 cursor-pointer" title="Remove vault index from history">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Wire up element-specific event listeners for mounting/activating vaults
+    listContainer.querySelectorAll('.vault-open-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt((btn as HTMLElement).dataset.idx || '0');
+        const clickedVault = vaults[idx];
+        if (clickedVault) {
+          this.switchVault(clickedVault.path);
+        }
+      });
+    });
+
+    // Wire up element-specific event listeners for mounting/unmounting toggles
+    listContainer.querySelectorAll('.vault-toggle-mount-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt((btn as HTMLElement).dataset.idx || '0');
+        const action = (btn as HTMLElement).dataset.action;
+        const clickedVault = vaults[idx];
+        if (clickedVault) {
+          if (action === 'unmount') {
+            clickedVault.mounted = false;
+            this.addLog('warn', `Unmounted vault: "${clickedVault.name}" unloaded from active catalog.`);
+            this.toast('Vault Unloaded', `Successfully unloaded "${clickedVault.name}" reference pool.`);
+            
+            // If the unmounted vault was the currently active vault, switch active to the first available mounted vault
+            if (clickedVault.path === currentPath) {
+              const firstMounted = vaults.find(v => v.path !== clickedVault.path && v.mounted !== false);
+              if (firstMounted) {
+                this.switchVault(firstMounted.path);
+              } else {
+                // When a vault is unloaded, don't load a default vault. Simply save vaults, clear inputs, and reload layout states
+                storage.saveVaults(vaults);
+                this.loadAssets();
+                this.selectedAssetId = '';
+                this.selectedBoard = 'ALL';
+                this.updateLayout();
+                this.populateVaultManager();
+              }
+            } else {
+              storage.saveVaults(vaults);
+              this.loadAssets();
+              this.updateLayout();
+              this.populateVaultManager();
+            }
+          } else {
+            clickedVault.mounted = true;
+            storage.saveVaults(vaults);
+            this.addLog('success', `Mounted vault: "${clickedVault.name}" loaded back into active catalog.`);
+            this.toast('Vault Mounted', `Successfully mounted and loaded "${clickedVault.name}".`);
+            
+            // Auto-switch to this vault if there isn't any active mounted vault right now
+            const activeVault = vaults.find(v => v.path === currentPath);
+            if (!activeVault || activeVault.mounted === false) {
+              this.switchVault(clickedVault.path);
+            } else {
+              this.loadAssets();
+              this.updateLayout();
+              this.populateVaultManager();
+            }
+          }
+        }
+      });
+    });
+
+    // Wire up removal handles to let directory registrations clear cleanly without deleting background host assets
+    listContainer.querySelectorAll('.vault-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt((btn as HTMLElement).dataset.idx || '0');
+        const clickedVault = vaults[idx];
+        if (clickedVault) {
+          if (confirm(`Remove "${clickedVault.name}" from your registered vaults list?\n(Note: This will NOT delete any directories or image files on disk)`)) {
+            const updated = vaults.filter((_, index) => index !== idx);
+            storage.saveVaults(updated);
+            this.addLog('info', `Removed vault "${clickedVault.name}" registration history.`);
+            
+            if (clickedVault.path === currentPath) {
+              const firstMounted = updated.find(v => v.mounted !== false);
+              if (firstMounted) {
+                this.switchVault(firstMounted.path);
+              } else if (updated.length > 0) {
+                this.switchVault(updated[0].path);
+              } else {
+                storage.setVaultPath('');
+                this.selectedAssetId = '';
+                this.selectedBoard = 'ALL';
+                this.loadAssets();
+                this.updateLayout();
+                this.populateVaultManager();
+              }
+            } else {
+              this.loadAssets();
+              this.updateLayout();
+              this.populateVaultManager();
+            }
+          }
+        }
+      });
+    });
+  }
 
   /**
    * Executes the structural transition to bind a new local catalog path reference.
@@ -2408,14 +2618,20 @@ class VaultApp extends HTMLElement {
   }
 
   private isVaultPathLoaded(vaultPath: string): boolean {
-    return storage.getVaultPath() === vaultPath;
+    const vaults = storage.getVaults();
+    const vault = vaults.find(v => v.path === vaultPath);
+    return vault !== undefined && vault.mounted !== false;
   }
 
   private hasMountedVault(): boolean {
-    return !!storage.getVaultPath();
+    if (storage.getVaultPath()) return true;
+    const vaults = storage.getVaults();
+    return vaults.some(v => v.mounted !== false);
   }
 
   private isBoardAllowed(board: string): boolean {
+    const vaults = storage.getVaults();
+    
     // Map board names to companion vault paths
     let requiredVaultPath = '';
     if (board.includes('Neo_Tokyo') || board.includes('Neo-Tokyo')) {
@@ -2427,8 +2643,9 @@ class VaultApp extends HTMLElement {
     }
     
     if (requiredVaultPath) {
-      if (storage.getVaultPath() !== requiredVaultPath) {
-        return false;
+      const v = vaults.find(va => va.path === requiredVaultPath);
+      if (!v || v.mounted === false) {
+        return false; // This vault/board is unloaded or unmounted, do not show!
       }
     }
     return true;
@@ -2438,10 +2655,27 @@ class VaultApp extends HTMLElement {
     const assetVaultPath = asset.vaultPath || storage.getVaultPath();
     const activePath = storage.getVaultPath();
 
-    if (assetVaultPath !== activePath) {
-      return false;
+    // The currently active vault's assets are always allowed
+    if (assetVaultPath === activePath) {
+      return true;
     }
 
+    // Default mock vaults are allowed if they are the active vault
+    if (assetVaultPath === '/Users/design/Desktop/Ref_Library' ||
+        assetVaultPath === '/Users/design/Desktop/Neo_Tokyo' ||
+        assetVaultPath === '/Users/projects/Cyberpunk_Grid' ||
+        assetVaultPath === '/Users/blueprints/Mech_Grid') {
+      return assetVaultPath === activePath;
+    }
+
+    const vaults = storage.getVaults();
+    const v = vaults.find(va => va.path === assetVaultPath);
+    if (!v) {
+      return false; // This vault is removed/unregistered, do not show assets!
+    }
+    if (v.mounted === false) {
+      return false; // This vault is unloaded/unmounted, do not show assets!
+    }
     if (asset.board && !this.isBoardAllowed(asset.board)) {
       return false;
     }
@@ -4051,49 +4285,80 @@ class VaultApp extends HTMLElement {
     const listContainer = this.querySelector('#sidebar-vaults-list-container');
     if (!listContainer) return;
 
+    const vaults = storage.getVaults();
     const currentPath = storage.getVaultPath();
-    if (!currentPath) {
+    
+    // Determine which vaults to show based on mounted status
+    const vaultsToRender = vaults.filter(v => v.mounted !== false);
+
+    if (vaultsToRender.length === 0) {
       listContainer.innerHTML = '';
       return;
     }
 
-    const displayName = currentPath.split(/[/\\]/).pop() || 'Untitled Vault';
-      
-    // Theme-specific styles
-    let itemClass = '';
-    let activeIndicator = '';
-    let iconColor = '';
-    
-    if (this.activeTheme === 'minimalist') {
-      itemClass = 'bg-[#E3E2E0]/50 text-[#37352F] font-bold border border-neutral-300';
-      activeIndicator = '<span class="w-1.5 h-1.5 bg-[#2383E2] rounded-full shrink-0"></span>';
-      iconColor = 'text-[#2383E2]';
-    } else if (this.activeTheme === 'matrix') {
-      itemClass = 'bg-[#00FF41]/15 text-[#00FF41] border border-[#00FF41] font-mono font-bold';
-      activeIndicator = '<span class="w-1.5 h-1.5 bg-[#00FF41] rounded-full shrink-0 animate-pulse"></span>';
-      iconColor = 'text-[#00FF41]';
-    } else {
-      itemClass = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold';
-      activeIndicator = '<span class="w-1.5 h-1.5 bg-emerald-400 rounded-full shrink-0 animate-pulse"></span>';
-      iconColor = 'text-emerald-400';
-    }
+    // Sort by last opened or alphabetically back-first
+    vaultsToRender.sort((a,b) => (b.lastOpened || 0) - (a.lastOpened || 0));
 
-    const html = `
-      <div data-vault-path="${currentPath}" class="sidebar-vault-item group flex items-center justify-between text-xs p-2 rounded cursor-pointer transition ${itemClass}" title="${currentPath}">
-        <div class="flex items-center gap-2 truncate min-w-0">
-          <svg class="w-3.5 h-3.5 ${iconColor} shrink-0 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-          </svg>
-          <span class="truncate">${displayName}</span>
+    const html = vaultsToRender.map(v => {
+      const isCurrent = v.path === currentPath;
+      
+      // Theme-specific styles
+      let itemClass = '';
+      let activeIndicator = '';
+      let iconColor = '';
+      
+      if (this.activeTheme === 'minimalist') {
+        if (isCurrent) {
+          itemClass = 'bg-[#E3E2E0]/50 text-[#37352F] font-bold border border-neutral-300';
+          activeIndicator = '<span class="w-1.5 h-1.5 bg-[#2383E2] rounded-full shrink-0"></span>';
+          iconColor = 'text-[#2383E2]';
+        } else {
+          itemClass = 'text-neutral-500 hover:text-[#37352F] hover:bg-[#E3E2E0]/30 border border-transparent';
+          activeIndicator = '';
+          iconColor = 'text-neutral-400';
+        }
+      } else if (this.activeTheme === 'matrix') {
+        if (isCurrent) {
+          itemClass = 'bg-[#00FF41]/15 text-[#00FF41] border border-[#00FF41] font-mono font-bold';
+          activeIndicator = '<span class="w-1.5 h-1.5 bg-[#00FF41] rounded-full shrink-0 animate-pulse"></span>';
+          iconColor = 'text-[#00FF41]';
+        } else {
+          itemClass = 'text-[#00FF41]/60 hover:text-[#00FF41] hover:bg-[#00FF41]/5 border border-transparent font-mono';
+          activeIndicator = '';
+          iconColor = 'text-[#00FF41]/40';
+        }
+      } else {
+        // Default theme
+        if (isCurrent) {
+          itemClass = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold';
+          activeIndicator = '<span class="w-1.5 h-1.5 bg-emerald-400 rounded-full shrink-0 animate-pulse"></span>';
+          iconColor = 'text-emerald-400';
+        } else {
+          itemClass = 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent';
+          activeIndicator = '';
+          iconColor = 'text-slate-500 group-hover:text-slate-300';
+        }
+      }
+
+      const displayName = v.name || v.path.split(/[/\\]/).pop() || 'Untitled Vault';
+
+      return `
+        <div data-vault-path="${v.path}" class="sidebar-vault-item group flex items-center justify-between text-xs p-2 rounded cursor-pointer transition ${itemClass}" title="${v.path}">
+          <div class="flex items-center gap-2 truncate min-w-0">
+            <svg class="w-3.5 h-3.5 ${iconColor} shrink-0 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+            </svg>
+            <span class="truncate">${displayName}</span>
+          </div>
+          ${activeIndicator}
         </div>
-        ${activeIndicator}
-      </div>
-    `;
+      `;
+    }).join('');
 
     // Formatted header label for structural integrity
     const headerHtml = `
       <div class="flex items-center justify-between px-2 py-1 select-none">
-        <span class="text-[9px] uppercase tracking-wider text-slate-500 font-bold font-mono">Mounted Vaults (1)</span>
+        <span class="text-[9px] uppercase tracking-wider text-slate-500 font-bold font-mono">Mounted Vaults (${vaultsToRender.length})</span>
       </div>
       <div class="space-y-1 mt-1.5">
         ${html}
@@ -4101,6 +4366,19 @@ class VaultApp extends HTMLElement {
     `;
 
     listContainer.innerHTML = headerHtml;
+
+    // Attach click events to the sidebar-vault-item
+    listContainer.querySelectorAll('.sidebar-vault-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const path = (item as HTMLElement).dataset.vaultPath;
+        if (path) {
+          const v = vaults.find(vault => vault.path === path);
+          this.switchVault(path, v?.name);
+          this.updateLayout();
+          this.toast('Vault Focused', `Switched active vault target directory to "${v?.name || path}"`);
+        }
+      });
+    });
   }
 
   private getSmartFolderAssets(folder: SmartFolder): Asset[] {
@@ -5229,7 +5507,13 @@ class VaultApp extends HTMLElement {
     }
 
     // Obsidian Vault Manager events
-    // 1. Header / Top Bar button action (Removed)
+    // 1. Header / Top Bar button action
+    const openVaultsBtn = this.querySelector('#open-vaults-manager-btn');
+    if (openVaultsBtn) {
+      openVaultsBtn.addEventListener('click', () => {
+        this.toggleVaultManagerModal();
+      });
+    }
 
     // 7.5 Modern Web-Safe Directory Picker Button Click Handler
     const btnWebDirectoryPicker = this.querySelector('#btn-web-directory-picker');

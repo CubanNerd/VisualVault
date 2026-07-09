@@ -23,8 +23,9 @@ export function stringifyYAMLFrontmatter(metadata: AssetMetadata): string {
 export function parseYAMLFrontmatter(yaml: string, originalMeta: AssetMetadata): AssetMetadata {
   const meta: AssetMetadata = { ...originalMeta };
   try {
-    const cleanYaml = yaml.replace(/^---/, '').replace(/---$/, '').trim();
-    const rows = cleanYaml.split('\n');
+    const parts = yaml.split('---');
+    const frontmatterContent = parts.length >= 3 ? parts[1].trim() : yaml.trim();
+    const rows = frontmatterContent.split(/\r?\n/);
     for (const row of rows) {
       const colIdx = row.indexOf(':');
       if (colIdx === -1) continue;

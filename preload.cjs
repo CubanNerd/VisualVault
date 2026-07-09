@@ -17,5 +17,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createBoardDirectory: (vaultPath, boardPath) => 
     ipcRenderer.invoke('create-board-directory', vaultPath, boardPath),
   deleteBoardDirectory: (vaultPath, boardPath, keepFiles) => 
-    ipcRenderer.invoke('delete-board-directory', vaultPath, boardPath, keepFiles)
+    ipcRenderer.invoke('delete-board-directory', vaultPath, boardPath, keepFiles),
+  moveAssetFile: (vaultPath, oldBoard, newBoard, assetName) =>
+    ipcRenderer.invoke('move-asset-file', vaultPath, oldBoard, newBoard, assetName),
+  renameBoardDirectory: (vaultPath, oldBoard, newBoard) =>
+    ipcRenderer.invoke('rename-board-directory', vaultPath, oldBoard, newBoard)
 });

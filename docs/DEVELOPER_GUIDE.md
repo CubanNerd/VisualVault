@@ -433,7 +433,7 @@ To match the seamless experience of Obsidian, the `VaultApp` initializes an auto
 
 ## Desktop Compilation & Integration Guide
 
-This section provides comprehensive, step-by-step instructions on how to compile VisualVault into a native desktop application using either **Tauri** or **Electron**, with local **SQLite** persistent database integration.
+This section provides comprehensive, step-by-step instructions on how to compile VisualVault into a native desktop application using **Electron**, with local **SQLite** persistent database integration.
 
 ---
 
@@ -441,123 +441,15 @@ This section provides comprehensive, step-by-step instructions on how to compile
 
 Currently, VisualVault uses a custom `StorageService` that cache database operations in standard browser `localStorage` (referred to in logs as `catalog.db`). 
 
-To convert this to a native SQLite database on the desktop:
-- **Tauri Route**: You will use Rust's `tauri-plugin-sql` or direct SQLite bindings with `rusqlite` to handle queries in the Rust core, exposed via Tauri Commands (`invoke`).
-- **Electron Route**: You will use a Node.js SQLite driver such as `better-sqlite3` or `sqlite3` in the Node.js main process, bridged to the frontend using Electron's `ipcRenderer`/`contextBridge`.
+To convert this to a native SQLite database on the desktop, you will use a Node.js SQLite driver such as `better-sqlite3` or `sqlite3` in the Node.js main process, bridged to the frontend using Electron's `ipcRenderer`/`contextBridge`.
 
 Since our frontend is built with pure VanillaJS and reactive Web Components (`src/main.tsx` compile to `dist/`), the transition is exceptionally smooth—we simply replace or augment the `StorageService` class to call our desktop native APIs when running in a desktop environment.
 
 ---
 
-### 2. Option A: Packaging with Tauri (Recommended)
+### 2. Packaging with Electron
 
-Tauri produces extremely lightweight binaries (~10-15MB) because it leverages the operating system's native Webview (Webkit/WebView2) and uses Rust for its backend security and speed.
-
-#### Step 1: Prerequisites
-Make sure you have Rust and Cargo installed on your system:
-- **macOS / Linux**: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- **Windows**: Install the Rustup installer from [rustup.rs](https://rustup.rs/) and Visual Studio Build Tools with C++ workloads.
-
-#### Step 2: Initialize Tauri in the Project
-
-Do **NOT** run `npm create tauri-app`. That command is designed for bootstrapping brand-new, empty projects from scratch and will create an independent nested folder with generic template files instead of integrating with your existing code.
-
-Instead, to integrate Tauri directly into this **existing** codebase, you must initialize Tauri directly from the current root directory by running:
-```bash
-npx tauri init
-```
-This command will construct a `src-tauri` directory **internally within your current folder** and leverage your existing `package.json`, `src/`, `vite.config.ts`, and Vite build outputs (`dist/`), rather than creating a nested project.
-
-Tauri will ask you several questions. Answer them as follows:
-- **What is your app name?** `VisualVault`
-- **What is the window title?** `VisualVault - Workspace Reference Library`
-- **Where are your web assets located?** `../dist` (relative to the created `src-tauri` folder)
-- **What is the url of your dev server?** `http://localhost:3000`
-- **What is your frontend build command?** `npm run build`
-- **What is your frontend dev command?** `npm run dev`
-
-#### Step 3: Add SQLite Plugin to Tauri
-Tauri officially supports SQL databases using the `tauri-plugin-sql` plugin.
-1. Add the dependency to your `src-tauri/Cargo.toml`:
-```toml
-[dependencies]
-tauri-plugin-sql = { version = "2", features = ["sqlite"] }
-```
-2. Initialize the plugin in your Rust main entry point (`src-tauri/src/main.rs` or `src-tauri/src/lib.rs`):
-```rust
-fn main() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_sql::Builder::default().build())
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
-```
-
-#### Step 4: Bridge SQLite in Frontend (`StorageService`)
-In your frontend code (inside the `StorageService` in `src/main.tsx`), import the Tauri SQL plugin dynamically. For example, replace or extend `StorageService`'s fetch helpers:
-
-```typescript
-import Database from "tauri-plugin-sql-api";
-
-class StorageService {
-  private db: Database | null = null;
-
-  async initDatabase() {
-    if (window.__TAURI__) {
-      // Connects to a local SQLite file in the OS AppData/Documents directory automatically!
-      this.db = await Database.load("sqlite:visual_vault.db");
-      
-      // Seed SQLite schema tables
-      await this.db.execute(`
-        CREATE TABLE IF NOT EXISTS assets (
-          id TEXT PRIMARY KEY,
-          name TEXT,
-          board TEXT,
-          resolution TEXT,
-          approxSize TEXT,
-          primaryColor TEXT,
-          colors TEXT, -- JSON array of color hex codes
-          vaultPath TEXT,
-          metadata TEXT -- JSON stringified AssetMetadata
-        )
-      `);
-    }
-  }
-
-  // Example of SQLite native save:
-  async saveAsset(asset: Asset) {
-    if (this.db) {
-      await this.db.execute(`
-        INSERT OR REPLACE INTO assets (id, name, board, resolution, approxSize, primaryColor, colors, vaultPath, metadata)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      `, [
-        asset.id, 
-        asset.name, 
-        asset.board, 
-        asset.resolution, 
-        asset.approxSize, 
-        asset.primaryColor, 
-        JSON.stringify(asset.colors), 
-        asset.vaultPath, 
-        JSON.stringify(asset.metadata)
-      ]);
-    }
-  }
-}
-```
-
-#### Step 5: Build the Tauri Desktop Executable
-Run the Tauri compiler to bundle the production executable:
-```bash
-npm run build         # Compiles our Vite assets into dist/
-npx tauri build       # Bundles high-performance Rust executable
-```
-
----
-
-### 3. Option B: Packaging with Electron
-
-Electron runs on Node.js and Chromium. While heavier (80MB+), it provides unparalleled APIs and ecosystem compatibility.
+Electron runs on Node.js and Chromium. It provides unparalleled APIs and ecosystem compatibility.
 
 #### Step 1: Install Electron Dependencies
 Install electron and compiler development dependencies:

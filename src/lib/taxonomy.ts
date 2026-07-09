@@ -1,7 +1,8 @@
 export let TAXONOMY_PRESETS = {
   medium: ['illustration', 'photo', 'poster', 'signage', 'packaging', 'ad', 'film still'],
   eraStyle: ['Bauhaus', 'Swiss/International', '90s grunge', 'contemporary', 'Minimalist', 'Vaporwave', 'Cyberpunk', 'Retro-Futurism'],
-  source: ['Pinterest', 'Are.na', 'Behance', 'Dribbble', 'Instagram', 'Tumblr', 'Web']
+  source: ['Pinterest', 'Are.na', 'Behance', 'Dribbble', 'Instagram', 'Tumblr', 'Web'],
+  companion: ['reference', 'design', 'inspiration', 'import', 'raw-data', 'local-sync', 'user-import']
 };
 
 export function setTaxonomyPresets(presets: typeof TAXONOMY_PRESETS) {
@@ -30,11 +31,12 @@ export function saveTaxonomyToStorage() {
 // Initialize dynamic taxonomy
 loadTaxonomyFromStorage();
 
-export function classifyTag(tag: string): 'medium' | 'eraStyle' | 'source' | 'custom' {
+export function classifyTag(tag: string): 'medium' | 'eraStyle' | 'source' | 'companion' | 'custom' {
   const t = tag.toLowerCase().trim();
   if (TAXONOMY_PRESETS.medium.map(v => v.toLowerCase()).includes(t)) return 'medium';
   if (TAXONOMY_PRESETS.eraStyle.map(v => v.toLowerCase()).includes(t)) return 'eraStyle';
   if (TAXONOMY_PRESETS.source.map(v => v.toLowerCase()).includes(t)) return 'source';
+  if (TAXONOMY_PRESETS.companion && TAXONOMY_PRESETS.companion.map(v => v.toLowerCase()).includes(t)) return 'companion';
   return 'custom';
 }
 
@@ -43,7 +45,7 @@ export function renderPresetsHtml(tags: string[], isLightbox: boolean): string {
   const classPrefix = isLightbox ? 'lb-' : '';
   
   const renderGroup = (label: string, items: string[], colorClass: string, activeColorClass: string) => {
-    const buttons = items.map(item => {
+    const buttons = (items || []).map(item => {
       const isActive = activeTags.includes(item.toLowerCase().trim());
       const btnClass = isActive 
         ? `${activeColorClass} border-current font-semibold` 
@@ -70,6 +72,7 @@ export function renderPresetsHtml(tags: string[], isLightbox: boolean): string {
         <span class="text-emerald-400 text-[9px] font-normal font-sans">Toggle tags</span>
       </div>
       <div class="space-y-3">
+        ${renderGroup('🏷️ Companion Tags', TAXONOMY_PRESETS.companion, 'text-emerald-400', 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40')}
         ${renderGroup('🖼️ Medium', TAXONOMY_PRESETS.medium, 'text-blue-400', 'bg-blue-500/20 text-blue-300 border-blue-500/40')}
         ${renderGroup('🎨 Era or Style Movement', TAXONOMY_PRESETS.eraStyle, 'text-purple-400', 'bg-purple-500/20 text-purple-300 border-purple-500/40')}
         ${renderGroup('🌐 Source (Attribution)', TAXONOMY_PRESETS.source, 'text-amber-400', 'bg-amber-500/20 text-amber-300 border-amber-500/40')}

@@ -11,8 +11,9 @@ protocol.registerSchemesAsPrivileged([
 function parseYAMLFrontmatterNode(yaml, originalMeta) {
   const meta = { ...originalMeta };
   try {
-    const cleanYaml = yaml.replace(/^---/, '').replace(/---$/, '').trim();
-    const rows = cleanYaml.split('\n');
+    const parts = yaml.split('---');
+    const frontmatterContent = parts.length >= 3 ? parts[1].trim() : yaml.trim();
+    const rows = frontmatterContent.split(/\r?\n/);
     for (const row of rows) {
       const colIdx = row.indexOf(':');
       if (colIdx === -1) continue;
@@ -482,3 +483,48 @@ ipcMain.handle('delete-board-directory', async (event, vaultPath, boardPath, kee
     return { success: false, error: err.message };
   }
 });
+
+ipcMain.handle('move-asset-file', async (event, vaultPath, oldBoard, newBoard, assetName) => {
+  try {
+    const oldBoardPath = oldBoard === '/' ? '' : oldBoard;
+    const newBoardPath = newBoard === '/' ? '' : newBoard;
+    const oldImagePath = path.join(vaultPath, oldBoardPath, assetName);
+    const newImagePath = path.join(vaultPath, newBoardPath, assetName);
+
+    const fileNameNoExt = assetName.replace(/\.[a-zA-Z0-9]+$/, '');
+    const oldMDPath = path.join(vaultPath, oldBoardPath, `${fileNameNoExt}.md`);
+    const newMDPath = path.join(vaultPath, newBoardPath, `${fileNameNoExt}.md`);
+
+    fs.mkdirSync(path.dirname(newImagePath), { recursive: true });
+
+    if (fs.existsSync(oldImagePath)) {
+      fs.renameSync(oldImagePath, newImagePath);
+    }
+    if (fs.existsSync(oldMDPath)) {
+      fs.renameSync(oldMDPath, newMDPath);
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to move asset file natively:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('rename-board-directory', async (event, vaultPath, oldBoard, newBoard) => {
+  try {
+    const oldBoardPath = oldBoard === '/' ? '' : oldBoard;
+    const newBoardPath = newBoard === '/' ? '' : newBoard;
+    const oldDir = path.join(vaultPath, oldBoardPath);
+    const newDir = path.join(vaultPath, newBoardPath);
+
+    if (fs.existsSync(oldDir)) {
+      fs.mkdirSync(path.dirname(newDir), { recursive: true });
+      fs.renameSync(oldDir, newDir);
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to rename board directory natively:', err);
+    return { success: false, error: err.message };
+  }
+});
+

@@ -223,6 +223,11 @@ export const defaultMockAssets = (): Asset[] => [
     lastModified: 'Yesterday'
   }
 ].map(item => {
+  const merged = Array.from(new Set([...(item.tags || []), ...(item.metadata?.tags || [])]));
+  if (item.metadata) {
+    item.metadata.tags = merged;
+  }
+  item.tags = merged;
   item.imageUrl = generateProceduralSVG(item.name, item.colors);
   return item;
 });
