@@ -13,10 +13,10 @@
     "lint": "tsc --noEmit",
     "electron:start": "npm run build && electron electron-main.cjs",
     "electron:dev": "electron electron-main.cjs --dev",
-    "electron:build": "npm run build && electron-builder --win --x64",
-    "electron:build:mac": "npm run build && electron-builder --mac",
-    "electron:build:all": "npm run build && electron-builder --win --mac",
-    "packager:build": "npm run build && electron-packager . VisualVault --platform=win32 --arch=x64 --out=dist-win --overwrite --ignore=\"(dist-win|src|tsconfig.json|vite.config.ts)\""
+    "electron:build": "node generate-icons.js && npm run build && electron-builder --win --x64",
+    "electron:build:mac": "node generate-icons.js && npm run build && electron-builder --mac",
+    "electron:build:all": "node generate-icons.js && npm run build && electron-builder --win --mac",
+    "packager:build": "node generate-icons.js && npm run build && electron-packager . VisualVault --platform=win32 --arch=x64 --out=dist-win --overwrite --icon=build/icon.ico --ignore=\"(dist-win|src|tsconfig.json|vite.config.ts)\""
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -58,14 +58,14 @@
       "target": [
         "nsis"
       ],
-      "icon": "public/icon.png"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": true,
-      "installerIcon": "public/icon.png",
-      "uninstallerIcon": "public/icon.png",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
       "shortcutName": "VisualVault"
     }
   },
