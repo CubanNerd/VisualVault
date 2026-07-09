@@ -409,19 +409,21 @@ if (electronAPI) {
 ### 1. Inter-Process Communication (IPC) Handlers
 The native layer uses secure, standardized IPC channels to carry out system-level directory and file modifications requested by the custom Web Component frontend:
 
-1. **`get-saved-folder` (New in v1.1.0)**: Reads the user's previously opened local vault directory natively from a standalone `user-settings.json` file inside the operating system's `userData` folder.
-2. **`save-folder` (New in v1.1.0)**: Persists the active local vault directory natively in `user-settings.json` so it can be restored on sub-sequent runs.
-3. **`select-directory`**: Calls Electron's `dialog.showOpenDialog` with the `openDirectory` flag to return absolute folder path mappings safely.
-4. **`scan-vault`**: Leverages native Node.js recursive directory reader utilities to crawl and scan folders, returning fully-indexed visual asset records (`Asset[]`) with automated YAML parsing of companion metadata markdown files.
-5. **`write-companion-md`**: Writes custom configurations, status adjustments, notes, ratings, and tags as standard frontmatter blocks into physical `.md` files in real-time.
-6. **`write-file-binary`**: Receives an `ArrayBuffer` payload from a drag-and-drop or upload operation, translating and writing the binary data directly to disk as a real `.png`, `.jpg`, etc.
-7. **`delete-asset-file`**: Safely deletes both the physical image file and its companion markdown metadata file from the native filesystem on command.
-8. **`create-board-directory`**: Dynamically creates real folders on the native storage using `fs.mkdirSync(..., { recursive: true })`.
-9. **`delete-board-directory`**: Prunes physical folders. When configured to preserve files, it dynamically moves contained files to the vault root first using `fs.renameSync` before removing the board folder.
+1. **`get-saved-vault` (New in v1.2.0)**: Reads the user's previously opened local vault directory natively from a standalone `vault-settings.json` file inside the operating system's `userData` folder.
+2. **`save-vault-path` (New in v1.2.0)**: Persists the active local vault directory natively in `vault-settings.json` to enable automated vault sync.
+3. **`get-saved-folder` (New in v1.1.0)**: Reads the user's previously opened local vault directory natively from a standalone `user-settings.json` file inside the operating system's `userData` folder.
+4. **`save-folder` (New in v1.1.0)**: Persists the active local vault directory natively in `user-settings.json` so it can be restored on subsequent runs.
+5. **`select-directory`**: Calls Electron's `dialog.showOpenDialog` with the `openDirectory` flag to return absolute folder path mappings safely.
+6. **`scan-vault`**: Leverages native Node.js recursive directory reader utilities to crawl and scan folders, returning fully-indexed visual asset records (`Asset[]`) with automated YAML parsing of companion metadata markdown files.
+7. **`write-companion-md`**: Writes custom configurations, status adjustments, notes, ratings, and tags as standard frontmatter blocks into physical `.md` files in real-time.
+8. **`write-file-binary`**: Receives an `ArrayBuffer` payload from a drag-and-drop or upload operation, translating and writing the binary data directly to disk as a real `.png`, `.jpg`, etc.
+9. **`delete-asset-file`**: Safely deletes both the physical image file and its companion markdown metadata file from the native filesystem on command.
+10. **`create-board-directory`**: Dynamically creates real folders on the native storage using `fs.mkdirSync(..., { recursive: true })`.
+11. **`delete-board-directory`**: Prunes physical folders. When configured to preserve files, it dynamically moves contained files to the vault root first using `fs.renameSync` before removing the board folder.
 
 ### 2. Silent Vault Auto-Restoration Lifecycle
 To match the seamless experience of Obsidian, the `VaultApp` initializes an automated restoration cycle:
-1. **Query Native Storage (v1.1.0)**: On startup, if `window.electronAPI` is present, it issues the `get-saved-folder` IPC command to retrieve the active vault path from `user-settings.json`.
+1. **Query Native Storage (v1.2.0)**: On startup, if `window.electronAPI` is present, it issues the `get-saved-vault` IPC command to retrieve the active vault path from `vault-settings.json`. If not found, it falls back to issuing `get-saved-folder` to load from `user-settings.json`.
 2. **Fallback to Browser Storage**: If no folder path was returned natively, the application falls back to checking the active vault path inside browser cache (`storage.getVaultPath()`).
 3. **Native Handshake**: If an active path is retrieved, it triggers the `scanVault` IPC handler.
 4. **Silent File Indexing**: Electron recursively reads the physical directories, registers subfolders as Visual Boards, matches visual assets to companion `.md` files, and returns the compiled list of records.

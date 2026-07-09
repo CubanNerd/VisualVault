@@ -1888,13 +1888,19 @@ class VaultApp extends HTMLElement {
 
     if (electronAPI) {
       try {
-        const savedFolder = await electronAPI.getSavedFolder();
+        let savedFolder = null;
+        if (typeof electronAPI.getSavedVault === 'function') {
+          savedFolder = await electronAPI.getSavedVault();
+        }
+        if (!savedFolder && typeof electronAPI.getSavedFolder === 'function') {
+          savedFolder = await electronAPI.getSavedFolder();
+        }
         if (savedFolder) {
           activePath = savedFolder;
           storage.setVaultPath(savedFolder);
         }
       } catch (err) {
-        console.warn('Error reading native settings saved folder:', err);
+        console.warn('Error reading native settings saved folder/vault:', err);
       }
 
       if (activePath) {
@@ -2017,9 +2023,14 @@ class VaultApp extends HTMLElement {
           return;
         }
 
-        // Save selected folder natively inside user-settings.json
+        // Save selected folder natively inside user-settings.json and vault-settings.json
         try {
-          await electronAPI.saveFolder(physicalPath);
+          if (typeof electronAPI.saveVaultPath === 'function') {
+            await electronAPI.saveVaultPath(physicalPath);
+          }
+          if (typeof electronAPI.saveFolder === 'function') {
+            await electronAPI.saveFolder(physicalPath);
+          }
         } catch (err) {
           console.warn('Error saving folder natively:', err);
         }

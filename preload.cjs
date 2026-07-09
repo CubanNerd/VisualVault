@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   getSavedFolder: () => ipcRenderer.invoke('get-saved-folder'),
   saveFolder: (folderPath) => ipcRenderer.invoke('save-folder', folderPath),
+  getSavedVault: () => ipcRenderer.invoke('get-saved-vault'),
+  saveVaultPath: (vaultPath) => ipcRenderer.invoke('save-vault-path', vaultPath),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   scanVault: (vaultPath) => ipcRenderer.invoke('scan-vault', vaultPath),
   writeCompanionMD: (vaultPath, board, assetName, yamlContent) => 

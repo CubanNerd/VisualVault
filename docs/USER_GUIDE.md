@@ -1,5 +1,5 @@
 # VisualVault — User Guide & Knowledge Base
-*Last Updated: July 8, 2026 (v1.1.0)*
+*Last Updated: July 8, 2026 (v1.2.0)*
 
 Welcome to the **VisualVault User Guide**. This document serves as a comprehensive knowledge base for creative professionals, curators, and researchers. VisualVault is a high-speed, local-first workspace designed to catalog, inspect, and organize reference inspiration, design boards, blueprints, and concept catalogs in harmony with your local directories and Obsidian vaults.
 
@@ -17,12 +17,12 @@ At the core of VisualVault is a simple local-first directory layout coupled with
 
 ---
 
-## Persistent Desktop Vault Sync (New in v1.1.0)
+## Persistent Desktop Vault Sync (Updated in v1.2.0)
 
 When running inside the **Native Desktop Client (Electron)**, VisualVault guarantees zero-friction workspace restoration:
-- **Native Settings Store**: The desktop process tracks your workspace settings natively inside a dedicated `user-settings.json` file in the operating system's application data directory (`userData`).
-- **Seamless Startup**: On startup, the application reads the saved vault folder directly from this file and feeds it into the recursive directory scanner without requiring repetitive manual selects or permission prompts.
-- **Instant Connection**: Selecting a new vault directory via the **Sync Local Folder** dialog automatically syncs and persists the selected path back to the settings file in real-time, keeping your active project vault ready across reboots.
+- **Redundant Native Settings Stores**: The desktop process tracks and syncs your workspace settings natively inside both `user-settings.json` and `vault-settings.json` files in the operating system's application data directory (`userData`). This ensures seamless multi-profile restoration and directory history caching.
+- **Seamless Startup**: On startup, the application reads the saved vault folder directly from these configuration buffers and feeds it into the recursive directory scanner without requiring repetitive manual selects or permission prompts.
+- **Instant Connection**: Selecting a new vault directory via the **Sync Local Folder** dialog automatically syncs and persists the selected path back to the settings buffers in real-time, keeping your active project vault ready across reboots.
 
 ---
 

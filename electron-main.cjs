@@ -323,6 +323,32 @@ function saveSettings(settings) {
   }
 }
 
+// Persist the selected folder path inside vault-settings.json per guidelines
+function loadVaultSettings() {
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Failed to load vault settings:', err);
+  }
+  return {};
+}
+
+function saveVaultSettings(settings) {
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'vault-settings.json');
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error('Failed to save vault settings:', err);
+    return false;
+  }
+}
+
 ipcMain.handle('get-saved-folder', async () => {
   const settings = loadSettings();
   return settings.savedFolder || null;
@@ -332,6 +358,17 @@ ipcMain.handle('save-folder', async (event, folderPath) => {
   const settings = loadSettings();
   settings.savedFolder = folderPath;
   return saveSettings(settings);
+});
+
+ipcMain.handle('get-saved-vault', async () => {
+  const settings = loadVaultSettings();
+  return settings.savedVaultPath || null;
+});
+
+ipcMain.handle('save-vault-path', async (event, vaultPath) => {
+  const settings = loadVaultSettings();
+  settings.savedVaultPath = vaultPath;
+  return saveVaultSettings(settings);
 });
 
 ipcMain.handle('select-directory', async () => {

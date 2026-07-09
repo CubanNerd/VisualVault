@@ -1,5 +1,5 @@
 # VisualVault — Obsidian Local-First Catalog
-*Last Updated: July 8, 2026 (v1.1.0)*
+*Last Updated: July 8, 2026 (v1.2.0)*
 
 An obsidian-style, local-first cataloging workspace for reference images, design assets, blueprints, and concept art databases. Designed for creatives who need a fast, eye-safe, high-contrast, offline-capable asset inspector with dynamic tagging meshes and color grid extraction.
 
@@ -16,7 +16,8 @@ To help you get started quickly or inspect the internal architecture, we have cr
 ## Key Features
 
 - **Obsidian-Style Vault Manager**: Switch smoothly between isolated physical directories (e.g., `/Users/design/...`), persist distinct databases in Indexed/Local Storage, and register new vaults dynamically.
-- **Persistent Vault Sync (New in v1.1.0)**: In Electron mode, the app automatically persists and restores your selected local vault path across desktop sessions by maintaining a native `user-settings.json` file inside the application data directory.
+- **Persistent Vault Sync (Updated in v1.2.0)**: In Electron mode, the app automatically persists and restores your selected local vault path across desktop sessions by maintaining secure native configuration files (`user-settings.json` and `vault-settings.json`) inside the OS-level application data directory (`userData`).
+- **Custom Native Desktop Icon (New in v1.2.0)**: Supports dynamic native desktop packaging icons. By dropping a custom `icon.ico` in the `public/` folder, the icon generator process will automatically detect, optimize, and pack your branding into the final Electron executable.
 - **Editable Smart Folders (New in v1.1.0)**: Configure and live-update filters, names, custom icons, and tag rules for virtual containers on the fly via a dedicated modal editor.
 - **Custom Schema & Status Configurator**: Dynamically adjust metadata property names, placeholder values, and asset statuses. Supports importing and exporting configurations using structured `.json` files.
 - **Color Extraction Grid**: Built-in visual palette calculator that derives prominent color blocks from imported images.
