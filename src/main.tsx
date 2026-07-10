@@ -248,6 +248,7 @@ class VaultApp extends HTMLElement {
   private customAccentHex = '';
   private activeFont = 'funnel-display';
   private isSettingsOpen = false;
+  private isHelpOpen = false;
   private activeSettingsTab: 'vault' | 'general' | 'taxonomy' | 'help' = 'vault';
   private workspaceMode: 'unified' | 'focused' = 'focused';
   private isCreatingSection = false;
@@ -2373,8 +2374,35 @@ class VaultApp extends HTMLElement {
   }
 
   private handleGlobalKeys = (e: KeyboardEvent) => {
-    // If inside text inputs, don't trigger lightbox
+    // Esc key: Blur active element if it's an input/textarea
+    if (e.key === 'Escape') {
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        (document.activeElement as HTMLElement).blur();
+        return;
+      }
+    }
+
+    // Ctrl+F or Cmd+F: Focus Search Input instantly
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+      const searchIn = this.querySelector('#asset-search') as HTMLInputElement | null;
+      if (searchIn) {
+        e.preventDefault();
+        searchIn.focus();
+        searchIn.select();
+        this.addLog('info', 'Search focused via keyboard shortcut (Ctrl+F).');
+        return;
+      }
+    }
+
+    // If inside text inputs, do not trigger other shortcut handlers
     if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+      return;
+    }
+
+    // '?' key: Toggle Help overlay
+    if (e.key === '?') {
+      e.preventDefault();
+      this.toggleHelpModal();
       return;
     }
 
@@ -2389,8 +2417,30 @@ class VaultApp extends HTMLElement {
       } else if (e.key === 'ArrowLeft') {
         this.navigateLightbox(-1);
       }
+    } else if (this.isHelpOpen) {
+      if (e.key === 'Escape') {
+        this.toggleHelpModal(false);
+      }
     }
   };
+
+  private toggleHelpModal(open?: boolean) {
+    const backdrop = this.querySelector('#help-backdrop') as HTMLElement | null;
+    if (!backdrop) return;
+
+    if (open !== undefined) {
+      this.isHelpOpen = open;
+    } else {
+      this.isHelpOpen = !this.isHelpOpen;
+    }
+
+    if (this.isHelpOpen) {
+      backdrop.classList.remove('hidden');
+      this.addLog('info', 'Opened keyboard shortcuts help guide.');
+    } else {
+      backdrop.classList.add('hidden');
+    }
+  }
 
   private addLog(type: 'info' | 'success' | 'warn', msg: string) {
     const now = new Date().toLocaleTimeString();
@@ -3644,6 +3694,31 @@ class VaultApp extends HTMLElement {
                       Vaults support recursive multi-level directory scanning. All images found in any sub-folder of the loaded root directories will be aggregated and displayed. If you add folders containing images inside your loaded vault directories, they will automatically be parsed recursively.
                     </p>
                   </div>
+
+                  <div class="bg-black/20 border border-white/5 rounded p-4">
+                    <div class="text-slate-300 font-bold uppercase text-[10px] mb-2 flex items-center gap-1.5">
+                      <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                      Global Hotkeys
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[10px] font-mono text-slate-400">
+                      <div class="flex items-center justify-between bg-black/40 p-1.5 px-2 rounded border border-white/5">
+                        <span>Toggle Shortcuts Guide</span>
+                        <kbd class="text-emerald-400 font-bold px-1 bg-white/5 border border-white/10 rounded">?</kbd>
+                      </div>
+                      <div class="flex items-center justify-between bg-black/40 p-1.5 px-2 rounded border border-white/5">
+                        <span>Toggle Lightbox</span>
+                        <kbd class="text-emerald-400 font-bold px-1 bg-white/5 border border-white/10 rounded">Space</kbd>
+                      </div>
+                      <div class="flex items-center justify-between bg-black/40 p-1.5 px-2 rounded border border-white/5">
+                        <span>Focus Search filter</span>
+                        <kbd class="text-emerald-400 font-bold px-1 bg-white/5 border border-white/10 rounded">Ctrl+F</kbd>
+                      </div>
+                      <div class="flex items-center justify-between bg-black/40 p-1.5 px-2 rounded border border-white/5">
+                        <span>Exit / Close Dialogs</span>
+                        <kbd class="text-emerald-400 font-bold px-1 bg-white/5 border border-white/10 rounded">Esc</kbd>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3653,6 +3728,64 @@ class VaultApp extends HTMLElement {
             </button>
           </div>
 
+        </div>
+      </div>
+
+      <!-- KEYBOARD SHORTCUTS HELP OVERLAY -->
+      <div id="help-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[65] flex items-center justify-center p-4 hidden select-none transition-all duration-300">
+        <!-- Dialog Card -->
+        <div class="vault-card bg-[#0F0F11] border border-white/10 rounded-2xl max-w-sm w-full p-6 flex flex-col gap-4 shadow-2xl relative pointer-events-auto text-left">
+          <button id="help-close" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-black/40 hover:bg-black/80 w-6 h-6 rounded-full flex items-center justify-center transition border border-white/5 cursor-pointer">
+            <svg class="w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+          
+          <div class="space-y-1">
+            <h3 class="text-sm font-semibold text-white tracking-tight flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>Keyboard Shortcuts</span>
+            </h3>
+            <p class="text-[10px] text-slate-500 font-mono">Navigate and manage your visual assets with native speed.</p>
+          </div>
+
+          <div class="space-y-3 my-1">
+            <div class="flex items-center justify-between border-b border-white/5 pb-2 text-xs">
+              <span class="text-slate-300 font-medium">Toggle Shortcuts Guide</span>
+              <kbd class="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono text-emerald-400 font-bold shadow-sm">?</kbd>
+            </div>
+
+            <div class="flex items-center justify-between border-b border-white/5 pb-2 text-xs">
+              <span class="text-slate-300 font-medium">Toggle Immersive Lightbox</span>
+              <kbd class="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono text-emerald-400 font-bold shadow-sm">Space</kbd>
+            </div>
+
+            <div class="flex items-center justify-between border-b border-white/5 pb-2 text-xs">
+              <span class="text-slate-300 font-medium">Focus Search Filter</span>
+              <kbd class="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono text-emerald-400 font-bold shadow-sm">Ctrl + F</kbd>
+            </div>
+
+            <div class="flex items-center justify-between border-b border-white/5 pb-2 text-xs">
+              <span class="text-slate-300 font-medium">Previous (in Lightbox)</span>
+              <kbd class="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono text-emerald-400 font-bold shadow-sm">← Arrow</kbd>
+            </div>
+
+            <div class="flex items-center justify-between border-b border-white/5 pb-2 text-xs">
+              <span class="text-slate-300 font-medium">Next (in Lightbox)</span>
+              <kbd class="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono text-emerald-400 font-bold shadow-sm">→ Arrow</kbd>
+            </div>
+
+            <div class="flex items-center justify-between border-b border-white/5 pb-2 text-xs">
+              <span class="text-slate-300 font-medium">Close / Exit Modals</span>
+              <kbd class="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono text-emerald-400 font-bold shadow-sm">Esc</kbd>
+            </div>
+          </div>
+
+          <div class="text-[9px] text-slate-500 font-mono text-center select-none pt-1">
+            VisualVault Engine • Press <span class="text-slate-400 font-semibold">?</span> anytime to open/close
+          </div>
         </div>
       </div>
     `;
@@ -4498,23 +4631,39 @@ class VaultApp extends HTMLElement {
         <div class="w-2.5 h-2.5 rounded-full border border-white/10" style="background-color: ${c}" title="${c}"></div>
       `).join('');
 
+      const primaryBgColor = asset.colors[0] || '#0A0A0B';
+      const secondaryBgColor = asset.colors[1] || '#1E1B4B';
+      const gradientStyle = `background: radial-gradient(circle at center, ${secondaryBgColor}44 0%, ${primaryBgColor}bb 100%)`;
+
       return `
         <div data-id="${asset.id}" draggable="true" class="asset-card break-inside-avoid mb-4 border rounded-lg overflow-hidden cursor-pointer group transition-all duration-300 relative ${borderClass}">
           
           <!-- Image canvas wrapper -->
-          <div class="${heightClass} relative w-full overflow-hidden bg-black/40 flex items-center justify-center">
-            <img src="${asset.imageUrl}" draggable="false" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="${imgClass}" loading="lazy" />
+          <div class="${heightClass} relative w-full overflow-hidden flex items-center justify-center" style="${gradientStyle}">
+            
+            <!-- Lazy loading placeholder overlay -->
+            <div class="absolute inset-0 flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm text-[9px] text-slate-400 font-mono tracking-widest uppercase transition-all duration-700 lazy-loading-overlay z-10">
+              <div class="w-4 h-4 border border-white/10 border-t-emerald-400 rounded-full animate-spin mb-1.5 opacity-60"></div>
+              <span class="animate-pulse">Loading</span>
+            </div>
+
+            <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-src="${asset.imageUrl}" draggable="false" onload="this.classList.remove('opacity-0', 'blur-xl'); this.classList.add('opacity-100', 'blur-0'); const o = this.previousElementSibling; if (o) { o.classList.add('opacity-0', 'pointer-events-none'); setTimeout(() => o.remove(), 700); }" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="lazy-img opacity-0 blur-xl transition-all duration-700 ${imgClass}" />
             
             <!-- Technical Overlay parameters -->
-            <div class="absolute top-2 left-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-[8.5px] mono tracking-tight text-slate-400 opacity-60 group-hover:opacity-100 transition whitespace-nowrap">
+            <div id="res-badge-${asset.id}" class="absolute top-2 left-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-[8.5px] mono tracking-tight text-slate-400 opacity-60 group-hover:opacity-100 transition whitespace-nowrap z-20">
               ${asset.resolution}
             </div>
 
             <!-- Sync confirmation beacon -->
-            <div class="absolute top-3 right-3 bg-emerald-500 text-black p-0.5 rounded-full flex items-center justify-center ${isSelected ? 'opacity-100 ring-2 ring-white/15 scale-105' : 'opacity-0 group-hover:opacity-100'} transition self-center">
+            <div class="absolute top-3 right-3 bg-emerald-500 text-black p-0.5 rounded-full flex items-center justify-center ${isSelected ? 'opacity-100 ring-2 ring-white/15 scale-105' : 'opacity-0 group-hover:opacity-100'} transition self-center z-20">
               <svg class="w-3.5 h-3.5" stroke="currentColor" fill="currentColor" stroke-width="0.5" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
               </svg>
+            </div>
+
+            <!-- Color palette live strip -->
+            <div id="palette-${asset.id}" class="absolute bottom-0 left-0 right-0 h-1 flex overflow-hidden opacity-80 z-20">
+              ${asset.colors.map(c => `<div class="h-1 flex-grow opacity-90" style="background-color: ${c};" title="${c}"></div>`).join('')}
             </div>
 
           </div>
@@ -4528,6 +4677,43 @@ class VaultApp extends HTMLElement {
         </div>
       `;
     }).join('');
+
+    this.initLazyLoading();
+  }
+
+  private initLazyLoading() {
+    const lazyImages = this.querySelectorAll('.lazy-img');
+    if (!('IntersectionObserver' in window)) {
+      // Fallback: load everything immediately
+      lazyImages.forEach(img => {
+        const lazyImg = img as HTMLImageElement;
+        const src = lazyImg.getAttribute('data-src');
+        if (src) {
+          lazyImg.src = src;
+          lazyImg.removeAttribute('data-src');
+        }
+      });
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries, obs) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const img = entry.target as HTMLImageElement;
+          const src = img.getAttribute('data-src');
+          if (src) {
+            img.src = src;
+            img.removeAttribute('data-src');
+          }
+          obs.unobserve(img);
+        }
+      });
+    }, {
+      rootMargin: '120px 0px', // start loading slightly before they enter viewport
+      threshold: 0.01
+    });
+
+    lazyImages.forEach(img => observer.observe(img));
   }
 
   private renderInspector() {
@@ -5745,6 +5931,23 @@ class VaultApp extends HTMLElement {
       smartCreateBackdrop.addEventListener('click', (e) => {
         if (e.target === smartCreateBackdrop) {
           this.toggleSmartFolderCreateModal(false);
+        }
+      });
+    }
+
+    // Help Keyboard Shortcuts Overlay Events
+    const helpClose = this.querySelector('#help-close');
+    if (helpClose) {
+      helpClose.addEventListener('click', () => {
+        this.toggleHelpModal(false);
+      });
+    }
+
+    const helpBackdrop = this.querySelector('#help-backdrop');
+    if (helpBackdrop) {
+      helpBackdrop.addEventListener('click', (e) => {
+        if (e.target === helpBackdrop) {
+          this.toggleHelpModal(false);
         }
       });
     }
