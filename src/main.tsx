@@ -4647,7 +4647,7 @@ class VaultApp extends HTMLElement {
               <span class="animate-pulse">Loading</span>
             </div>
 
-            <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-src="${asset.imageUrl}" draggable="false" onload="this.classList.remove('opacity-0', 'blur-xl'); this.classList.add('opacity-100', 'blur-0'); const o = this.previousElementSibling; if (o) { o.classList.add('opacity-0', 'pointer-events-none'); setTimeout(() => o.remove(), 700); }" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="lazy-img opacity-0 blur-xl transition-all duration-700 ${imgClass}" />
+            <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-src="${asset.imageUrl}" draggable="false" onload="if (this.src && !this.src.startsWith('data:')) { this.classList.remove('opacity-0', 'blur-xl'); this.classList.add('opacity-100', 'blur-0'); const o = this.previousElementSibling; if (o) { o.classList.add('opacity-0', 'pointer-events-none'); setTimeout(() => o.remove(), 700); } }" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="lazy-img opacity-0 blur-xl transition-all duration-700 ${imgClass}" />
             
             <!-- Technical Overlay parameters -->
             <div id="res-badge-${asset.id}" class="absolute top-2 left-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-[8.5px] mono tracking-tight text-slate-400 opacity-60 group-hover:opacity-100 transition whitespace-nowrap z-20">

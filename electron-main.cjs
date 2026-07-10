@@ -261,7 +261,7 @@ function showBuildRequiredPage(win) {
 // Setup safe protocol handling
 app.whenReady().then(() => {
   if (protocol.handle) {
-    protocol.handle('visual-vault', async (request) => {
+    protocol.handle('visual-vault', (request) => {
       try {
         let urlPath = request.url.replace(/^visual-vault:\/+/i, '');
         if (process.platform === 'win32') {
@@ -277,22 +277,8 @@ app.whenReady().then(() => {
         }
         const decodedPath = decodeURIComponent(urlPath);
         const normalizedPath = path.normalize(decodedPath);
-        const data = await fs.promises.readFile(normalizedPath);
-        
-        const ext = path.extname(normalizedPath).toLowerCase();
-        let mimeType = 'application/octet-stream';
-        if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
-        else if (ext === '.png') mimeType = 'image/png';
-        else if (ext === '.gif') mimeType = 'image/gif';
-        else if (ext === '.webp') mimeType = 'image/webp';
-        else if (ext === '.svg') mimeType = 'image/svg+xml';
-        else if (ext === '.bmp') mimeType = 'image/bmp';
-        else if (ext === '.avif') mimeType = 'image/avif';
-        else if (ext === '.tiff') mimeType = 'image/tiff';
-
-        return new Response(data, {
-          headers: { 'content-type': mimeType }
-        });
+        const fileUri = pathToFileURL(normalizedPath).toString();
+        return net.fetch(fileUri);
       } catch (err) {
         console.error('Failed to load local file via visual-vault protocol:', err);
         return new Response('Not Found', { status: 404 });
