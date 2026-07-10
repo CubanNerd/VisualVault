@@ -96,7 +96,7 @@ function scanFolder(currentDir, relativeBoard, vaultPath) {
 
         // File URL on disk using visual-vault:// scheme
         const urlSafePath = fullPath.replace(/\\/g, '/');
-        const imageUrl = `visual-vault://${urlSafePath}`;
+        const imageUrl = `visual-vault:///${urlSafePath.replace(/^\//, '')}`;
 
         list.push({
           id,

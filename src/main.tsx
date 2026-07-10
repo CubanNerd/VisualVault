@@ -1249,7 +1249,7 @@ class VaultApp extends HTMLElement {
           if (asset.imageUrl.includes(oldFull)) {
             asset.imageUrl = asset.imageUrl.replace(oldFull, newFull);
           } else {
-            asset.imageUrl = `visual-vault://${newFull}`;
+            asset.imageUrl = `visual-vault:///${newFull.replace(/^\//, '')}`;
           }
         }
 
@@ -1274,7 +1274,7 @@ class VaultApp extends HTMLElement {
           if (asset.imageUrl.includes(oldFull)) {
             asset.imageUrl = asset.imageUrl.replace(oldFull, newFull);
           } else {
-            asset.imageUrl = `visual-vault://${newFull}`;
+            asset.imageUrl = `visual-vault:///${newFull.replace(/^\//, '')}`;
           }
         }
 
@@ -5919,7 +5919,7 @@ class VaultApp extends HTMLElement {
                   // Update imageUrl
                   const boardPart = targetBoardName === '/' ? '' : targetBoardName;
                   const fullNativePath = `${activePath}${boardPart}/${asset.name}`.replace(/\\/g, '/');
-                  asset.imageUrl = `visual-vault://${fullNativePath}`;
+                  asset.imageUrl = `visual-vault:///${fullNativePath.replace(/^\//, '')}`;
                 } else {
                   this.addLog('warn', `Electron API: Failed to move asset natively: ${res ? res.error : 'unknown'}`);
                 }
@@ -6576,7 +6576,7 @@ class VaultApp extends HTMLElement {
             if (electronAPI) {
               const fileName = a.name;
               const fullNativePath = `${vaultPath}/${fileName}`.replace(/\\/g, '/');
-              a.imageUrl = `visual-vault://${fullNativePath}`;
+              a.imageUrl = `visual-vault:///${fullNativePath.replace(/^\//, '')}`;
             }
             movedCount++;
           }
@@ -6683,7 +6683,7 @@ class VaultApp extends HTMLElement {
               // Update URL to use visual-vault:// protocol for permanent native loading
               const boardPart = importedAsset.board === '/' ? '' : importedAsset.board;
               const fullNativePath = `${activePath}${boardPart}/${file.name}`.replace(/\\/g, '/');
-              importedAsset.imageUrl = `visual-vault://${fullNativePath}`;
+              importedAsset.imageUrl = `visual-vault:///${fullNativePath.replace(/^\//, '')}`;
             } catch (err: any) {
               console.error('Failed writing file inside native Electron context', err);
               this.addLog('warn', `Electron API: Failed to commit imported files: ${err.message}`);
