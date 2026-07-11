@@ -1,8 +1,0 @@
-{
-  "name": "Remix: Visual Catalog",
-  "description": "A privacy-focused, local-first visual reference vault. Organize concept art, world-building references, and design inspirations with markdown metadata, color palettes, and instant filtering.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
