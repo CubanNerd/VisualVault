@@ -42,6 +42,8 @@
     "files": [
       "dist/**/*",
       "electron-main.cjs",
+      "preload.cjs",
+      "public/icon.png",
       "package.json"
     ],
     "win": {
@@ -61,5 +63,9 @@
   },
   "overrides": {
     "protobufjs": "8.6.2"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.1": true
   }
 }

@@ -26,6 +26,25 @@ import {
   renderPresetsHtml 
 } from './lib/taxonomy';
 import { stringifyYAMLFrontmatter, parseYAMLFrontmatter } from './lib/frontmatter';
+import { toVisualVaultUrl } from './lib/visual-vault-url';
+
+const LEGACY_DEFAULT_VAULT = '/Users/design/Desktop/Ref_Library';
+const LAZY_IMG_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+function isLegacyDefaultVault(vaultPath: string): boolean {
+  return vaultPath === LEGACY_DEFAULT_VAULT;
+}
+
+(window as any).handleImageLoad = (img: HTMLImageElement) => {
+  if (!img.src || img.src === LAZY_IMG_PLACEHOLDER) return;
+  img.classList.remove('opacity-0', 'blur-xl');
+  img.classList.add('opacity-100', 'blur-0');
+  const overlay = img.previousElementSibling;
+  if (overlay) {
+    overlay.classList.add('opacity-0', 'pointer-events-none');
+    setTimeout(() => overlay.remove(), 700);
+  }
+};
 
 (window as any).handleImageError = (img: HTMLImageElement, name: string, colorsCsv: string) => {
   img.onerror = null;
@@ -47,16 +66,13 @@ class StorageService {
   }
 
   private init() {
-    if (!localStorage.getItem(this.vaultPathKey)) {
-      localStorage.setItem(this.vaultPathKey, '/Users/design/Desktop/Ref_Library');
-    }
     if (!localStorage.getItem(this.key)) {
       localStorage.setItem(this.key, JSON.stringify(defaultMockAssets()));
     }
   }
 
   getVaultPath(): string {
-    return localStorage.getItem(this.vaultPathKey) || '/Users/design/Desktop/Ref_Library';
+    return localStorage.getItem(this.vaultPathKey) || '';
   }
 
   setVaultPath(path: string) {
@@ -78,7 +94,7 @@ class StorageService {
         assets = JSON.parse(data);
       } else if (localStorage.getItem('visual_vaults_cleaned') === 'true') {
         assets = [];
-      } else if (this.getVaultPath() === '/Users/design/Desktop/Ref_Library') {
+      } else if (!this.getVaultPath() || isLegacyDefaultVault(this.getVaultPath())) {
         const oldData = localStorage.getItem(this.key);
         if (oldData) {
           localStorage.setItem(activeKey, oldData);
@@ -155,7 +171,7 @@ class StorageService {
     localStorage.setItem(this.key, JSON.stringify([]));
     
     const mockPaths = [
-      '/Users/design/Desktop/Ref_Library',
+      LEGACY_DEFAULT_VAULT,
       '/Users/design/Desktop/Neo_Tokyo',
       '/Users/projects/Cyberpunk_Grid',
       '/Users/blueprints/Mech_Grid'
@@ -1250,7 +1266,7 @@ class VaultApp extends HTMLElement {
           if (asset.imageUrl.includes(oldFull)) {
             asset.imageUrl = asset.imageUrl.replace(oldFull, newFull);
           } else {
-            asset.imageUrl = `visual-vault:///${newFull.replace(/^\//, '')}`;
+            asset.imageUrl = toVisualVaultUrl(newFull);
           }
         }
 
@@ -1275,7 +1291,7 @@ class VaultApp extends HTMLElement {
           if (asset.imageUrl.includes(oldFull)) {
             asset.imageUrl = asset.imageUrl.replace(oldFull, newFull);
           } else {
-            asset.imageUrl = `visual-vault:///${newFull.replace(/^\//, '')}`;
+            asset.imageUrl = toVisualVaultUrl(newFull);
           }
         }
 
@@ -1599,16 +1615,22 @@ class VaultApp extends HTMLElement {
         if (!savedFolder && typeof electronAPI.getSavedFolder === 'function') {
           savedFolder = await electronAPI.getSavedFolder();
         }
-        if (activePath && !activePath.startsWith('[web-dir]')) {
-          if (typeof electronAPI.saveVaultPath === 'function') {
-            await electronAPI.saveVaultPath(activePath);
-          }
-          if (typeof electronAPI.saveFolder === 'function') {
-            await electronAPI.saveFolder(activePath);
-          }
-        } else if (savedFolder) {
+
+        const localPath = storage.getVaultPath();
+        const hasValidLocalPath = localPath
+          && !localPath.startsWith('[web-dir]')
+          && !isLegacyDefaultVault(localPath);
+
+        if (savedFolder) {
           activePath = savedFolder;
           storage.setVaultPath(savedFolder);
+        } else if (hasValidLocalPath) {
+          activePath = localPath;
+        } else {
+          activePath = '';
+          if (isLegacyDefaultVault(localPath)) {
+            storage.setVaultPath('');
+          }
         }
       } catch (err) {
         console.warn('Error reading native settings saved folder/vault:', err);
@@ -2531,7 +2553,7 @@ class VaultApp extends HTMLElement {
             '/ Mech_Technical',
             '/ Character_Design'
           ];
-          const isRefLibrary = vaultPath === '/Users/design/Desktop/Ref_Library';
+          const isRefLibrary = !vaultPath || isLegacyDefaultVault(vaultPath);
           seeds.forEach(s => {
             const hasAsset = this.assets.some(a => a.board === s);
             if ((isRefLibrary && this.isBoardAllowed(s)) || hasAsset) {
@@ -4647,7 +4669,7 @@ class VaultApp extends HTMLElement {
               <span class="animate-pulse">Loading</span>
             </div>
 
-            <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-src="${asset.imageUrl}" draggable="false" onload="if (this.src && !this.src.startsWith('data:')) { this.classList.remove('opacity-0', 'blur-xl'); this.classList.add('opacity-100', 'blur-0'); const o = this.previousElementSibling; if (o) { o.classList.add('opacity-0', 'pointer-events-none'); setTimeout(() => o.remove(), 700); } }" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="lazy-img opacity-0 blur-xl transition-all duration-700 ${imgClass}" />
+            <img src="${LAZY_IMG_PLACEHOLDER}" data-src="${asset.imageUrl}" draggable="false" onload="window.handleImageLoad(this)" onerror="window.handleImageError(this, '${asset.name.replace(/'/g, "\\'")}', '${asset.colors.join(',')}')" class="lazy-img opacity-0 blur-xl transition-all duration-700 ${imgClass}" />
             
             <!-- Technical Overlay parameters -->
             <div id="res-badge-${asset.id}" class="absolute top-2 left-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-[8.5px] mono tracking-tight text-slate-400 opacity-60 group-hover:opacity-100 transition whitespace-nowrap z-20">
@@ -6122,7 +6144,7 @@ class VaultApp extends HTMLElement {
                   // Update imageUrl
                   const boardPart = targetBoardName === '/' ? '' : targetBoardName;
                   const fullNativePath = `${activePath}${boardPart}/${asset.name}`.replace(/\\/g, '/');
-                  asset.imageUrl = `visual-vault:///${fullNativePath.replace(/^\//, '')}`;
+                  asset.imageUrl = toVisualVaultUrl(fullNativePath);
                 } else {
                   this.addLog('warn', `Electron API: Failed to move asset natively: ${res ? res.error : 'unknown'}`);
                 }
@@ -6779,7 +6801,7 @@ class VaultApp extends HTMLElement {
             if (electronAPI) {
               const fileName = a.name;
               const fullNativePath = `${vaultPath}/${fileName}`.replace(/\\/g, '/');
-              a.imageUrl = `visual-vault:///${fullNativePath.replace(/^\//, '')}`;
+              a.imageUrl = toVisualVaultUrl(fullNativePath);
             }
             movedCount++;
           }
@@ -6886,7 +6908,7 @@ class VaultApp extends HTMLElement {
               // Update URL to use visual-vault:// protocol for permanent native loading
               const boardPart = importedAsset.board === '/' ? '' : importedAsset.board;
               const fullNativePath = `${activePath}${boardPart}/${file.name}`.replace(/\\/g, '/');
-              importedAsset.imageUrl = `visual-vault:///${fullNativePath.replace(/^\//, '')}`;
+              importedAsset.imageUrl = toVisualVaultUrl(fullNativePath);
             } catch (err: any) {
               console.error('Failed writing file inside native Electron context', err);
               this.addLog('warn', `Electron API: Failed to commit imported files: ${err.message}`);

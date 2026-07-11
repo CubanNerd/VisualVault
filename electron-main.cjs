@@ -1,12 +1,66 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
 // Register the custom protocol 'visual-vault'
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'visual-vault', privileges: { standard: true, bypassCSP: true, secure: true, supportFetchAPI: true } }
+  { scheme: 'visual-vault', privileges: { standard: true, bypassCSP: true, secure: true, supportFetchAPI: true, stream: true } }
 ]);
+
+function normalizeBoardPath(board) {
+  if (board === '/') return '';
+  return board.replace(/^\/+/, '');
+}
+
+function toVisualVaultUrl(fullPath) {
+  return pathToFileURL(path.resolve(fullPath)).href.replace(/^file:/i, 'visual-vault:');
+}
+
+function resolveVisualVaultFilePath(requestUrl) {
+  const url = new URL(requestUrl);
+
+  if (process.platform === 'win32' && /^[a-zA-Z]$/.test(url.hostname)) {
+    const drive = url.hostname.toUpperCase();
+    const rest = decodeURIComponent(url.pathname.replace(/^\//, ''));
+    return path.normalize(`${drive}:/${rest}`);
+  }
+
+  if (!url.hostname) {
+    let filePath = decodeURIComponent(url.pathname);
+    if (process.platform === 'win32') {
+      const drivePath = filePath.match(/^\/([A-Za-z]:[\\/].*)$/);
+      if (drivePath) {
+        filePath = drivePath[1];
+      } else if (filePath.startsWith('/')) {
+        filePath = filePath.slice(1);
+      }
+    }
+    return path.normalize(filePath);
+  }
+
+  return path.normalize(`/${url.hostname}${url.pathname}`);
+}
+
+const MIME_TYPES = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.bmp': 'image/bmp',
+  '.avif': 'image/avif',
+  '.tiff': 'image/tiff',
+  '.tif': 'image/tiff',
+  '.jfif': 'image/jpeg',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+};
+
+function getMimeType(filePath) {
+  return MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+}
 
 function parseYAMLFrontmatterNode(yaml, originalMeta) {
   const meta = { ...originalMeta };
@@ -95,8 +149,7 @@ function scanFolder(currentDir, relativeBoard, vaultPath) {
         const colors = ['#0F0F11', '#1A2B3C', '#10B981', '#1E293B', '#111827'];
 
         // File URL on disk using visual-vault:// scheme
-        const urlSafePath = fullPath.replace(/\\/g, '/');
-        const imageUrl = `visual-vault:///${urlSafePath.replace(/^\//, '')}`;
+        const imageUrl = toVisualVaultUrl(fullPath);
 
         list.push({
           id,
@@ -263,22 +316,18 @@ app.whenReady().then(() => {
   if (protocol.handle) {
     protocol.handle('visual-vault', (request) => {
       try {
-        let urlPath = request.url.replace(/^visual-vault:\/+/i, '');
-        if (process.platform === 'win32') {
-          if (/^[a-zA-Z]:/.test(urlPath)) {
-            // Keep as is
-          } else if (urlPath.startsWith('/')) {
-            urlPath = urlPath.slice(1);
-          }
-        } else {
-          if (!urlPath.startsWith('/')) {
-            urlPath = '/' + urlPath;
-          }
+        const filePath = resolveVisualVaultFilePath(request.url);
+        if (!fs.existsSync(filePath)) {
+          console.error('visual-vault file not found:', filePath, 'from', request.url);
+          return new Response('Not Found', { status: 404 });
         }
-        const decodedPath = decodeURIComponent(urlPath);
-        const normalizedPath = path.normalize(decodedPath);
-        const fileUri = pathToFileURL(normalizedPath).toString();
-        return net.fetch(fileUri);
+        const data = fs.readFileSync(filePath);
+        return new Response(data, {
+          headers: {
+            'Content-Type': getMimeType(filePath),
+            'Content-Length': String(data.length),
+          },
+        });
       } catch (err) {
         console.error('Failed to load local file via visual-vault protocol:', err);
         return new Response('Not Found', { status: 404 });
@@ -286,20 +335,13 @@ app.whenReady().then(() => {
     });
   } else if (protocol.registerFileProtocol) {
     protocol.registerFileProtocol('visual-vault', (request, callback) => {
-      let urlPath = request.url.replace(/^visual-vault:\/+/i, '');
-      if (process.platform === 'win32') {
-        if (/^[a-zA-Z]:/.test(urlPath)) {
-          // Keep as is
-        } else if (urlPath.startsWith('/')) {
-          urlPath = urlPath.slice(1);
-        }
-      } else {
-        if (!urlPath.startsWith('/')) {
-          urlPath = '/' + urlPath;
-        }
+      try {
+        const filePath = resolveVisualVaultFilePath(request.url);
+        callback({ path: filePath });
+      } catch (err) {
+        console.error('Failed to load local file via visual-vault protocol:', err);
+        callback({ error: -2 });
       }
-      const decodedPath = decodeURIComponent(urlPath);
-      callback({ path: path.normalize(decodedPath) });
     });
   }
 
@@ -411,7 +453,7 @@ ipcMain.handle('scan-vault', async (event, vaultPath) => {
 
 ipcMain.handle('write-companion-md', async (event, vaultPath, board, assetName, yamlContent) => {
   try {
-    const boardPath = board === '/' ? '' : board;
+    const boardPath = normalizeBoardPath(board);
     const fileNameNoExt = assetName.replace(/\.[a-zA-Z0-9]+$/, '');
     const mdFilePath = path.join(vaultPath, boardPath, `${fileNameNoExt}.md`);
     
@@ -426,7 +468,7 @@ ipcMain.handle('write-companion-md', async (event, vaultPath, board, assetName, 
 
 ipcMain.handle('write-file-binary', async (event, vaultPath, board, assetName, fileData) => {
   try {
-    const boardPath = board === '/' ? '' : board;
+    const boardPath = normalizeBoardPath(board);
     const destPath = path.join(vaultPath, boardPath, assetName);
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
     
@@ -444,7 +486,7 @@ ipcMain.handle('write-file-binary', async (event, vaultPath, board, assetName, f
 
 ipcMain.handle('delete-asset-file', async (event, vaultPath, board, assetName) => {
   try {
-    const boardPath = board === '/' ? '' : board;
+    const boardPath = normalizeBoardPath(board);
     const fullImagePath = path.join(vaultPath, boardPath, assetName);
     const fileNameNoExt = assetName.replace(/\.[a-zA-Z0-9]+$/, '');
     const fullMDPath = path.join(vaultPath, boardPath, `${fileNameNoExt}.md`);
@@ -464,7 +506,7 @@ ipcMain.handle('delete-asset-file', async (event, vaultPath, board, assetName) =
 
 ipcMain.handle('create-board-directory', async (event, vaultPath, boardPath) => {
   try {
-    const fullDir = path.join(vaultPath, boardPath);
+    const fullDir = path.join(vaultPath, normalizeBoardPath(boardPath));
     fs.mkdirSync(fullDir, { recursive: true });
     return { success: true };
   } catch (err) {
@@ -475,7 +517,7 @@ ipcMain.handle('create-board-directory', async (event, vaultPath, boardPath) => 
 
 ipcMain.handle('delete-board-directory', async (event, vaultPath, boardPath, keepFiles) => {
   try {
-    const fullDir = path.join(vaultPath, boardPath);
+    const fullDir = path.join(vaultPath, normalizeBoardPath(boardPath));
     if (!fs.existsSync(fullDir)) return { success: true };
 
     if (keepFiles) {
@@ -506,8 +548,8 @@ ipcMain.handle('delete-board-directory', async (event, vaultPath, boardPath, kee
 
 ipcMain.handle('move-asset-file', async (event, vaultPath, oldBoard, newBoard, assetName) => {
   try {
-    const oldBoardPath = oldBoard === '/' ? '' : oldBoard;
-    const newBoardPath = newBoard === '/' ? '' : newBoard;
+    const oldBoardPath = normalizeBoardPath(oldBoard);
+    const newBoardPath = normalizeBoardPath(newBoard);
     const oldImagePath = path.join(vaultPath, oldBoardPath, assetName);
     const newImagePath = path.join(vaultPath, newBoardPath, assetName);
 
@@ -532,8 +574,8 @@ ipcMain.handle('move-asset-file', async (event, vaultPath, oldBoard, newBoard, a
 
 ipcMain.handle('rename-board-directory', async (event, vaultPath, oldBoard, newBoard) => {
   try {
-    const oldBoardPath = oldBoard === '/' ? '' : oldBoard;
-    const newBoardPath = newBoard === '/' ? '' : newBoard;
+    const oldBoardPath = normalizeBoardPath(oldBoard);
+    const newBoardPath = normalizeBoardPath(newBoard);
     const oldDir = path.join(vaultPath, oldBoardPath);
     const newDir = path.join(vaultPath, newBoardPath);
 
