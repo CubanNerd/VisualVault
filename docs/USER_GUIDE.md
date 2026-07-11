@@ -1,5 +1,5 @@
 # VisualVault — User Guide & Knowledge Base
-*Last Updated: July 8, 2026 (v1.2.0)*
+*Last Updated: July 11, 2026 (v1.0.0)*
 
 Welcome to the **VisualVault User Guide**. This document serves as a comprehensive knowledge base for creative professionals, curators, and researchers. VisualVault is a high-speed, local-first workspace designed to catalog, inspect, and organize reference inspiration, design boards, blueprints, and concept catalogs in harmony with your local directories and Obsidian vaults.
 
@@ -19,10 +19,21 @@ At the core of VisualVault is a simple local-first directory layout coupled with
 
 ## Persistent Desktop Vault Sync (Updated in v1.2.0)
 
-When running inside the **Native Desktop Client (Electron)**, VisualVault guarantees zero-friction workspace restoration:
-- **Redundant Native Settings Stores**: The desktop process tracks and syncs your workspace settings natively inside both `user-settings.json` and `vault-settings.json` files in the operating system's application data directory (`userData`). This ensures seamless multi-profile restoration and directory history caching.
-- **Seamless Startup**: On startup, the application reads the saved vault folder directly from these configuration buffers and feeds it into the recursive directory scanner without requiring repetitive manual selects or permission prompts.
-- **Instant Connection**: Selecting a new vault directory via the **Sync Local Folder** dialog automatically syncs and persists the selected path back to the settings buffers in real-time, keeping your active project vault ready across reboots.
+When running inside the **Native Desktop Client (Electron)**, VisualVault restores your workspace without repeated folder prompts:
+
+- **Native settings (source of truth for the vault path)**: On Windows, paths live under `%APPDATA%\VisualVault\` as `vault-settings.json` and `user-settings.json`. On macOS, they live under `~/Library/Application Support/VisualVault/`.
+- **Startup restore**: Electron prefers the path saved in those native files, then rescans the folder on disk. Browser `localStorage` is only a cache of the last catalog snapshot—it is overwritten after each successful scan.
+- **Linking a vault**: Use **Sync Local Folder** / connect folder once. That write updates native settings; the next launch reopens the same directory automatically.
+- **Images**: Vault images load through a custom `visual-vault://` protocol so Chromium can display files from your absolute Windows or macOS paths safely inside the app.
+
+### Tags, ratings & notes that survive restart
+
+Edits you make in the Metadata Inspector (tags, artist, rating, status, notes) are written to a **companion Markdown file** beside each image—for example `city_skyline_01.png` → `city_skyline_01.md` with YAML frontmatter.
+
+- **Durable storage** = those `.md` files on disk (Obsidian-compatible).
+- **Temporary cache** = the in-app catalog. On every Electron startup/rescan, tags are reloaded **from** the companion `.md` files. Tags that exist only in the browser cache (for example after a web-only session without write permission) will not survive a desktop rescan.
+
+If tags disappear after restart, confirm companion `.md` files were created next to your images and that you are using the installed desktop app (not a browser-only session).
 
 ---
 
@@ -115,10 +126,11 @@ Run a lightweight, private companion script on your machine to host a local dire
 2. Direct disk read-and-writes are performed through the API agent, yielding lightning-fast updates.
 
 ### Approach C: Isolated Desktop Client (Electron)
-Compile, download, and run the companion binary locally (fully supported and verified for both **Windows** and **macOS**):
-1. This integrates the interface with your physical operating system.
-2. Run direct directory queries and local integrations without browser sandboxing alerts.
-3. Windows build script generates a standalone `VisualVault.exe` (inside `dist-win/`) which has been proven to build and run seamlessly, while the macOS script outputs a native `VisualVault.app` bundle (inside `dist-mac/`) encompassing both Intel and Apple Silicon (M1/M2/M3/M4) devices.
+Install or build the desktop app (Windows and macOS):
+1. Full native folder access—no browser sandbox prompts for vault restore.
+2. Images load via `visual-vault://`; tags write to companion `.md` files on disk.
+3. **Windows**: `npm run electron:build` produces `dist-win/VisualVault Setup *.exe` (NSIS installer) plus `dist-win/win-unpacked/VisualVault.exe`.
+4. **macOS**: `npm run electron:build:mac` produces a native app bundle under the configured output directory.
 
 ---
 

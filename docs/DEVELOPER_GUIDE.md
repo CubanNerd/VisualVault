@@ -1,6 +1,7 @@
 # VisualVault Developer Architecture & Maintenance Guide
+*Last Updated: July 11, 2026 (v1.0.0)*
 
-Welcome to the comprehensive **VisualVault Developer Architecture & Maintenance Guide**. This document outlines the application's design, architectural patterns, state managers, tech stack, build pipelines, and integrations, as well as native desktop compilation and SQLite database integration guide. It is written to aid developers with future maintenance, updates, or native platform ports.
+Welcome to the comprehensive **VisualVault Developer Architecture & Maintenance Guide**. This document outlines the application's design, architectural patterns, state managers, tech stack, build pipelines, and Electron desktop integration. It is written to aid developers with future maintenance, updates, or native platform ports.
 
 ---
 
@@ -52,11 +53,12 @@ The primary controller is the `VaultApp` class defined in `src/main.tsx`, which 
 | Technology / Library | Version | Purpose |
 | :--- | :--- | :--- |
 | **TypeScript** | `~5.8.2` | Strong type definitions, compilation checks, and strict interface schemas. |
-| **Vite** | `^6.2.3` | Development server, asset packager, and ES module builder. |
-| **Tailwind CSS (v4)** | `^4.1.14` | Localized utility-first styling with native CSS variables and `@theme` extension hooks. |
-| **Electron** | `^42.2.0` | Local desktop runtime wrapper to bypass browser security sandboxes. |
-| **electron-packager** | `^17.1.2` | Executable compressor that bundles files for Win32 (x64) desktop targets. |
-| **lucide-react** | `^0.546.0` | Accessible, scale-independent SVG icons for toolbars, menus, and status dots. |
+| **Vite** | `^6.2.3` | Development server, asset packager, and ES module builder (`base: './'` for Electron). |
+| **Tailwind CSS (v4)** | `^4.1.14` | Utility-first styling with `@tailwindcss/vite`. |
+| **Electron** | `^42.4.1` | Desktop runtime with IPC, custom protocol, and native filesystem access. |
+| **electron-builder** | `^24.13.3` | Primary Windows/macOS packaging (NSIS installer on Windows). |
+| **electron-packager** | `^17.1.2` | Optional alternate packager (`npm run packager:build`). |
+| **lucide** | `^1.23.0` | SVG icon set for toolbars and Smart Folder icons. |
 
 ---
 
@@ -64,22 +66,27 @@ The primary controller is the `VaultApp` class defined in `src/main.tsx`, which 
 
 ```
 /
-├── package.json               # Script commands, dependencies, and metadata declarations
-├── vite.config.ts             # Bundler settings configured with relative base output
-├── electron-main.cjs          # Electron application bootstrap, window controller, and sandbox locks
+├── package.json               # Scripts, dependencies, electron-builder `build.files`
+├── vite.config.ts             # Bundler settings (`base: './'` for packaged relative assets)
+├── electron-main.cjs          # Main process: window, IPC, visual-vault protocol, vault scan
+├── preload.cjs                # Context bridge → window.electronAPI (MUST be packaged)
+├── public/                    # Icons (icon.png, icon.ico) copied into builds
 ├── src/
-│   ├── main.tsx               # Main Application Controller (Custom Element Web Component 'VaultApp')
-│   ├── index.css              # Global custom styling sheet, scrollbars, and Tailwind v4 themes
-│   ├── App.tsx                # Client-Side SPA entry stub
-│   └── lib/                   # Modular Helper Libraries
-│       ├── types.ts           # Unified TypeScript schemas & default custom configurations
-│       ├── procedural.ts      # Vector SVG graphic procedural rendering engine
-│       ├── color.ts           # Advanced canvas color palette extractors and similarity calculus
-│       ├── taxonomy.ts        # Tag categorization presets, storage synchronization, and UI controllers
-│       ├── frontmatter.ts     # Obsidian markdown YAML frontmatter parser & writer engine
-│       └── seeds.ts           # Dynamic default catalog databases & seed mock assets
-└── README.md                  # High-level end-user user documentation
+│   ├── main.tsx               # VaultApp Web Component (UI, storage, Electron restore)
+│   ├── index.css              # Global styles + Tailwind v4
+│   └── lib/
+│       ├── types.ts           # Asset / metadata schemas
+│       ├── procedural.ts      # SVG fallbacks when an image fails to load
+│       ├── color.ts           # Palette extraction
+│       ├── taxonomy.ts        # Tag presets
+│       ├── frontmatter.ts     # YAML companion .md read/write
+│       ├── visual-vault-url.ts# Absolute path → visual-vault:// URL helper
+│       └── seeds.ts           # Demo mock assets
+├── docs/                      # USER_GUIDE.md, DEVELOPER_GUIDE.md
+└── README.md
 ```
+
+**Packaging note:** `package.json` → `build.files` must include `dist/**/*`, `electron-main.cjs`, `preload.cjs`, `public/icon.png`, and `package.json`. Omitting `preload.cjs` disables `window.electronAPI` in production (no vault scan, no companion `.md` writes, broken image restore).
 
 ---
 
@@ -305,17 +312,16 @@ To provide cross-app compatibility with Obsidian, VisualVault parses and writes 
   It splits lines by colons, converts ratings to numbers, and splits array indicators safely.
 
 - **YAML Writer (`stringifyYAMLFrontmatter`)**:
-  Builds clean blocks and appends descriptions below the YAML enclosure details:
+  Builds inline-array frontmatter (parser also accepts list-style tags):
   ```yaml
   ---
-  artist: Concept Studio
+  title: city skyline 01
+  tags: [skyline, hologram, dense]
+  artist: Studio-K
   rating: 4
-  status: backlog
-  tags:
-    - architecture
-    - cyberpunk
+  status: in-progress
+  notes: Optional freeform notes
   ---
-  Description notes written here...
   ```
 
 ---
@@ -357,169 +363,59 @@ The native layer uses secure, standardized IPC channels to carry out system-leve
 11. **`delete-board-directory`**: Prunes physical folders. When configured to preserve files, it dynamically moves contained files to the vault root first using `fs.renameSync` before removing the board folder.
 
 ### 2. Silent Vault Auto-Restoration Lifecycle
-To match the seamless experience of Obsidian, the `VaultApp` initializes an automated restoration cycle:
-1. **Query Native Storage (v1.2.0)**: On startup, if `window.electronAPI` is present, it issues the `get-saved-vault` IPC command to retrieve the active vault path from `vault-settings.json`. If not found, it falls back to issuing `get-saved-folder` to load from `user-settings.json`.
-2. **Fallback to Browser Storage**: If no folder path was returned natively, the application falls back to checking the active vault path inside browser cache (`storage.getVaultPath()`).
-3. **Native Handshake**: If an active path is retrieved, it triggers the `scanVault` IPC handler.
-4. **Silent File Indexing**: Electron recursively reads the physical directories, registers subfolders as Visual Boards, matches visual assets to companion `.md` files, and returns the compiled list of records.
-5. **Instant UI Rendering**: Updates the masonry view, renders visual board metrics, and resolves the local file URLs using the privileged `visual-vault://` protocol safely. The user has their entire workspace instantly restored without seeing a single permission dialog or file selection prompt!
+To match the seamless experience of Obsidian, `VaultApp.checkAndRestoreLocalVaults()` runs on `connectedCallback`:
+
+1. **Prefer native storage**: If `window.electronAPI` is present, call `getSavedVault()` then fall back to `getSavedFolder()`. These read `%APPDATA%\VisualVault\vault-settings.json` / `user-settings.json` on Windows.
+2. **Do not overwrite native settings from localStorage on startup**: Paths are written to native settings only when the user explicitly picks a folder via `selectDirectory` / Sync Local Folder. A legacy demo path (`/Users/design/Desktop/Ref_Library`) is treated as invalid and cleared.
+3. **Scan disk**: `scanVault(activePath)` recursively indexes images and parses companion `{basename}.md` YAML into `Asset.metadata` / `Asset.tags`.
+4. **Replace localStorage cache**: `storage.saveAllAssets(assetsList)` overwrites the per-vault `visual_catalog_db_v3_*` cache. Tags survive **only** if they were on disk in companion `.md` files.
+5. **Render**: Masonry cards use `visual-vault://` URLs produced by `toVisualVaultUrl()` / the scanner.
+
+Board paths passed into IPC (e.g. `/ Environment_Ref/Neo_Tokyo`) are normalized with `normalizeBoardPath()` in `electron-main.cjs` before `path.join` so Windows joins stay under the vault root.
+
+### 3. Tag & Metadata Persistence Model
+
+| Layer | Location | Role |
+| :--- | :--- | :--- |
+| **Canonical (durable)** | `{vault}/{board}/{imageBasename}.md` | YAML frontmatter: tags, artist, rating, status, notes |
+| **Runtime cache** | `localStorage` → `visual_catalog_db_v3_{sanitizedPath}` | Fast UI; replaced on every Electron rescan |
+| **Vault path** | `userData` JSON + optional `visual_catalog_vault_path_v2` | Which folder to open next launch |
+
+`updateAssetMetadata` → `saveCompanionMDFile` → `write-companion-md` IPC. Requires `window.electronAPI` (preload loaded). Without preload, tags stay in localStorage only and disappear on the next disk rescan.
 
 ---
 
 ## Desktop Compilation & Integration Guide
 
-This section provides comprehensive, step-by-step instructions on how to compile VisualVault into a native desktop application using **Electron**, with local **SQLite** persistent database integration.
+VisualVault ships as an Electron app. The **production** packaging path is **electron-builder** (NSIS on Windows). Companion `.md` files on the vault folder are the durable metadata store; `localStorage` is a cache. Optional SQLite migration notes are retained below for future work—they are **not** required for current tag/image persistence.
 
 ---
 
-### 1. SQLite Integration
+### 1. Runtime Storage (Current)
 
-Currently, VisualVault uses a custom `StorageService` that cache database operations in standard browser `localStorage` (referred to in logs as `catalog.db`). 
+`StorageService` in `src/main.tsx` partitions asset JSON under `visual_catalog_db_v3_*` keys. In Electron:
 
-To convert this to a native SQLite database on the desktop, you will use a Node.js SQLite driver such as `better-sqlite3` or `sqlite3` in the Node.js main process, bridged to the frontend using Electron's `ipcRenderer`/`contextBridge`.
+- Startup **rescans the vault from disk** and overwrites that cache.
+- Tag edits call `writeCompanionMD` so YAML lands next to each image.
+- Do not rely on `localStorage` alone for durability in desktop builds.
 
-Since our frontend is built with pure VanillaJS and reactive Web Components (`src/main.tsx` compile to `dist/`), the transition is exceptionally smooth—we simply replace or augment the `StorageService` class to call our desktop native APIs when running in a desktop environment.
+### 2. Packaging with Electron (Current)
 
----
+#### Required files in the asar
 
-### 2. Packaging with Electron
-
-Electron runs on Node.js and Chromium. It provides unparalleled APIs and ecosystem compatibility.
-
-#### Step 1: Install Electron Dependencies
-Install electron and compiler development dependencies:
-```bash
-npm install electron electron-builder --save-dev
-```
-
-And install the SQLite native compiler package:
-```bash
-npm install better-sqlite3
-```
-
-*(Note: Sometimes better-sqlite3 requires rebuilding for electron targets using `electron-rebuild`)*:
-```bash
-npm install electron-rebuild --save-dev
-npx electron-rebuild
-```
-
-#### Step 2: Create Electron Main Process File (`electron-main.js`)
-Create a file named `electron-main.js` in your root directory:
+`BrowserWindow` loads:
 
 ```javascript
-const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
-const Database = require('better-sqlite3');
-
-// Setup standard SQLite native store in user directory path
-const dbPath = path.join(app.getPath('userData'), 'visual_vault.db');
-const db = new Database(dbPath);
-
-// Initialize DB schema structures
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS assets (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    board TEXT,
-    resolution TEXT,
-    approxSize TEXT,
-    primaryColor TEXT,
-    colors TEXT,
-    vaultPath TEXT,
-    metadata TEXT
-  )
-`).run();
-
-let mainWindow;
-
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    title: "VisualVault - Workspace Reference Library",
-    backgroundColor: '#0A0A0B',
-    webPreferences: {
-      preload: path.join(__dirname, 'electron-preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-
-  // Load the web app compiled in Vite's dist folders
-  mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
-  
-  // Close handler
-  mainWindow.on('closed', () => { mainWindow = null; });
-}
-
-// Inter-process communication handler for SQLite queries
-ipcMain.handle('sqlite-all-assets', async () => {
-  return db.prepare("SELECT * FROM assets").all();
-});
-
-ipcMain.handle('sqlite-insert-asset', async (event, asset) => {
-  const insert = db.prepare(`
-    INSERT OR REPLACE INTO assets (id, name, board, resolution, approxSize, primaryColor, colors, vaultPath, metadata)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  return insert.run(
-    asset.id,
-    asset.name,
-    asset.board,
-    asset.resolution,
-    asset.approxSize,
-    asset.primaryColor,
-    JSON.stringify(asset.colors),
-    asset.vaultPath,
-    JSON.stringify(asset.metadata)
-  );
-});
-
-app.whenReady().then(createWindow);
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+preload: path.join(__dirname, 'preload.cjs')
 ```
 
-#### Step 3: Create Preload Script (`electron-preload.js`)
-Create a preload script to expose the IPC SQLite channels safely without exposing complete Node APIs:
+`preload.cjs` exposes `window.electronAPI` (`scanVault`, `writeCompanionMD`, `selectDirectory`, vault path getters/setters, etc.). Confirm a built package includes it:
 
-```javascript
-const { contextBridge, ipcRenderer } = require('electron');
-
-contextBridge.exposeInMainWorld('desktopAPI', {
-  getAllAssets: () => ipcRenderer.invoke('sqlite-all-assets'),
-  insertAsset: (asset) => ipcRenderer.invoke('sqlite-insert-asset', asset)
-});
+```bash
+npx asar list dist-win/win-unpacked/resources/app.asar | findstr preload
 ```
 
-#### Step 4: Bridge SQLite in Frontend
-Update your `StorageService` client in `src/main.tsx` to utilize the Electron desktop context bridge:
-
-```typescript
-class StorageService {
-  async getAllAssets() {
-    if ((window as any).desktopAPI) {
-      // Direct SQLite query from native process!
-      const raw = await (window as any).desktopAPI.getAllAssets();
-      return raw.map((item: any) => ({
-        ...item,
-        colors: JSON.parse(item.colors),
-        metadata: JSON.parse(item.metadata)
-      }));
-    }
-    
-    // Fallback if running on the web browser sandbox
-    const data = localStorage.getItem(this.key);
-    return data ? JSON.parse(data) : [];
-  }
-}
-```
-
-#### Step 5: Configure Build Action Script in `package.json`
-
-To package this workspace seamlessly, ensure that your `package.json` designates `electron-main.cjs` as the primary entrypoint and includes compilation targets for Windows and macOS. The scripts have been pre-configured as follows:
+#### `package.json` scripts & builder config
 
 ```json
 {
@@ -529,72 +425,110 @@ To package this workspace seamlessly, ensure that your `package.json` designates
     "build": "vite build",
     "electron:start": "npm run build && electron electron-main.cjs",
     "electron:dev": "electron electron-main.cjs --dev",
-    "electron:build": "npm run build && electron-packager . VisualVault --platform=win32 --arch=x64 --out=dist-win --overwrite --ignore=\"(dist-win|src|tsconfig.json|vite.config.ts)\"",
-    "electron:build:mac": "npm run build && electron-packager . VisualVault --platform=darwin --arch=all --out=dist-mac --overwrite --ignore=\"(dist-mac|src|tsconfig.json|vite.config.ts)\"",
-    "electron:build:all": "npm run build && electron-packager . VisualVault --platform=all --arch=all --out=dist-all --overwrite --ignore=\"(dist-all|src|tsconfig.json|vite.config.ts)\""
+    "electron:build": "node generate-icons.js && npm run build && electron-builder --win --x64",
+    "electron:build:mac": "node generate-icons.js && npm run build && electron-builder --mac",
+    "electron:build:all": "node generate-icons.js && npm run build && electron-builder --win --mac",
+    "packager:build": "node generate-icons.js && npm run build && electron-packager . VisualVault --platform=win32 --arch=x64 --out=dist-win --overwrite --icon=build/icon.ico --ignore=\"(dist-win|src|tsconfig.json|vite.config.ts)\""
+  },
+  "build": {
+    "appId": "com.visualvault.app",
+    "productName": "VisualVault",
+    "directories": { "output": "dist-win" },
+    "files": [
+      "dist/**/*",
+      "electron-main.cjs",
+      "preload.cjs",
+      "public/icon.png",
+      "package.json"
+    ],
+    "win": { "target": ["nsis"], "icon": "build/icon.ico" }
   }
 }
 ```
 
+#### Compile for Windows
+
+```bash
+npm run electron:build
+```
+
+- Output: `dist-win/VisualVault Setup *.exe` and `dist-win/win-unpacked/`.
+- Close any running `VisualVault.exe` before rebuilding or `app.asar` may be locked.
+
+#### Compile for macOS
+
+```bash
+xcode-select --install   # once
+npm run electron:build:mac
+```
+
+#### Optional: electron-packager
+
+```bash
+npm run packager:build
+```
+
 ---
 
-#### Step 6: Compile the Electron Executable for Windows & macOS
+### 3. Optional Future: SQLite
 
-With the packaging configuration established, you can build production-ready binary distributions for Windows or macOS natively or via cross-compilation.
+The following is a **future** migration sketch (not the current production path). Today, durable metadata is companion `.md` YAML + Electron `userData` path settings.
 
-##### 1. Compiling for Windows (`.exe` / `win32`)
+Install a native driver if you later move the catalog cache out of `localStorage`:
 
-- **Prerequisites**: Standard Node.js environment. No unique native compiler tools are required if packaging from a native Windows terminal.
-- **Target Architectures**: Configured for `x64` (64-bit systems).
-- **Compilation Command**:
-  ```bash
-  npm run electron:build
-  ```
-- **Output Directory**: The compiled Windows folder containing `VisualVault.exe` and its supporting resources will be generated in `./dist-win/`.
-- **Cross-compilation Note**: If compiling for Windows from a macOS or Linux host, you must have `wine` (Wine Is Not an Emulator) installed on your development host in order to write appropriate executable metadata headers. Otherwise, it is highly recommended to run this command directly on a Windows platform.
-
-##### 2. Compiling for macOS (`.app` / `darwin`)
-
-- **Prerequisites**: Apple hosts must have **Xcode Command Line Tools** installed. You can install them by running:
-  ```bash
-  xcode-select --install
-  ```
-- **Target Architectures**: Configured for `all` targets, which bundles binaries for both **Apple Silicon** (M1/M2/M3/M4, `arm64`) and **Intel Processors** (`x64`) for seamless cross-architecture support.
-- **Compilation Command**:
-  ```bash
-  npm run electron:build:mac
-  ```
-- **Output Directory**: The compiled macOS app bundle `VisualVault.app` will be created inside `./dist-mac/`.
-- **Packaging for Users**: To distribute the compiled macOS bundle, developers typically wrap the `.app` file in a DMG installer or compress it into a native `.zip` directory.
-- **Code Signing / Notarization**: To avoid the standard Gatekeeper warning, sign the binary with an Apple Developer Account using `electron-osx-sign` or register it via `notarize`.
-
-##### 3. Compiling for All Supported Platforms Simultaneously
-
-To execute an encompassing sweep and output distributions for Windows, macOS, and Linux in a single package chain, execute:
 ```bash
-npm run electron:build:all
+npm install better-sqlite3
+npm install electron-rebuild --save-dev
+npx electron-rebuild
 ```
-This yields a master `./dist-all/` structure housing binaries mapped across all targeted target environments.
+
+Bridge via IPC/`contextBridge` similar to the existing `preload.cjs` pattern (`window.electronAPI`), keeping vault image bytes on disk and protocol-served through `visual-vault://`.
 
 ---
 
 ## Security & Custom Protocol Handlers
 
-Standard browser contexts block loading local assets via absolute `file://` URLs for security reasons (cross-origin script checks). To solve this gracefully in the desktop app, VisualVault registers a privileged custom protocol handler:
+Browsers block arbitrary `file://` loads from app pages. VisualVault registers a privileged scheme:
 
-* **Protocol Name**: `visual-vault://`
-* **Main Process Registration**:
-  ```javascript
-  protocol.registerSchemesAsPrivileged([
-    { scheme: 'visual-vault', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true } }
-  ]);
-  ```
-* **Usage**: Absolute paths such as `/Users/design/Concept_Universe/Environment_Ref/city.png` are dynamically translated on the frontend into `visual-vault:///Users/design/Concept_Universe/Environment_Ref/city.png`. Electron safely intercepts these network streams, decodes the absolute local path, and pipes the binary asset directly to the layout viewer safely!
+* **Protocol**: `visual-vault://`
+* **Privileges**: `standard`, `bypassCSP`, `secure`, `supportFetchAPI`, `stream`
+* **URL helper**: `src/lib/visual-vault-url.ts` → `toVisualVaultUrl(absolutePath)` (also used in `electron-main.cjs` during vault scan)
+
+### Windows path caveat (fixed in v1.2.0)
+
+Chromium may rewrite:
+
+`visual-vault:///D:/Vault/image.png`
+
+into:
+
+`visual-vault://d/Vault/image.png`
+
+treating the drive letter as a hostname. The main-process handler uses `resolveVisualVaultFilePath()` to rebuild `D:\Vault\image.png`, then serves bytes with `fs.readFileSync` and the correct `Content-Type`. Do **not** naively map `visual-vault:` → `file:` and `net.fetch` on Windows without that reconstruction—images will fail with “Failed to load resource.”
+
+### Example registration
+
+```javascript
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'visual-vault',
+    privileges: {
+      standard: true,
+      bypassCSP: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true
+    }
+  }
+]);
+```
 
 ---
 
 ## Maintenance Checklist for Future Developers
 
-1. **Keep Web Components Native**: If integrating libraries like Recharts or D3 in future updates, ensure they mount inside the native element's DOM nodes or within shadow contexts without disrupting event flows.
-2. **Ensure File Path Safety**: When writing absolute file paths via custom scripts, sanitize paths with URL encoding to prevent system crashes across different operating systems.
-3. **Optimize Procedural Mocking**: Ensure changes to standard visual asset blueprints are registered in `defaultMockAssets()` in `src/main.tsx` to preserve default values for first-time builders.
+1. **Keep Web Components Native**: If integrating charting libraries, mount them inside `VaultApp` DOM without breaking delegated events.
+2. **Always ship `preload.cjs`**: Verify packaged `app.asar` after every electron-builder change.
+3. **Ensure File Path Safety**: Use `normalizeBoardPath()` / `toVisualVaultUrl()` / `resolveVisualVaultFilePath()` for cross-platform vault I/O.
+4. **Treat companion `.md` as canonical metadata**: Never assume `localStorage` alone persists tags across Electron rescans.
+5. **Optimize Procedural Mocking**: Demo assets come from `defaultMockAssets()` in `src/lib/seeds.ts` when no vault is linked.

@@ -2,7 +2,8 @@
   "name": "visual-vault",
   "productName": "VisualVault",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.0.0",
+  "license": "MIT",
   "type": "module",
   "main": "electron-main.cjs",
   "scripts": {
